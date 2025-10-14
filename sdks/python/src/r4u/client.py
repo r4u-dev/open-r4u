@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class MessageCreate(BaseModel):
@@ -22,6 +22,7 @@ class TraceCreate(BaseModel):
     started_at: datetime
     completed_at: datetime
     messages: List[MessageCreate]
+    path: Optional[str] = None
 
 
 class TraceRead(BaseModel):
@@ -33,6 +34,8 @@ class TraceRead(BaseModel):
     started_at: datetime
     completed_at: datetime
     messages: List[Dict[str, Any]]
+    path: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class R4UClient:
@@ -72,6 +75,7 @@ class R4UClient:
         error: Optional[str] = None,
         started_at: Optional[Union[datetime, str]] = None,
         completed_at: Optional[Union[datetime, str]] = None,
+        path: Optional[str] = None,
     ) -> TraceRead:
         """Create a trace asynchronously.
         
@@ -82,6 +86,7 @@ class R4UClient:
             error: Error message if the call failed
             started_at: When the call started
             completed_at: When the call completed
+            path: Call path signature showing where the trace originated
             
         Returns:
             The created trace
@@ -103,7 +108,8 @@ class R4UClient:
             error=error,
             started_at=started_at,
             completed_at=completed_at,
-            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages]
+            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages],
+            path=path
         )
 
         response = await self.async_client.post(
@@ -123,6 +129,7 @@ class R4UClient:
         error: Optional[str] = None,
         started_at: Optional[Union[datetime, str]] = None,
         completed_at: Optional[Union[datetime, str]] = None,
+        path: Optional[str] = None,
     ) -> TraceRead:
         """Create a trace synchronously.
         
@@ -133,6 +140,7 @@ class R4UClient:
             error: Error message if the call failed
             started_at: When the call started
             completed_at: When the call completed
+            path: Call path signature showing where the trace originated
             
         Returns:
             The created trace
@@ -154,7 +162,8 @@ class R4UClient:
             error=error,
             started_at=started_at,
             completed_at=completed_at,
-            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages]
+            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages],
+            path=path
         )
 
         response = self.sync_client.post(

@@ -69,9 +69,11 @@ class TestR4UClient:
     @patch('r4u.client.httpx.AsyncClient')
     async def test_create_trace_async(self, mock_httpx_async_client):
         """Test asynchronous trace creation."""
+        from unittest.mock import AsyncMock
+        
         # Setup
-        mock_response = Mock()
-        mock_response.json.return_value = {
+        mock_response = Mock()  # Response itself is not async
+        mock_response.json.return_value = {  # .json() returns a plain dict, not a coroutine
             "id": 1,
             "model": "gpt-3.5-turbo",
             "result": "Hello!",
@@ -83,8 +85,8 @@ class TestR4UClient:
                 {"role": "assistant", "content": "Hello!", "id": 2}
             ]
         }
-        mock_client_instance = Mock()
-        mock_client_instance.post.return_value = mock_response
+        mock_client_instance = AsyncMock()
+        mock_client_instance.post.return_value = mock_response  # .post() is async and returns the mock_response
         mock_httpx_async_client.return_value = mock_client_instance
         
         client = R4UClient()

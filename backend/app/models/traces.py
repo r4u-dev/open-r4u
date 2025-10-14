@@ -19,6 +19,7 @@ class Trace(Base):
 	model: Mapped[str] = mapped_column(String(255), nullable=False)
 	result: Mapped[str | None] = mapped_column(Text, nullable=True)
 	error: Mapped[str | None] = mapped_column(Text, nullable=True)
+	path: Mapped[str | None] = mapped_column(String(255), nullable=True)
 	started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

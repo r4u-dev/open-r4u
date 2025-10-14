@@ -57,10 +57,41 @@ trace = await client.create_trace(
 ## Features
 
 - **Automatic LLM Tracing**: Wrap your existing LLM clients to automatically create traces
+- **Call Path Tracking**: Automatically captures where LLM calls originate from in your code
 - **OpenAI Integration**: Native support for OpenAI's Python SDK
 - **Async Support**: Full async/await support
 - **Error Tracking**: Automatic error capture and reporting
 - **Minimal Overhead**: Lightweight wrapper with minimal performance impact
+
+### Call Path Tracking
+
+The SDK automatically tracks where each LLM call originates from in your codebase:
+
+```python
+# In src/app/chatbot.py
+def process_query(user_input):
+    response = traced_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_input}]
+    )
+    return response
+
+# The trace will include: path="src/app/chatbot.py::process_query->create"
+```
+
+For nested function calls, the full call chain is captured:
+
+```python
+# The trace will show: "src/main.py::main->handle_request->process_query->create"
+def main():
+    handle_request()
+
+def handle_request():
+    process_query("Hello")
+
+def process_query(text):
+    traced_client.chat.completions.create(...)
+```
 
 ## Development
 

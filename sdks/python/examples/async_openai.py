@@ -21,7 +21,7 @@ async def main():
     ]
     
     for question in questions:
-        task = traced_client.chat.completions.acreate(
+        task = traced_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},

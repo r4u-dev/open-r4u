@@ -1,12 +1,10 @@
 """OpenAI integration for R4U observability."""
 
-import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-from functools import wraps
-import inspect
+from typing import Any
 
 from ..client import R4UClient
+from ..utils import extract_call_path
 
 
 class OpenAIWrapper:
@@ -64,20 +62,39 @@ class CompletionsWrapper:
         """
         self._original_completions = completions_client
         self._r4u_client = r4u_client
+        
+        # Detect if this is an async client by checking the client type
+        import inspect
+        self._is_async = inspect.iscoroutinefunction(completions_client.create)
 
     def create(self, **kwargs) -> Any:
-        """Create completion with tracing."""
-        return self._trace_completion(self._original_completions.create, **kwargs)
+        """Create completion with tracing.
+        
+        This method handles both sync and async OpenAI clients.
+        For AsyncOpenAI, this returns a coroutine that should be awaited.
+        """
+        if self._is_async:
+            # For async clients, return the coroutine
+            return self._trace_completion_async(self._original_completions.create, **kwargs)
+        else:
+            # For sync clients, call synchronously
+            return self._trace_completion(self._original_completions.create, **kwargs)
 
     async def acreate(self, **kwargs) -> Any:
-        """Create completion asynchronously with tracing."""
-        return await self._trace_completion_async(self._original_completions.acreate, **kwargs)
+        """Create completion asynchronously with tracing.
+        
+        This is kept for backward compatibility but async clients should use create().
+        """
+        return await self._trace_completion_async(self._original_completions.create, **kwargs)
 
     def _trace_completion(self, original_method: Any, **kwargs) -> Any:
         """Trace a synchronous completion call."""
         started_at = datetime.utcnow()
         model = kwargs.get('model', 'unknown')
         messages = kwargs.get('messages', [])
+        
+        # Extract call path
+        call_path, line_number = extract_call_path()
         
         try:
             # Call the original method
@@ -96,7 +113,8 @@ class CompletionsWrapper:
                 messages=messages,
                 result=result_content,
                 started_at=started_at,
-                completed_at=completed_at
+                completed_at=completed_at,
+                path=call_path
             )
             
             return result
@@ -110,7 +128,8 @@ class CompletionsWrapper:
                 messages=messages,
                 error=str(e),
                 started_at=started_at,
-                completed_at=completed_at
+                completed_at=completed_at,
+                path=call_path
             )
             
             # Re-raise the exception
@@ -121,6 +140,9 @@ class CompletionsWrapper:
         started_at = datetime.utcnow()
         model = kwargs.get('model', 'unknown')
         messages = kwargs.get('messages', [])
+        
+        # Extract call path
+        call_path, line_number = extract_call_path()
         
         try:
             # Call the original method
@@ -139,7 +161,8 @@ class CompletionsWrapper:
                 messages=messages,
                 result=result_content,
                 started_at=started_at,
-                completed_at=completed_at
+                completed_at=completed_at,
+                path=call_path
             )
             
             return result
@@ -153,7 +176,8 @@ class CompletionsWrapper:
                 messages=messages,
                 error=str(e),
                 started_at=started_at,
-                completed_at=completed_at
+                completed_at=completed_at,
+                path=call_path
             )
             
             # Re-raise the exception

@@ -29,6 +29,7 @@ class TraceBase(BaseModel):
     model: str
     result: str | None = None
     error: str | None = None
+    path: str | None = None
     started_at: datetime
     completed_at: datetime
 

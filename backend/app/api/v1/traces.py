@@ -42,6 +42,7 @@ async def create_trace(
         error=payload.error,
         started_at=payload.started_at,
         completed_at=payload.completed_at,
+        path=payload.path,
     )
 
     for position, message in enumerate(payload.messages):

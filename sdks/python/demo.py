@@ -104,6 +104,11 @@ def demo_openai_integration():
                 print(f"  Model: {latest_trace.model}")
                 print(f"  Messages: {len(latest_trace.messages)}")
                 
+                if latest_trace.path:
+                    print(f"  Call Path: {latest_trace.path}")
+                else:
+                    print("  Call Path: Not captured")
+                
                 if latest_trace.result:
                     preview = latest_trace.result[:100] + "..." if len(latest_trace.result) > 100 else latest_trace.result
                     print(f"  Result: {preview}")
