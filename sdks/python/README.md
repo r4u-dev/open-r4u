@@ -13,6 +13,11 @@ For OpenAI integration:
 pip install r4u[openai]
 ```
 
+For LangChain integration:
+```bash
+pip install r4u[langchain]
+```
+
 ## Quick Start
 
 ### OpenAI Integration
@@ -33,6 +38,26 @@ response = traced_client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello, world!"}]
 )
 ```
+
+### LangChain Integration
+
+```python
+from langchain_openai import ChatOpenAI
+from r4u.integrations.langchain import wrap_langchain
+
+# Build your LangChain runnable or model
+llm = ChatOpenAI(model="gpt-3.5-turbo")
+
+# Wrap it with R4U to attach tracing callbacks (sync + async)
+traced_llm = wrap_langchain(llm, api_url="http://localhost:8000")
+
+# Invoke as usual - traces are sent via LangChain's callback system
+response = traced_llm.invoke("Hello, world!")
+```
+
+Under the hood, the LangChain integration registers synchronous and asynchronous callback handlers rather than monkey-patching methods. This keeps compatibility with the broader LangChain runnable ecosystem while still capturing every LLM call.
+
+You can find a runnable example in `examples/langchain_openai.py` that demonstrates both sync and async invocations.
 
 ### Manual Tracing
 
@@ -58,7 +83,7 @@ trace = await client.create_trace(
 
 - **Automatic LLM Tracing**: Wrap your existing LLM clients to automatically create traces
 - **Call Path Tracking**: Automatically captures where LLM calls originate from in your code
-- **OpenAI Integration**: Native support for OpenAI's Python SDK
+- **OpenAI & LangChain Integrations**: Automatic tracing for OpenAI SDK calls and LangChain runnables via callbacks
 - **Async Support**: Full async/await support
 - **Error Tracking**: Automatic error capture and reporting
 - **Minimal Overhead**: Lightweight wrapper with minimal performance impact

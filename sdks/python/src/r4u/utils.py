@@ -36,6 +36,8 @@ class CallPathExtractor:
         "/mock.py",
         "asyncio/",
         "/asyncio/",
+        "threading.py",
+        "concurrent/futures",
     }
     
     # Functions to skip in the call path
@@ -49,6 +51,9 @@ class CallPathExtractor:
         "_create_trace_sync",
         "_create_trace_async",
         "pytest_pyfunc_call",
+        "run",
+        "_bootstrap",
+        "_bootstrap_inner",
     }
     
     # Integration-specific method names to capture
@@ -58,6 +63,8 @@ class CallPathExtractor:
         "completion",
         "chat",
         "generate",  # For future integrations
+        "invoke",
+        "ainvoke",
     }
     
     # Patterns that identify integration layer code
@@ -226,7 +233,7 @@ class CallPathExtractor:
 
 
 # Convenience function to maintain backward compatibility
-def extract_call_path(max_depth: int = 50) -> Tuple[str, int]:
+def extract_call_path(max_depth: int = 100) -> Tuple[str, int]:
     """
     Extract the call path from the current stack frame.
     
