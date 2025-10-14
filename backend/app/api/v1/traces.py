@@ -2,16 +2,12 @@ from typing import Sequence
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_session
 from app.models.traces import Trace, TraceMessage
-from app.schemas.traces import (
-    MessageRead,
-    TraceCreate,
-    TraceRead,
-)
+from app.schemas.traces import TraceCreate, TraceRead
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 
@@ -43,6 +39,10 @@ async def create_trace(
         started_at=payload.started_at,
         completed_at=payload.completed_at,
         path=payload.path,
+        tools=
+        [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
+        if payload.tools
+        else None,
     )
 
     for position, message in enumerate(payload.messages):
@@ -51,21 +51,25 @@ async def create_trace(
                 role=message.role,
                 content=message.content,
                 position=position,
+                name=message.name,
+                tool_call_id=message.tool_call_id,
+                tool_calls=
+                [tool_call.model_dump(mode="json") for tool_call in message.tool_calls]
+                if message.tool_calls
+                else None,
             )
         )
 
     session.add(trace)
+    await session.flush()
     await session.commit()
 
-    return TraceRead(
-        id=trace.id,
-        messages=[
-            MessageRead(id=message.id, role=message.role, content=message.content)
-            for message in trace.messages
-        ],
-        model=trace.model,
-        result=trace.result,
-        error=trace.error,
-        started_at=trace.started_at,
-        completed_at=payload.completed_at,
+    query = (
+        select(Trace)
+        .options(selectinload(Trace.messages))
+        .where(Trace.id == trace.id)
     )
+    result = await session.execute(query)
+    created_trace = result.scalar_one()
+
+    return TraceRead.model_validate(created_trace)

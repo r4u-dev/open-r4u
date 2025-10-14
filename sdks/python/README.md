@@ -79,6 +79,8 @@ trace = await client.create_trace(
 )
 ```
 
+For a complete walk-through that includes tool definitions, tool call messages, and the final tool-assisted response, check out `examples/tool_calls_example.py`. The example wraps a lightweight fake OpenAI client so it can run locally while still exercising the automatic tracing pipeline.
+
 ## Features
 
 - **Automatic LLM Tracing**: Wrap your existing LLM clients to automatically create traces

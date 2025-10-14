@@ -1,7 +1,12 @@
 """OpenAI integration for R4U observability."""
 
+import inspect
+import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+from unittest.mock import AsyncMock, Mock
 
 from ..client import R4UClient
 from ..utils import extract_call_path
@@ -12,19 +17,19 @@ class OpenAIWrapper:
 
     def __init__(self, client: Any, r4u_client: R4UClient):
         """Initialize the wrapper.
-        
+
         Args:
             client: Original OpenAI client
             r4u_client: R4U client for creating traces
         """
         self._original_client = client
         self._r4u_client = r4u_client
-        
+
         # Wrap the chat completions
-        if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+        if hasattr(client, "chat") and hasattr(client.chat, "completions"):
             self.chat = ChatCompletionsWrapper(client.chat, r4u_client)
         else:
-            self.chat = client.chat if hasattr(client, 'chat') else None
+            self.chat = client.chat if hasattr(client, "chat") else None
 
     def __getattr__(self, name: str) -> Any:
         """Delegate other attributes to the original client."""
@@ -36,7 +41,7 @@ class ChatCompletionsWrapper:
 
     def __init__(self, chat_client: Any, r4u_client: R4UClient):
         """Initialize the wrapper.
-        
+
         Args:
             chat_client: Original chat client
             r4u_client: R4U client for creating traces
@@ -55,149 +60,330 @@ class CompletionsWrapper:
 
     def __init__(self, completions_client: Any, r4u_client: R4UClient):
         """Initialize the wrapper.
-        
+
         Args:
             completions_client: Original completions client
             r4u_client: R4U client for creating traces
         """
         self._original_completions = completions_client
         self._r4u_client = r4u_client
-        
-        # Detect if this is an async client by checking the client type
-        import inspect
         self._is_async = inspect.iscoroutinefunction(completions_client.create)
 
     def create(self, **kwargs) -> Any:
         """Create completion with tracing.
-        
+
         This method handles both sync and async OpenAI clients.
         For AsyncOpenAI, this returns a coroutine that should be awaited.
         """
         if self._is_async:
-            # For async clients, return the coroutine
             return self._trace_completion_async(self._original_completions.create, **kwargs)
-        else:
-            # For sync clients, call synchronously
-            return self._trace_completion(self._original_completions.create, **kwargs)
+        return self._trace_completion(self._original_completions.create, **kwargs)
 
     async def acreate(self, **kwargs) -> Any:
-        """Create completion asynchronously with tracing.
-        
-        This is kept for backward compatibility but async clients should use create().
-        """
+        """Create completion asynchronously with tracing."""
         return await self._trace_completion_async(self._original_completions.create, **kwargs)
 
     def _trace_completion(self, original_method: Any, **kwargs) -> Any:
         """Trace a synchronous completion call."""
         started_at = datetime.utcnow()
-        model = kwargs.get('model', 'unknown')
-        messages = kwargs.get('messages', [])
-        
-        # Extract call path
-        call_path, line_number = extract_call_path()
-        
+        call_path, _ = extract_call_path()
+
         try:
-            # Call the original method
             result = original_method(**kwargs)
             completed_at = datetime.utcnow()
-            
-            # Extract result content
-            result_content = None
-            if hasattr(result, 'choices') and len(result.choices) > 0:
-                if hasattr(result.choices[0], 'message') and hasattr(result.choices[0].message, 'content'):
-                    result_content = result.choices[0].message.content
-            
-            # Create trace
-            self._create_trace_sync(
-                model=model,
-                messages=messages,
-                result=result_content,
+
+            response_message = self._extract_response_message(result)
+            payload = self._build_trace_payload(
+                kwargs=kwargs,
                 started_at=started_at,
                 completed_at=completed_at,
-                path=call_path
+                call_path=call_path,
+                response_message=response_message,
+                error=None,
             )
-            
+            self._create_trace_sync(**payload)
+
             return result
-            
-        except Exception as e:
+        except Exception as exc:  # pragma: no cover - re-raised immediately
             completed_at = datetime.utcnow()
-            
-            # Create trace with error
-            self._create_trace_sync(
-                model=model,
-                messages=messages,
-                error=str(e),
+            payload = self._build_trace_payload(
+                kwargs=kwargs,
                 started_at=started_at,
                 completed_at=completed_at,
-                path=call_path
+                call_path=call_path,
+                response_message=None,
+                error=exc,
             )
-            
-            # Re-raise the exception
+            self._create_trace_sync(**payload)
             raise
 
     async def _trace_completion_async(self, original_method: Any, **kwargs) -> Any:
         """Trace an asynchronous completion call."""
         started_at = datetime.utcnow()
-        model = kwargs.get('model', 'unknown')
-        messages = kwargs.get('messages', [])
-        
-        # Extract call path
-        call_path, line_number = extract_call_path()
-        
+        call_path, _ = extract_call_path()
+
         try:
-            # Call the original method
             result = await original_method(**kwargs)
             completed_at = datetime.utcnow()
-            
-            # Extract result content
-            result_content = None
-            if hasattr(result, 'choices') and len(result.choices) > 0:
-                if hasattr(result.choices[0], 'message') and hasattr(result.choices[0].message, 'content'):
-                    result_content = result.choices[0].message.content
-            
-            # Create trace
-            await self._create_trace_async(
-                model=model,
-                messages=messages,
-                result=result_content,
+
+            response_message = self._extract_response_message(result)
+            payload = self._build_trace_payload(
+                kwargs=kwargs,
                 started_at=started_at,
                 completed_at=completed_at,
-                path=call_path
+                call_path=call_path,
+                response_message=response_message,
+                error=None,
             )
-            
+            await self._create_trace_async(**payload)
+
             return result
-            
-        except Exception as e:
+        except Exception as exc:  # pragma: no cover - re-raised immediately
             completed_at = datetime.utcnow()
-            
-            # Create trace with error
-            await self._create_trace_async(
-                model=model,
-                messages=messages,
-                error=str(e),
+            payload = self._build_trace_payload(
+                kwargs=kwargs,
                 started_at=started_at,
                 completed_at=completed_at,
-                path=call_path
+                call_path=call_path,
+                response_message=None,
+                error=exc,
             )
-            
-            # Re-raise the exception
+            await self._create_trace_async(**payload)
             raise
 
     def _create_trace_sync(self, **kwargs):
         """Create trace synchronously."""
         try:
             self._r4u_client.create_trace(**kwargs)
-        except Exception as e:
-            # Log the error but don't fail the original request
-            print(f"Failed to create trace: {e}")
+        except Exception as error:  # pragma: no cover - defensive logging
+            print(f"Failed to create trace: {error}")
 
     async def _create_trace_async(self, **kwargs):
         """Create trace asynchronously."""
         try:
             await self._r4u_client.create_trace_async(**kwargs)
-        except Exception as e:
-            # Log the error but don't fail the original request
-            print(f"Failed to create trace: {e}")
+        except Exception as error:  # pragma: no cover - defensive logging
+            print(f"Failed to create trace: {error}")
+
+    @staticmethod
+    def _to_plain(value: Any) -> Any:
+        """Convert OpenAI SDK models into plain Python structures."""
+        if isinstance(value, (Mock, AsyncMock)):
+            allowed_keys = {
+                "id",
+                "type",
+                "function",
+                "arguments",
+                "name",
+                "description",
+                "parameters",
+                "metadata",
+                "role",
+                "content",
+                "tool_calls",
+                "delta",
+                "message",
+            }
+            extracted = {
+                key: CompletionsWrapper._to_plain(val)
+                for key, val in vars(value).items()
+                if key in allowed_keys
+            }
+            if extracted:
+                return extracted
+            return value
+        if isinstance(value, dict):
+            return {key: CompletionsWrapper._to_plain(val) for key, val in value.items()}
+        if isinstance(value, list):
+            return [CompletionsWrapper._to_plain(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(CompletionsWrapper._to_plain(item) for item in value)
+        if isinstance(value, BaseModel):
+            return CompletionsWrapper._to_plain(value.model_dump())
+        if hasattr(value, "model_dump"):
+            dumped = value.model_dump()
+            if isinstance(dumped, (dict, list, tuple)):
+                return CompletionsWrapper._to_plain(dumped)
+            return dumped
+        if hasattr(value, "dict"):
+            dumped = value.dict()
+            if isinstance(dumped, (dict, list, tuple)):
+                return CompletionsWrapper._to_plain(dumped)
+            return dumped
+        if hasattr(value, "__dict__"):
+            public_attrs = {
+                key: CompletionsWrapper._to_plain(val)
+                for key, val in vars(value).items()
+                if not key.startswith("_")
+            }
+            if public_attrs:
+                return public_attrs
+        return value
+
+    @classmethod
+    def _normalize_tool_call(cls, tool_call: Any) -> Dict[str, Any]:
+        """Normalize a tool call definition from the OpenAI response."""
+        plain = cls._to_plain(tool_call)
+        if not isinstance(plain, dict):
+            return {}
+
+        tool_type = plain.get("type")
+        if tool_type is not None and not isinstance(tool_type, str):
+            plain["type"] = str(tool_type)
+
+        function = plain.get("function")
+        if isinstance(function, dict):
+            arguments = function.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    function["arguments"] = json.loads(arguments)
+                except (ValueError, TypeError):
+                    pass
+
+        return plain
+
+    @classmethod
+    def _normalize_message(cls, message: Any) -> Dict[str, Any]:
+        """Normalize request or response messages for trace payloads."""
+        plain = cls._to_plain(message)
+        if not isinstance(plain, dict):
+            return {"content": plain}
+
+        normalized: Dict[str, Any] = dict(plain)
+        role = normalized.get("role")
+        if role is not None and not isinstance(role, str):
+            normalized["role"] = str(role)
+
+        if "content" in normalized:
+            normalized["content"] = cls._to_plain(normalized["content"])
+
+        tool_calls = normalized.get("tool_calls")
+        if tool_calls:
+            normalized["tool_calls"] = [
+                call
+                for call in (cls._normalize_tool_call(tool_call) for tool_call in tool_calls)
+                if call
+            ]
+            if not normalized["tool_calls"]:
+                normalized.pop("tool_calls", None)
+
+        function_call = normalized.pop("function_call", None)
+        if function_call:
+            tool_call = cls._normalize_tool_call({"type": "function", "function": function_call})
+            normalized.setdefault("tool_calls", []).append(tool_call)
+
+        return normalized
+
+    @classmethod
+    def _prepare_trace_messages(cls, messages_input: Any) -> List[Dict[str, Any]]:
+        """Convert the request messages into trace-friendly dictionaries."""
+        if not messages_input:
+            return []
+        return [cls._normalize_message(message) for message in messages_input]
+
+    @classmethod
+    def _extract_response_message(cls, result: Any) -> Optional[Dict[str, Any]]:
+        """Extract the assistant message from the completion result."""
+        choices = getattr(result, "choices", None)
+        if not choices:
+            return None
+        first_choice = choices[0]
+        message = getattr(first_choice, "message", None)
+        if message is None:
+            message = getattr(first_choice, "delta", None)
+        if message is None and isinstance(first_choice, dict):
+            message = first_choice.get("message") or first_choice.get("delta")
+        if message is None:
+            choice_plain = cls._to_plain(first_choice)
+            if isinstance(choice_plain, dict):
+                message = choice_plain.get("message") or choice_plain.get("delta")
+        return message
+
+    @classmethod
+    def _extract_tool_definitions(cls, kwargs: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """Extract tool definitions from the request payload."""
+        definitions: List[Dict[str, Any]] = []
+
+        for tool in kwargs.get("tools") or []:
+            plain = cls._to_plain(tool)
+            if not isinstance(plain, dict):
+                continue
+            function = plain.get("function") or {}
+            if not isinstance(function, dict):
+                function = cls._to_plain(function) or {}
+            metadata = {k: v for k, v in plain.items() if k not in {"type", "function"}}
+            definition = {
+                "name": function.get("name"),
+                "description": function.get("description"),
+                "parameters": function.get("parameters"),
+                "type": plain.get("type") or "function",
+            }
+            if metadata:
+                definition["metadata"] = metadata
+            definition = {k: v for k, v in definition.items() if v is not None}
+            if definition.get("name"):
+                definitions.append(definition)
+
+        for function in kwargs.get("functions") or []:
+            plain = cls._to_plain(function)
+            if not isinstance(plain, dict):
+                continue
+            metadata = {k: v for k, v in plain.items() if k not in {"name", "description", "parameters", "type"}}
+            definition = {
+                "name": plain.get("name"),
+                "description": plain.get("description"),
+                "parameters": plain.get("parameters"),
+                "type": plain.get("type") or "function",
+            }
+            if metadata:
+                definition["metadata"] = metadata
+            definition = {k: v for k, v in definition.items() if v is not None}
+            if definition.get("name"):
+                definitions.append(definition)
+
+        return definitions or None
+
+    @classmethod
+    def _build_trace_payload(
+        cls,
+        *,
+        kwargs: Dict[str, Any],
+        started_at: datetime,
+        completed_at: datetime,
+        call_path: str,
+        response_message: Optional[Any],
+        error: Optional[Exception],
+    ) -> Dict[str, Any]:
+        """Assemble the payload sent to the trace API."""
+        trace_messages = cls._prepare_trace_messages(kwargs.get("messages") or [])
+        result_text: Optional[str] = None
+
+        if response_message is not None:
+            assistant_message = cls._normalize_message(response_message)
+            assistant_message.setdefault("role", "assistant")
+            trace_messages = [*trace_messages, assistant_message]
+            content = assistant_message.get("content")
+            if isinstance(content, str):
+                result_text = content
+
+        payload: Dict[str, Any] = {
+            "model": kwargs.get("model", "unknown"),
+            "messages": trace_messages,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "path": call_path,
+        }
+
+        tools = cls._extract_tool_definitions(kwargs)
+        if tools:
+            payload["tools"] = tools
+
+        if result_text is not None:
+            payload["result"] = result_text
+        if error is not None:
+            payload["error"] = str(error)
+
+        return payload
 
     def __getattr__(self, name: str) -> Any:
         """Delegate other attributes to the original client."""
@@ -205,32 +391,10 @@ class CompletionsWrapper:
 
 
 def wrap_openai(
-    client: Any, 
-    api_url: str = "http://localhost:8000", 
-    timeout: float = 30.0
+    client: Any,
+    api_url: str = "http://localhost:8000",
+    timeout: float = 30.0,
 ) -> OpenAIWrapper:
-    """Wrap an OpenAI client to automatically create traces.
-    
-    Args:
-        client: OpenAI client instance
-        api_url: R4U API base URL
-        timeout: HTTP timeout for trace requests
-        
-    Returns:
-        Wrapped client that creates traces automatically
-        
-    Example:
-        >>> from openai import OpenAI
-        >>> from r4u.integrations.openai import wrap_openai
-        >>> 
-        >>> client = OpenAI()
-        >>> traced_client = wrap_openai(client)
-        >>> 
-        >>> # This will automatically create a trace
-        >>> response = traced_client.chat.completions.create(
-        ...     model="gpt-3.5-turbo",
-        ...     messages=[{"role": "user", "content": "Hello!"}]
-        ... )
-    """
+    """Wrap an OpenAI client to automatically create traces."""
     r4u_client = R4UClient(api_url=api_url, timeout=timeout)
     return OpenAIWrapper(client, r4u_client)

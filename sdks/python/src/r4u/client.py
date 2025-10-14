@@ -2,40 +2,77 @@
 
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ToolFunctionCall(BaseModel):
+    """Schema representing a tool function invocation."""
+
+    name: str
+    arguments: Any
+    model_config = ConfigDict(extra="allow")
+
+
+class ToolCall(BaseModel):
+    """Schema describing an LLM-issued tool call."""
+
+    id: Optional[str] = None
+    type: Optional[str] = None
+    function: Optional[ToolFunctionCall] = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ToolDefinition(BaseModel):
+    """Schema for a tool definition supplied to the LLM."""
+
+    name: str
+    description: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
+    type: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    model_config = ConfigDict(extra="allow", populate_by_name=True, serialize_by_alias=True)
 
 
 class MessageCreate(BaseModel):
     """Schema for creating a message."""
+
     role: str
-    content: str
+    content: Any = None
+    name: Optional[str] = None
+    tool_call_id: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
+    model_config = ConfigDict(extra="allow")
 
 
 class TraceCreate(BaseModel):
     """Schema for trace creation payload."""
+
     model: str
     result: Optional[str] = None
     error: Optional[str] = None
     started_at: datetime
-    completed_at: datetime
+    completed_at: Optional[datetime] = None
     messages: List[MessageCreate]
     path: Optional[str] = None
+    tools: Optional[List[ToolDefinition]] = None
 
 
 class TraceRead(BaseModel):
     """Schema for trace responses."""
+
     id: int
     model: str
     result: Optional[str] = None
     error: Optional[str] = None
     started_at: datetime
-    completed_at: datetime
+    completed_at: Optional[datetime] = None
     messages: List[Dict[str, Any]]
     path: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+    tools: Optional[List[Dict[str, Any]]] = None
+    model_config = ConfigDict(from_attributes=True, extra="allow")
 
 
 class R4UClient:
@@ -43,7 +80,7 @@ class R4UClient:
 
     def __init__(self, api_url: str = "http://localhost:8000", timeout: float = 30.0):
         """Initialize the R4U client.
-        
+
         Args:
             api_url: Base URL for the R4U API
             timeout: HTTP request timeout in seconds
@@ -70,109 +107,75 @@ class R4UClient:
     async def create_trace_async(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
         result: Optional[str] = None,
         error: Optional[str] = None,
         started_at: Optional[Union[datetime, str]] = None,
         completed_at: Optional[Union[datetime, str]] = None,
         path: Optional[str] = None,
+        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
     ) -> TraceRead:
-        """Create a trace asynchronously.
-        
-        Args:
-            model: Model name used for the LLM call
-            messages: List of messages in the conversation
-            result: Result content from the LLM
-            error: Error message if the call failed
-            started_at: When the call started
-            completed_at: When the call completed
-            path: Call path signature showing where the trace originated
-            
-        Returns:
-            The created trace
-        """
-        if started_at is None:
-            started_at = datetime.utcnow()
-        if completed_at is None:
-            completed_at = datetime.utcnow()
-            
-        # Convert string timestamps to datetime if needed
-        if isinstance(started_at, str):
-            started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-        if isinstance(completed_at, str):
-            completed_at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        """Create a trace asynchronously."""
+        normalized_started_at, normalized_completed_at = self._normalize_timestamps(
+            started_at,
+            completed_at,
+        )
 
         trace_data = TraceCreate(
             model=model,
             result=result,
             error=error,
-            started_at=started_at,
-            completed_at=completed_at,
-            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages],
-            path=path
+            started_at=normalized_started_at,
+            completed_at=normalized_completed_at,
+            messages=self._prepare_messages(messages),
+            path=path,
+            tools=self._prepare_tools(tools),
         )
 
         response = await self.async_client.post(
             f"{self.api_url}/traces",
-            json=trace_data.model_dump(mode="json"),
-            headers={"Content-Type": "application/json"}
+            json=trace_data.model_dump(mode="json", by_alias=True),
+            headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
-        
+
         return TraceRead(**response.json())
 
     def create_trace(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
         result: Optional[str] = None,
         error: Optional[str] = None,
         started_at: Optional[Union[datetime, str]] = None,
         completed_at: Optional[Union[datetime, str]] = None,
         path: Optional[str] = None,
+        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
     ) -> TraceRead:
-        """Create a trace synchronously.
-        
-        Args:
-            model: Model name used for the LLM call
-            messages: List of messages in the conversation
-            result: Result content from the LLM
-            error: Error message if the call failed
-            started_at: When the call started
-            completed_at: When the call completed
-            path: Call path signature showing where the trace originated
-            
-        Returns:
-            The created trace
-        """
-        if started_at is None:
-            started_at = datetime.utcnow()
-        if completed_at is None:
-            completed_at = datetime.utcnow()
-            
-        # Convert string timestamps to datetime if needed
-        if isinstance(started_at, str):
-            started_at = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-        if isinstance(completed_at, str):
-            completed_at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        """Create a trace synchronously."""
+        normalized_started_at, normalized_completed_at = self._normalize_timestamps(
+            started_at,
+            completed_at,
+        )
 
         trace_data = TraceCreate(
             model=model,
             result=result,
             error=error,
-            started_at=started_at,
-            completed_at=completed_at,
-            messages=[MessageCreate(role=msg["role"], content=msg["content"]) for msg in messages],
-            path=path
+            started_at=normalized_started_at,
+            completed_at=normalized_completed_at,
+            messages=self._prepare_messages(messages),
+            path=path,
+            tools=self._prepare_tools(tools),
         )
 
         response = self.sync_client.post(
             f"{self.api_url}/traces",
-            json=trace_data.model_dump(mode="json"),
-            headers={"Content-Type": "application/json"}
+            json=trace_data.model_dump(mode="json", by_alias=True),
+            headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
-        
+
         return TraceRead(**response.json())
 
     async def list_traces_async(self) -> List[TraceRead]:
@@ -205,3 +208,57 @@ class R4UClient:
                 pass
         if self._sync_client:
             self._sync_client.close()
+
+    @staticmethod
+    def _prepare_messages(
+        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
+    ) -> List[MessageCreate]:
+        """Normalize incoming messages into MessageCreate objects."""
+        prepared: List[MessageCreate] = []
+        for message in messages:
+            if isinstance(message, MessageCreate):
+                prepared.append(message)
+            else:
+                prepared.append(MessageCreate.model_validate(message))
+        return prepared
+
+    @staticmethod
+    def _prepare_tools(
+        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]],
+    ) -> Optional[List[ToolDefinition]]:
+        """Normalize tool definitions for trace creation."""
+        if not tools:
+            return None
+
+        prepared: List[ToolDefinition] = []
+        for tool in tools:
+            if isinstance(tool, ToolDefinition):
+                prepared.append(tool)
+            else:
+                prepared.append(ToolDefinition.model_validate(tool))
+        return prepared
+
+    @staticmethod
+    def _normalize_timestamps(
+        started_at: Optional[Union[datetime, str]],
+        completed_at: Optional[Union[datetime, str]],
+    ) -> tuple[datetime, datetime]:
+        """Normalize and default timestamps for trace creation."""
+        if started_at is None:
+            started = datetime.utcnow()
+        else:
+            started = R4UClient._coerce_datetime(started_at)
+
+        if completed_at is None:
+            completed = datetime.utcnow()
+        else:
+            completed = R4UClient._coerce_datetime(completed_at)
+
+        return started, completed
+
+    @staticmethod
+    def _coerce_datetime(value: Union[datetime, str]) -> datetime:
+        """Convert ISO timestamps or datetimes into datetime objects."""
+        if isinstance(value, datetime):
+            return value
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))

@@ -3,7 +3,14 @@
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
-from r4u.client import R4UClient, TraceCreate, MessageCreate
+from r4u.client import (
+    MessageCreate,
+    R4UClient,
+    ToolCall,
+    ToolDefinition,
+    ToolFunctionCall,
+    TraceCreate,
+)
 
 
 class TestR4UClient:
@@ -65,6 +72,47 @@ class TestR4UClient:
         assert call_args[0][0] == "http://localhost:8000/traces"
         assert call_args[1]["headers"]["Content-Type"] == "application/json"
 
+    @patch('r4u.client.httpx.Client')
+    def test_create_trace_sync_with_tools(self, mock_httpx_client):
+        """Trace creation includes tool definitions when provided."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": 1,
+            "model": "gpt-4",
+            "result": None,
+            "error": None,
+            "started_at": "2024-01-01T00:00:00",
+            "completed_at": "2024-01-01T00:00:01",
+            "messages": [{"role": "user", "content": "Hi", "id": 1}],
+            "tools": [
+                {
+                    "name": "lookup",
+                    "type": "function",
+                    "schema": {"type": "object"},
+                }
+            ],
+        }
+        mock_client_instance = Mock()
+        mock_client_instance.post.return_value = mock_response
+        mock_httpx_client.return_value = mock_client_instance
+
+        client = R4UClient()
+        client.create_trace(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "Hi"}],
+            tools=[
+                {
+                    "name": "lookup",
+                    "type": "function",
+                    "schema": {"type": "object"},
+                }
+            ],
+        )
+
+        payload = mock_client_instance.post.call_args[1]["json"]
+        assert payload["messages"][0]["content"] == "Hi"
+        assert payload["tools"][0]["schema"] == {"type": "object"}
+
     @pytest.mark.asyncio
     @patch('r4u.client.httpx.AsyncClient')
     async def test_create_trace_async(self, mock_httpx_async_client):
@@ -118,8 +166,29 @@ class TestR4UClient:
             completed_at=now,
             messages=[
                 MessageCreate(role="user", content="Hello"),
-                MessageCreate(role="assistant", content="Hi there!")
-            ]
+                MessageCreate(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            type="function",
+                            function=ToolFunctionCall(
+                                name="lookup",
+                                arguments={"query": "value"},
+                            ),
+                        )
+                    ],
+                ),
+            ],
+            tools=[
+                ToolDefinition(
+                    name="lookup",
+                    description="Lookup helper",
+                    schema={"type": "object"},
+                    type="function",
+                )
+            ],
         )
         
         assert trace.model == "gpt-4"
@@ -127,7 +196,10 @@ class TestR4UClient:
         assert trace.error is None
         assert len(trace.messages) == 2
         assert trace.messages[0].role == "user"
-        assert trace.messages[1].content == "Hi there!"
+        assert trace.messages[1].tool_calls is not None
+        assert trace.messages[1].tool_calls[0].function is not None
+        assert trace.messages[1].tool_calls[0].function.name == "lookup"
+        assert trace.tools is not None and trace.tools[0].name == "lookup"
 
     def test_message_create_schema(self):
         """Test MessageCreate schema."""
@@ -135,3 +207,21 @@ class TestR4UClient:
         
         assert message.role == "user"
         assert message.content == "Test message"
+
+        tool_message = MessageCreate(
+            role="assistant",
+            content=None,
+            tool_call_id="call_1",
+            name="lookup",
+            tool_calls=[
+                ToolCall(
+                    id="call_1",
+                    type="function",
+                    function=ToolFunctionCall(name="lookup", arguments={}),
+                )
+            ],
+        )
+
+        assert tool_message.tool_call_id == "call_1"
+        assert tool_message.tool_calls is not None
+        assert tool_message.tool_calls[0].function is not None

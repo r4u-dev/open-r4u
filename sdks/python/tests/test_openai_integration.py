@@ -43,22 +43,28 @@ class TestOpenAIIntegration:
         
         # Wrap client and make call
         wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
+        messages = [{"role": "user", "content": "Hello"}]
         result = wrapped.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hello"}]
+            messages=messages,
         )
         
         # Verify original method was called
         mock_openai_client.chat.completions.create.assert_called_once_with(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hello"}]
+            messages=messages,
         )
         
         # Verify trace was created
         mock_r4u_client.create_trace.assert_called_once()
         call_args = mock_r4u_client.create_trace.call_args[1]
         assert call_args["model"] == "gpt-3.5-turbo"
-        assert call_args["messages"] == [{"role": "user", "content": "Hello"}]
+        assert len(call_args["messages"]) == 2
+        assert call_args["messages"][0]["content"] == "Hello"
+        assert call_args["messages"][-1]["role"] == "assistant"
+        assert call_args["messages"][-1]["content"] == "Hello there!"
+        assert call_args.get("tools") is None
         assert call_args["result"] == "Hello there!"
         assert "started_at" in call_args
         assert "completed_at" in call_args
@@ -70,6 +76,7 @@ class TestOpenAIIntegration:
         
         # Verify result is returned
         assert result == mock_response
+        assert messages == [{"role": "user", "content": "Hello"}]
 
     @patch('r4u.integrations.openai.R4UClient')
     def test_create_completion_with_error_tracing(self, mock_r4u_client_class):
@@ -83,6 +90,7 @@ class TestOpenAIIntegration:
         
         # Wrap client and make call
         wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
         
         with pytest.raises(Exception, match="API Error"):
             wrapped.chat.completions.create(
@@ -120,31 +128,108 @@ class TestOpenAIIntegration:
         
         # Wrap client and make call
         wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
+        messages = [{"role": "user", "content": "Hello"}]
         result = await wrapped.chat.completions.acreate(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hello"}]
+            messages=messages
         )
-        
+
         # Verify original method was called
         mock_openai_client.chat.completions.create.assert_called_once_with(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hello"}]
+            messages=messages
         )
         
         # Verify async trace was created
         mock_r4u_client.create_trace_async.assert_called_once()
         call_args = mock_r4u_client.create_trace_async.call_args[1]
         assert call_args["model"] == "gpt-3.5-turbo"
-        assert call_args["messages"] == [{"role": "user", "content": "Hello"}]
+        assert len(call_args["messages"]) == 2
+        assert call_args["messages"][0]["content"] == "Hello"
+        assert call_args["messages"][-1]["role"] == "assistant"
+        assert call_args["messages"][-1]["content"] == "Hello there!"
+        assert call_args.get("tools") is None
         assert call_args["result"] == "Hello there!"
-        
+
         # Verify path includes method name for async calls
         assert "path" in call_args
         assert call_args["path"] is not None
         assert "acreate" in call_args["path"], "Path should include the 'acreate' method name"
-        
+
         # Verify result is returned
         assert result == mock_response
+        assert messages == [{"role": "user", "content": "Hello"}]
+
+    @patch('r4u.integrations.openai.R4UClient')
+    def test_tool_calls_are_traced(self, mock_r4u_client_class):
+        """Ensure tool definitions and tool calls are captured in traces."""
+        mock_r4u_client = Mock()
+        mock_r4u_client_class.return_value = mock_r4u_client
+
+        mock_openai_client = Mock()
+        tool_call_message = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "lookup_user",
+                        "arguments": '{"user_id": "42"}'
+                    },
+                }
+            ],
+        }
+        mock_choice = Mock()
+        mock_choice.message = tool_call_message
+        mock_response = Mock()
+        mock_response.choices = [mock_choice]
+        mock_openai_client.chat.completions.create.return_value = mock_response
+
+        wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
+        request_messages = [{"role": "user", "content": "Find user 42"}]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "lookup_user",
+                    "description": "Lookup a user by id",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"user_id": {"type": "string"}},
+                    },
+                },
+            }
+        ]
+
+        wrapped.chat.completions.create(
+            model="gpt-4.1",
+            messages=request_messages,
+            tools=tools,
+        )
+
+        mock_r4u_client.create_trace.assert_called_once()
+        call_args = mock_r4u_client.create_trace.call_args[1]
+
+        # Messages should include appended assistant tool call
+        assert len(call_args["messages"]) == 2
+        assistant_message = call_args["messages"][-1]
+        assert assistant_message["role"] == "assistant"
+        assert assistant_message["tool_calls"][0]["function"]["name"] == "lookup_user"
+        assert assistant_message["tool_calls"][0]["function"]["arguments"]["user_id"] == "42"
+
+        # Tool definitions should be captured
+        tool_definitions = call_args["tools"]
+        assert len(tool_definitions) == 1
+        assert tool_definitions[0]["name"] == "lookup_user"
+        assert tool_definitions[0]["type"] == "function"
+
+        # Ensure request payload was not mutated
+        assert request_messages == [{"role": "user", "content": "Find user 42"}]
+        assert tools[0]["function"]["name"] == "lookup_user"
 
     @patch('r4u.integrations.openai.R4UClient')
     def test_trace_creation_failure_doesnt_break_request(self, mock_r4u_client_class):
@@ -165,6 +250,7 @@ class TestOpenAIIntegration:
         
         # Wrap client and make call
         wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
         
         # Should not raise exception even though tracing fails
         result = wrapped.chat.completions.create(
@@ -197,6 +283,7 @@ class TestOpenAIIntegration:
         
         # Wrap client and make call
         wrapped = wrap_openai(mock_openai_client)
+        assert wrapped.chat is not None
         wrapped.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": "Test"}]
