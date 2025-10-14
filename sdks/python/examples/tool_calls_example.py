@@ -1,137 +1,174 @@
-"""Demonstrate automatic tracing of tool calls with the OpenAI wrapper.
+"""Demonstrate automatic tracing of tool calls with the real OpenAI API.
 
-This example uses an in-memory fake OpenAI client so it can run without external
-dependencies. When the wrapped client is invoked, the R4U OpenAI integration
-automatically records a trace that includes:
+The script performs a two-step chat completion:
 
-* Tool definitions supplied in the request
-* An assistant message that issues a tool call
-* A tool role response in the conversation history
-* The final assistant answer that incorporates the tool output
+1. The assistant is encouraged to call a weather lookup tool.
+2. A local Python implementation fulfils the tool request and feeds the result
+   back to OpenAI to obtain the natural-language answer.
 
-Make sure the R4U backend is running locally on http://localhost:8000 before
-executing this script so the trace can be persisted.
+Every OpenAI call goes through `wrap_openai`, so both requests and responses
+are captured automatically by the R4U backend.
+
+Prerequisites:
+
+* The `OPENAI_API_KEY` environment variable must be set.
+* The R4U backend should be running locally at http://localhost:8000.
+* The OpenAI Python SDK (>=1.0) must be installed.
 """
 
+from __future__ import annotations
+
+import json
+import os
 from typing import Any, Dict, List
+
+from openai import OpenAI
 
 from r4u.integrations.openai import wrap_openai
 
 
-class _FakeChoice:
-    """Minimal stand-in for an OpenAI ChatCompletion choice."""
+def lookup_weather(location: str) -> Dict[str, Any]:
+    """Return a dummy weather payload for the requested location."""
 
-    def __init__(self, message: Dict[str, Any]):
-        self.message = message
-
-
-class _FakeResponse:
-    """Container that mimics the structure of an OpenAI response."""
-
-    def __init__(self, choices: List[_FakeChoice]):
-        self.choices = choices
+    return {
+        "location": location,
+        "temperature_c": 22,
+        "humidity": 0.48,
+        "conditions": "clear",
+    }
 
 
-class _FakeCompletions:
-    """Fake completions client that emits a tool-informed assistant reply."""
-
-    def create(self, **kwargs: Any) -> _FakeResponse:
-        tool_call_id = kwargs["messages"][2]["tool_calls"][0]["id"]
-
-        assistant_message = {
-            "role": "assistant",
-            "content": "It's currently 22°C and clear in Paris, with humidity around 48%.",
-            "metadata": {
-                "sourced_from_tool_call": tool_call_id,
+TOOLS: List[Dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_weather",
+            "description": "Retrieve the current weather for a city.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City and country to look up.",
+                    }
+                },
+                "required": ["location"],
             },
-        }
-        return _FakeResponse([_FakeChoice(assistant_message)])
+        },
+    }
+]
 
 
-class _FakeChat:
-    """Namespace mirroring openai.chat."""
+def call_openai_with_tools() -> None:
+    """Run the multi-turn conversation and print the final assistant reply."""
 
-    def __init__(self):
-        self.completions = _FakeCompletions()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY environment variable is required to run this example.")
 
+    base_client = OpenAI(api_key=api_key)
+    traced_client = wrap_openai(base_client, api_url="http://localhost:8000")
 
-class FakeOpenAIClient:
-    """Lightweight OpenAI-like client used just for this example."""
-
-    def __init__(self):
-        self.chat = _FakeChat()
-
-
-def main() -> None:
-    """Call the wrapped fake OpenAI client with tool usage metadata."""
-    openai_client = FakeOpenAIClient()
-    traced_client = wrap_openai(openai_client, api_url="http://localhost:8000")
-
-    tool_call_id = "call_lookup_weather_1"
-
-    request_messages: List[Dict[str, Any]] = [
+    initial_messages: List[Dict[str, Any]] = [
         {"role": "system", "content": "You are a helpful weather assistant."},
         {
             "role": "user",
             "content": "What's the weather like in Paris right now?",
         },
-        {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": tool_call_id,
-                    "type": "function",
-                    "function": {
-                        "name": "lookup_weather",
-                        "arguments": {"location": "Paris, FR"},
-                    },
-                }
-            ],
-        },
-        {
-            "role": "tool",
-            "name": "lookup_weather",
-            "tool_call_id": tool_call_id,
-            "content": {
-                "temperature_c": 22,
-                "conditions": "clear",
-                "humidity": 0.48,
-            },
-        },
     ]
 
-    tool_definitions = [
-        {
-            "type": "function",
-            "function": {
-                "name": "lookup_weather",
-                "description": "Retrieve the current weather for a city.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "City and country to look up.",
-                        }
-                    },
-                    "required": ["location"],
-                },
-            },
-        }
-    ]
+    chat = traced_client.chat
+    if chat is None:
+        raise RuntimeError("OpenAI client does not expose chat completions.")
 
-    chat_completions = traced_client.chat
-    assert chat_completions is not None  # Guard for type-checkers
-
-    response = chat_completions.completions.create(
+    first_response = chat.completions.create(
         model="gpt-4.1-mini",
-        messages=request_messages,
-        tools=tool_definitions,
+        temperature=0,
+        messages=initial_messages,
+        tools=TOOLS,
+        tool_choice="auto",
     )
 
-    print(response.choices[0].message["content"])
+    first_choice = first_response.choices[0]
+    assistant_message = first_choice.message
+
+    tool_calls = getattr(assistant_message, "tool_calls", None) or []
+    messages: List[Dict[str, Any]] = [*initial_messages]
+
+    normalized_assistant: Dict[str, Any] = {
+        "role": getattr(assistant_message, "role", "assistant"),
+        "content": getattr(assistant_message, "content", None),
+    }
+
+    if tool_calls:
+        normalized_calls = []
+        for tool_call in tool_calls:
+            call_id = getattr(tool_call, "id", None) or f"call_{len(normalized_calls)+1}"
+            function = getattr(tool_call, "function", None)
+            if function and getattr(function, "arguments", None):
+                raw_arguments = function.arguments
+                if isinstance(raw_arguments, str):
+                    arguments: Dict[str, Any] = json.loads(raw_arguments)
+                else:
+                    arguments = raw_arguments
+            else:
+                arguments = {}
+            normalized_calls.append(
+                {
+                    "id": call_id,
+                    "type": getattr(tool_call, "type", "function"),
+                    "function": {
+                        "name": getattr(function, "name", "unknown_tool"),
+                        "arguments": json.dumps(arguments),
+                    },
+                }
+            )
+        normalized_assistant["tool_calls"] = normalized_calls
+    messages.append(normalized_assistant)
+
+    if not tool_calls:
+        print(getattr(assistant_message, "content", "Assistant did not call a tool."))
+        print("Trace sent to R4U API. No tool call was issued in this run.")
+        return
+
+    for tool_call in normalized_assistant["tool_calls"]:
+        raw_arguments = tool_call["function"].get("arguments", "{}")
+        if isinstance(raw_arguments, str):
+            arguments = json.loads(raw_arguments or "{}")
+        else:
+            arguments = raw_arguments or {}
+        tool_name = tool_call["function"].get("name", "unknown_tool")
+        tool_result: Dict[str, Any]
+        if tool_name == "lookup_weather":
+            tool_result = lookup_weather(arguments.get("location", "unknown"))
+        else:
+            tool_result = {"error": f"No handler for tool '{tool_name}'"}
+        messages.append(
+            {
+                "role": "tool",
+                "name": tool_name,
+                "tool_call_id": tool_call["id"],
+                "content": json.dumps(tool_result),
+            }
+        )
+
+    follow_up_response = chat.completions.create(
+        model="gpt-4.1-mini",
+        temperature=0,
+        messages=messages,
+        tools=TOOLS,
+    )
+
+    final_choice = follow_up_response.choices[0]
+    final_message = final_choice.message
+    print(getattr(final_message, "content", "<no content>"))
     print("Trace with tool usage sent to R4U API. Check your dashboard for details.")
+
+
+def main() -> None:
+    """Entry point for the script."""
+
+    call_openai_with_tools()
 
 
 if __name__ == "__main__":

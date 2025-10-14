@@ -79,7 +79,7 @@ trace = await client.create_trace(
 )
 ```
 
-For a complete walk-through that includes tool definitions, tool call messages, and the final tool-assisted response, check out `examples/tool_calls_example.py`. The example wraps a lightweight fake OpenAI client so it can run locally while still exercising the automatic tracing pipeline.
+For a complete walk-through that includes tool definitions, tool call messages, and the final tool-assisted response, check out `examples/tool_calls_example.py`. The example issues real OpenAI Chat Completions requests (requiring `OPENAI_API_KEY`) and performs the multi-turn loop that fulfils the tool invocation before asking for the final assistant answer.
 
 ## Features
 
