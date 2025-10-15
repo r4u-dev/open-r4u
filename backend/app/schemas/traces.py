@@ -72,11 +72,13 @@ class TraceCreate(TraceBase):
     """Schema for trace creation payload."""
 
     messages: list[MessageCreate]
+    project: str = "Default Project"  # Project name, defaults to "Default Project"
 
 
 class TraceRead(TraceBase):
     """Schema for trace responses."""
 
     id: int
+    project_id: int
     messages: list[MessageRead]
     model_config = ConfigDict(from_attributes=True)

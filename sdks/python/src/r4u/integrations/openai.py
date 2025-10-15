@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -15,19 +16,21 @@ from ..utils import extract_call_path
 class OpenAIWrapper:
     """Wrapper for OpenAI client that automatically creates traces."""
 
-    def __init__(self, client: Any, r4u_client: R4UClient):
+    def __init__(self, client: Any, r4u_client: R4UClient, project: str):
         """Initialize the wrapper.
 
         Args:
             client: Original OpenAI client
             r4u_client: R4U client for creating traces
+            project: Project name for traces
         """
         self._original_client = client
         self._r4u_client = r4u_client
+        self._project = project
 
         # Wrap the chat completions
         if hasattr(client, "chat") and hasattr(client.chat, "completions"):
-            self.chat = ChatCompletionsWrapper(client.chat, r4u_client)
+            self.chat = ChatCompletionsWrapper(client.chat, r4u_client, project)
         else:
             self.chat = client.chat if hasattr(client, "chat") else None
 
@@ -39,16 +42,18 @@ class OpenAIWrapper:
 class ChatCompletionsWrapper:
     """Wrapper for OpenAI chat completions."""
 
-    def __init__(self, chat_client: Any, r4u_client: R4UClient):
+    def __init__(self, chat_client: Any, r4u_client: R4UClient, project: str):
         """Initialize the wrapper.
 
         Args:
             chat_client: Original chat client
             r4u_client: R4U client for creating traces
+            project: Project name for traces
         """
         self._original_chat = chat_client
         self._r4u_client = r4u_client
-        self.completions = CompletionsWrapper(chat_client.completions, r4u_client)
+        self._project = project
+        self.completions = CompletionsWrapper(chat_client.completions, r4u_client, project)
 
     def __getattr__(self, name: str) -> Any:
         """Delegate other attributes to the original client."""
@@ -58,15 +63,17 @@ class ChatCompletionsWrapper:
 class CompletionsWrapper:
     """Wrapper for OpenAI completions that creates traces."""
 
-    def __init__(self, completions_client: Any, r4u_client: R4UClient):
+    def __init__(self, completions_client: Any, r4u_client: R4UClient, project: str):
         """Initialize the wrapper.
 
         Args:
             completions_client: Original completions client
             r4u_client: R4U client for creating traces
+            project: Project name for traces
         """
         self._original_completions = completions_client
         self._r4u_client = r4u_client
+        self._project = project
         self._is_async = inspect.iscoroutinefunction(completions_client.create)
 
     def create(self, **kwargs) -> Any:
@@ -100,6 +107,7 @@ class CompletionsWrapper:
                 call_path=call_path,
                 response_message=response_message,
                 error=None,
+                project=self._project,
             )
             self._create_trace_sync(**payload)
 
@@ -113,6 +121,7 @@ class CompletionsWrapper:
                 call_path=call_path,
                 response_message=None,
                 error=exc,
+                project=self._project,
             )
             self._create_trace_sync(**payload)
             raise
@@ -134,6 +143,7 @@ class CompletionsWrapper:
                 call_path=call_path,
                 response_message=response_message,
                 error=None,
+                project=self._project,
             )
             await self._create_trace_async(**payload)
 
@@ -147,6 +157,7 @@ class CompletionsWrapper:
                 call_path=call_path,
                 response_message=None,
                 error=exc,
+                project=self._project,
             )
             await self._create_trace_async(**payload)
             raise
@@ -154,6 +165,7 @@ class CompletionsWrapper:
     def _create_trace_sync(self, **kwargs):
         """Create trace synchronously."""
         try:
+            kwargs["project"] = self._project
             self._r4u_client.create_trace(**kwargs)
         except Exception as error:  # pragma: no cover - defensive logging
             print(f"Failed to create trace: {error}")
@@ -161,6 +173,7 @@ class CompletionsWrapper:
     async def _create_trace_async(self, **kwargs):
         """Create trace asynchronously."""
         try:
+            kwargs["project"] = self._project
             await self._r4u_client.create_trace_async(**kwargs)
         except Exception as error:  # pragma: no cover - defensive logging
             print(f"Failed to create trace: {error}")
@@ -353,6 +366,7 @@ class CompletionsWrapper:
         call_path: str,
         response_message: Optional[Any],
         error: Optional[Exception],
+        project: str,
     ) -> Dict[str, Any]:
         """Assemble the payload sent to the trace API."""
         # Only include input messages, not the response
@@ -374,6 +388,7 @@ class CompletionsWrapper:
             "started_at": started_at,
             "completed_at": completed_at,
             "path": call_path,
+            "project": project,
         }
 
         tools = cls._extract_tool_definitions(kwargs)
@@ -396,7 +411,17 @@ def wrap_openai(
     client: Any,
     api_url: str = "http://localhost:8000",
     timeout: float = 30.0,
+    project: Optional[str] = None,
 ) -> OpenAIWrapper:
-    """Wrap an OpenAI client to automatically create traces."""
+    """Wrap an OpenAI client to automatically create traces.
+    
+    Args:
+        client: OpenAI client to wrap
+        api_url: R4U API URL
+        timeout: HTTP timeout
+        project: Project name for traces. If not provided, uses R4U_PROJECT env variable or defaults to "Default Project"
+    """
+    if project is None:
+        project = os.getenv("R4U_PROJECT", "Default Project")
     r4u_client = R4UClient(api_url=api_url, timeout=timeout)
-    return OpenAIWrapper(client, r4u_client)
+    return OpenAIWrapper(client, r4u_client, project)

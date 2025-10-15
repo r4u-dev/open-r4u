@@ -1,11 +1,12 @@
 from typing import Sequence
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_session
+from app.models.projects import Project
 from app.models.traces import Trace, TraceMessage
 from app.schemas.traces import TraceCreate, TraceRead
 
@@ -32,7 +33,19 @@ async def create_trace(
 ) -> TraceRead:
     """Create a trace along with its messages."""
 
+    # Get or create project
+    project_query = select(Project).where(Project.name == payload.project)
+    project_result = await session.execute(project_query)
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        # Auto-create project if it doesn't exist
+        project = Project(name=payload.project)
+        session.add(project)
+        await session.flush()
+
     trace = Trace(
+        project_id=project.id,
         model=payload.model,
         result=payload.result,
         error=payload.error,

@@ -29,7 +29,7 @@ class TestR4UCallbackHandler:
     @pytest.fixture
     def handler(self, mock_r4u_client):
         """Create a callback handler with mock client."""
-        return R4UCallbackHandler(mock_r4u_client)
+        return R4UCallbackHandler(mock_r4u_client, "Test Project")
 
     def test_on_llm_start(self, handler, mock_r4u_client):
         """Test on_llm_start callback."""

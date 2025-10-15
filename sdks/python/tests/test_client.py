@@ -34,6 +34,7 @@ class TestR4UClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": 1,
+            "project_id": 1,
             "model": "gpt-3.5-turbo",
             "result": "Hello!",
             "error": None,
@@ -78,6 +79,7 @@ class TestR4UClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": 1,
+            "project_id": 1,
             "model": "gpt-4",
             "result": None,
             "error": None,
@@ -123,6 +125,7 @@ class TestR4UClient:
         mock_response = Mock()  # Response itself is not async
         mock_response.json.return_value = {  # .json() returns a plain dict, not a coroutine
             "id": 1,
+            "project_id": 1,
             "model": "gpt-3.5-turbo",
             "result": "Hello!",
             "error": None,

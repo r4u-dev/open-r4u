@@ -1,6 +1,7 @@
 """LangChain integration for R4U observability."""
 
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -22,11 +23,12 @@ except ImportError:
 class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
     """LangChain callback handler that automatically creates traces in R4U."""
 
-    def __init__(self, r4u_client: R4UClient):
+    def __init__(self, r4u_client: R4UClient, project: str):
         """Initialize the callback handler.
 
         Args:
             r4u_client: R4U client for creating traces
+            project: Project name for traces
         """
         if not LANGCHAIN_AVAILABLE:
             raise ImportError(
@@ -35,6 +37,7 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
             )
         
         self._r4u_client = r4u_client
+        self._project = project
         self._current_trace: Dict[str, Any] = {}
         self._call_path: Optional[str] = None
         
@@ -162,6 +165,7 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
                 "path": self._call_path,
                 "result": result,
                 "error": error,
+                "project": self._project,
             }
             
             # Add tools if present
@@ -332,15 +336,14 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
 def wrap_langchain(
     api_url: str = "http://localhost:8000",
     timeout: float = 30.0,
-) -> R4UCallbackHandler:
-    """Create a LangChain callback handler for R4U tracing.
-    
-    This function creates a callback handler that can be added to any LangChain
-    chain, agent, or model to automatically track all LLM calls.
+    project: Optional[str] = None,
+) -> "R4UCallbackHandler":
+    """Create a LangChain callback handler that sends traces to R4U.
     
     Args:
         api_url: Base URL for the R4U API
         timeout: HTTP request timeout in seconds
+        project: Project name for traces. If not provided, uses R4U_PROJECT env variable or defaults to "Default Project"
     
     Returns:
         R4UCallbackHandler that can be used with LangChain
@@ -369,5 +372,8 @@ def wrap_langchain(
             "pip install langchain-core"
         )
     
+    if project is None:
+        project = os.getenv("R4U_PROJECT", "Default Project")
+    
     r4u_client = R4UClient(api_url=api_url, timeout=timeout)
-    return R4UCallbackHandler(r4u_client)
+    return R4UCallbackHandler(r4u_client, project)
