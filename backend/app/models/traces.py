@@ -33,6 +33,15 @@ class Trace(Base):
 	started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+	# Token usage
+	prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+	# Schema and metadata
+	response_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+	trace_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+
 	project: Mapped["Project"] = relationship("Project", back_populates="traces")  # type: ignore
 	messages: Mapped[list["TraceMessage"]] = relationship(
 		"TraceMessage",

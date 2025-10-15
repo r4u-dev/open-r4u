@@ -41,8 +41,8 @@ class CallPathExtractor:
     }
     
     # Functions to skip in the call path
+    # Note: <module> is handled specially as a fallback, not skipped entirely
     SKIP_FUNCTIONS: Set[str] = {
-        "<module>",
         "_patch_method",
         "wrapper",
         "_make_request",
@@ -178,6 +178,7 @@ class CallPathExtractor:
         # Collect function calls
         function_chain = []
         target_file = target_frame.filename
+        module_level_frame = None
         
         for frame in frames:
             # Add integration methods (like "create")
@@ -186,7 +187,11 @@ class CallPathExtractor:
             # Add functions from target file (or all files if cross-file enabled)
             elif frame.filename == target_file or self.include_cross_file:
                 if not frame.is_integration:
-                    function_chain.append(frame.function_name)
+                    # Track module-level frame separately
+                    if frame.function_name == "<module>":
+                        module_level_frame = frame
+                    else:
+                        function_chain.append(frame.function_name)
         
         # Build the signature
         relative_path = self._get_relative_path(target_file)
@@ -195,6 +200,9 @@ class CallPathExtractor:
             signature = f"{relative_path}::{function_chain[0]}"
             if len(function_chain) > 1:
                 signature += "->" + "->".join(function_chain[1:])
+        elif module_level_frame:
+            # Use module-level as fallback for calls made at module scope
+            signature = relative_path + "::create"
         else:
             signature = relative_path
         

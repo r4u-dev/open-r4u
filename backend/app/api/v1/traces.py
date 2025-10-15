@@ -56,6 +56,11 @@ async def create_trace(
         [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
         if payload.tools
         else None,
+        prompt_tokens=payload.prompt_tokens,
+        completion_tokens=payload.completion_tokens,
+        total_tokens=payload.total_tokens,
+        response_schema=payload.response_schema,
+        trace_metadata=payload.trace_metadata,
     )
 
     for position, message in enumerate(payload.messages):

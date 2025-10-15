@@ -1,0 +1,89 @@
+"""Example demonstrating token usage and metadata tracking with R4U."""
+
+from openai import OpenAI
+from r4u.integrations.openai import wrap_openai
+
+# Initialize OpenAI client
+client = OpenAI()
+
+# Wrap it with R4U observability
+wrapped_client = wrap_openai(
+    client,
+    api_url="http://localhost:8000",
+    project="Token Tracking Demo"
+)
+
+# Example 1: Basic completion with automatic token tracking
+print("Example 1: Basic completion with automatic token tracking")
+response = wrapped_client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": "What is the capital of France?"}
+    ]
+)
+print(f"Response: {response.choices[0].message.content}")
+print(f"Tokens used - Prompt: {response.usage.prompt_tokens}, "
+      f"Completion: {response.usage.completion_tokens}, "
+      f"Total: {response.usage.total_tokens}")
+print()
+
+# Example 2: Structured output with response_schema tracking
+print("Example 2: Structured output with response_schema")
+response = wrapped_client.chat.completions.create(
+    model="gpt-4o-mini",  # json_schema is supported in gpt-4o, gpt-4o-mini, gpt-4-turbo
+    messages=[
+        {"role": "user", "content": "Generate information about a fictional person"}
+    ],
+    response_format={
+        "type": "json_schema",
+        "json_schema": {
+            "name": "person_info",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                    "occupation": {"type": "string"},
+                    "city": {"type": "string"}
+                },
+                "required": ["name", "age", "occupation", "city"],  # All properties required when strict=True
+                "additionalProperties": False
+            },
+            "strict": True
+        }
+    }
+)
+print(f"Response: {response.choices[0].message.content}")
+print(f"Tokens: {response.usage.total_tokens}")
+print("Note: The response_schema is automatically tracked in the trace!")
+print()
+
+# Example 3: Using custom metadata
+print("Example 3: Using custom metadata (via direct client)")
+from r4u import R4UClient
+
+r4u_client = R4UClient(api_url="http://localhost:8000")
+trace = r4u_client.create_trace(
+    model="gpt-4",
+    messages=[
+        {"role": "user", "content": "Hello, how are you?"},
+    ],
+    result="I'm doing well, thank you!",
+    project="Metadata Example",
+    prompt_tokens=10,
+    completion_tokens=15,
+    total_tokens=25,
+    trace_metadata={
+        "environment": "production",
+        "user_id": "user_12345",
+        "session_id": "session_abc",
+        "api_version": "v1",
+        "custom_field": "any value you want"
+    }
+)
+print(f"Trace created with ID: {trace.id}")
+print(f"Metadata: {trace.trace_metadata}")
+print()
+
+print("✅ All examples completed!")
+print("Check your R4U dashboard to see the traces with token counts, schemas, and metadata.")

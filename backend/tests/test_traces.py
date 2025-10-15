@@ -302,3 +302,71 @@ class TestTraceEndpoints:
         assert "completed_at" in data
         assert "messages" in data
         assert "tools" in data
+        assert "prompt_tokens" in data
+        assert "completion_tokens" in data
+        assert "total_tokens" in data
+        assert "response_schema" in data
+        assert "trace_metadata" in data
+
+    async def test_create_trace_with_tokens_and_metadata(self, client: AsyncClient):
+        """Test creating a trace with token counts, response schema, and metadata."""
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"}
+            },
+            "required": ["name"]
+        }
+        
+        metadata = {
+            "environment": "production",
+            "user_id": "user123",
+            "session_id": "session456",
+            "custom_field": "custom_value"
+        }
+        
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "Generate a person"}],
+            "result": '{"name": "John", "age": 30}',
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:02Z",
+            "prompt_tokens": 150,
+            "completion_tokens": 50,
+            "total_tokens": 200,
+            "response_schema": response_schema,
+            "trace_metadata": metadata,
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["model"] == "gpt-4"
+        assert data["prompt_tokens"] == 150
+        assert data["completion_tokens"] == 50
+        assert data["total_tokens"] == 200
+        assert data["response_schema"] == response_schema
+        assert data["trace_metadata"] == metadata
+        assert data["trace_metadata"]["environment"] == "production"
+        assert data["trace_metadata"]["user_id"] == "user123"
+
+    async def test_create_trace_with_partial_tokens(self, client: AsyncClient):
+        """Test creating a trace with only some token fields."""
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Quick test"}],
+            "result": "Quick response",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+            "total_tokens": 100,  # Only total_tokens provided
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["total_tokens"] == 100
+        assert data["prompt_tokens"] is None
+        assert data["completion_tokens"] is None

@@ -66,6 +66,15 @@ class TraceBase(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     tools: list[ToolDefinition] | None = None
+    
+    # Token usage
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    
+    # Schema and metadata
+    response_schema: dict[str, Any] | None = None
+    trace_metadata: dict[str, Any] | None = None
 
 
 class TraceCreate(TraceBase):

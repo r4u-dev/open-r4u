@@ -59,6 +59,15 @@ class TraceCreate(BaseModel):
     path: Optional[str] = None
     tools: Optional[List[ToolDefinition]] = None
     project: str = "Default Project"
+    
+    # Token usage
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    
+    # Schema and metadata
+    response_schema: Optional[Dict[str, Any]] = None
+    trace_metadata: Optional[Dict[str, Any]] = None
 
 
 class TraceRead(BaseModel):
@@ -74,6 +83,16 @@ class TraceRead(BaseModel):
     messages: List[Dict[str, Any]]
     path: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
+    
+    # Token usage
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    
+    # Schema and metadata
+    response_schema: Optional[Dict[str, Any]] = None
+    trace_metadata: Optional[Dict[str, Any]] = None
+    
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
 
@@ -117,6 +136,11 @@ class R4UClient:
         path: Optional[str] = None,
         tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
         project: str = "Default Project",
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        trace_metadata: Optional[Dict[str, Any]] = None,
     ) -> TraceRead:
         """Create a trace asynchronously."""
         normalized_started_at, normalized_completed_at = self._normalize_timestamps(
@@ -134,6 +158,11 @@ class R4UClient:
             path=path,
             tools=self._prepare_tools(tools),
             project=project,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            response_schema=response_schema,
+            trace_metadata=trace_metadata,
         )
 
         response = await self.async_client.post(
@@ -156,6 +185,11 @@ class R4UClient:
         path: Optional[str] = None,
         tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
         project: str = "Default Project",
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        trace_metadata: Optional[Dict[str, Any]] = None,
     ) -> TraceRead:
         """Create a trace synchronously."""
         normalized_started_at, normalized_completed_at = self._normalize_timestamps(
@@ -173,6 +207,11 @@ class R4UClient:
             path=path,
             tools=self._prepare_tools(tools),
             project=project,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            response_schema=response_schema,
+            trace_metadata=trace_metadata,
         )
 
         response = self.sync_client.post(

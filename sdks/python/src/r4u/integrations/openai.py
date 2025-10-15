@@ -108,6 +108,7 @@ class CompletionsWrapper:
                 response_message=response_message,
                 error=None,
                 project=self._project,
+                result=result,
             )
             self._create_trace_sync(**payload)
 
@@ -122,6 +123,7 @@ class CompletionsWrapper:
                 response_message=None,
                 error=exc,
                 project=self._project,
+                result=None,
             )
             self._create_trace_sync(**payload)
             raise
@@ -144,6 +146,7 @@ class CompletionsWrapper:
                 response_message=response_message,
                 error=None,
                 project=self._project,
+                result=result,
             )
             await self._create_trace_async(**payload)
 
@@ -158,6 +161,7 @@ class CompletionsWrapper:
                 response_message=None,
                 error=exc,
                 project=self._project,
+                result=None,
             )
             await self._create_trace_async(**payload)
             raise
@@ -357,6 +361,19 @@ class CompletionsWrapper:
         return definitions or None
 
     @classmethod
+    def _extract_token_usage(cls, result: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
+        """Extract token usage from the completion result."""
+        usage = getattr(result, "usage", None)
+        if usage is None:
+            return None, None, None
+        
+        prompt_tokens = getattr(usage, "prompt_tokens", None)
+        completion_tokens = getattr(usage, "completion_tokens", None)
+        total_tokens = getattr(usage, "total_tokens", None)
+        
+        return prompt_tokens, completion_tokens, total_tokens
+
+    @classmethod
     def _build_trace_payload(
         cls,
         *,
@@ -367,6 +384,7 @@ class CompletionsWrapper:
         response_message: Optional[Any],
         error: Optional[Exception],
         project: str,
+        result: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Assemble the payload sent to the trace API."""
         # Only include input messages, not the response
@@ -399,6 +417,38 @@ class CompletionsWrapper:
             payload["result"] = result_text
         if error is not None:
             payload["error"] = str(error)
+
+        # Extract token usage if result is available
+        if result is not None and error is None:
+            prompt_tokens, completion_tokens, total_tokens = cls._extract_token_usage(result)
+            if prompt_tokens is not None:
+                payload["prompt_tokens"] = prompt_tokens
+            if completion_tokens is not None:
+                payload["completion_tokens"] = completion_tokens
+            if total_tokens is not None:
+                payload["total_tokens"] = total_tokens
+
+        # Extract response_format/schema if provided
+        response_format = kwargs.get("response_format")
+        if response_format is not None:
+            # Handle different response_format types
+            if hasattr(response_format, "json_schema"):
+                # Structured output with json_schema
+                schema = getattr(response_format.json_schema, "schema", None)
+                if schema:
+                    payload["response_schema"] = cls._to_plain(schema)
+            elif hasattr(response_format, "model_dump"):
+                # Pydantic model
+                payload["response_schema"] = response_format.model_dump()
+            elif isinstance(response_format, dict):
+                # Plain dict
+                if "json_schema" in response_format:
+                    schema = response_format["json_schema"].get("schema")
+                    if schema:
+                        payload["response_schema"] = schema
+                elif "type" not in response_format or response_format.get("type") != "json_object":
+                    # Only include if it's not just {"type": "json_object"}
+                    payload["response_schema"] = response_format
 
         return payload
 
