@@ -60,11 +60,12 @@ class TestOpenAIIntegration:
         mock_r4u_client.create_trace.assert_called_once()
         call_args = mock_r4u_client.create_trace.call_args[1]
         assert call_args["model"] == "gpt-3.5-turbo"
-        assert len(call_args["messages"]) == 2
+        # Only input messages, not the response
+        assert len(call_args["messages"]) == 1
         assert call_args["messages"][0]["content"] == "Hello"
-        assert call_args["messages"][-1]["role"] == "assistant"
-        assert call_args["messages"][-1]["content"] == "Hello there!"
+        assert call_args["messages"][0]["role"] == "user"
         assert call_args.get("tools") is None
+        # Response is in result field
         assert call_args["result"] == "Hello there!"
         assert "started_at" in call_args
         assert "completed_at" in call_args
@@ -102,7 +103,9 @@ class TestOpenAIIntegration:
         mock_r4u_client.create_trace.assert_called_once()
         call_args = mock_r4u_client.create_trace.call_args[1]
         assert call_args["model"] == "gpt-3.5-turbo"
-        assert call_args["messages"] == [{"role": "user", "content": "Hello"}]
+        # Only input messages
+        assert len(call_args["messages"]) == 1
+        assert call_args["messages"][0] == {"role": "user", "content": "Hello"}
         assert call_args["error"] == "API Error"
         assert call_args.get("result") is None
 
@@ -145,11 +148,12 @@ class TestOpenAIIntegration:
         mock_r4u_client.create_trace_async.assert_called_once()
         call_args = mock_r4u_client.create_trace_async.call_args[1]
         assert call_args["model"] == "gpt-3.5-turbo"
-        assert len(call_args["messages"]) == 2
+        # Only input messages, not the response
+        assert len(call_args["messages"]) == 1
         assert call_args["messages"][0]["content"] == "Hello"
-        assert call_args["messages"][-1]["role"] == "assistant"
-        assert call_args["messages"][-1]["content"] == "Hello there!"
+        assert call_args["messages"][0]["role"] == "user"
         assert call_args.get("tools") is None
+        # Response is in result field
         assert call_args["result"] == "Hello there!"
 
         # Verify path includes method name for async calls
@@ -214,12 +218,13 @@ class TestOpenAIIntegration:
         mock_r4u_client.create_trace.assert_called_once()
         call_args = mock_r4u_client.create_trace.call_args[1]
 
-        # Messages should include appended assistant tool call
-        assert len(call_args["messages"]) == 2
-        assistant_message = call_args["messages"][-1]
-        assert assistant_message["role"] == "assistant"
-        assert assistant_message["tool_calls"][0]["function"]["name"] == "lookup_user"
-        assert assistant_message["tool_calls"][0]["function"]["arguments"]["user_id"] == "42"
+        # Only input messages (not the assistant response)
+        assert len(call_args["messages"]) == 1
+        assert call_args["messages"][0]["role"] == "user"
+        assert call_args["messages"][0]["content"] == "Find user 42"
+        
+        # Result should be None for tool calls (no text content)
+        assert call_args.get("result") is None
 
         # Tool definitions should be captured
         tool_definitions = call_args["tools"]

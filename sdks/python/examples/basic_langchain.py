@@ -1,0 +1,51 @@
+"""Basic example of using R4U with LangChain."""
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from r4u.integrations.langchain import wrap_langchain
+
+
+def main():
+    """Run a basic LangChain example with tracing."""
+    # Create the R4U callback handler
+    r4u_handler = wrap_langchain(api_url="http://localhost:8000")
+    
+    # Create a LangChain chat model with the callback handler
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo",
+        callbacks=[r4u_handler]
+    )
+    
+    # Example 1: Simple message
+    print("Example 1: Simple message")
+    response = llm.invoke("What is the capital of France?")
+    print(f"Response: {response.content}\n")
+    
+    # Example 2: With system message and chat history
+    print("Example 2: With system message and chat history")
+    messages = [
+        SystemMessage(content="You are a helpful assistant that answers questions concisely."),
+        HumanMessage(content="What is Python?"),
+    ]
+    response = llm.invoke(messages)
+    print(f"Response: {response.content}\n")
+    
+    # Example 3: Using chains with callback config
+    print("Example 3: Using with chains")
+    from langchain_core.prompts import ChatPromptTemplate
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant."),
+        ("user", "{input}")
+    ])
+    
+    chain = prompt | llm
+    response = chain.invoke(
+        {"input": "Tell me a short joke"},
+        config={"callbacks": [r4u_handler]}
+    )
+    print(f"Response: {response.content}\n")
+
+
+if __name__ == "__main__":
+    main()

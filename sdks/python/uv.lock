@@ -787,6 +787,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "langchain-core" },
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "pydantic" },
@@ -808,6 +809,7 @@ openai = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.24.0" },
+    { name = "langchain-core", specifier = ">=0.3.79" },
     { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.2.0" },
     { name = "langchain-openai", specifier = ">=0.3.35" },
     { name = "openai", specifier = ">=2.2.0" },

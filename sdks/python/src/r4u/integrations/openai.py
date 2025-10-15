@@ -355,15 +355,17 @@ class CompletionsWrapper:
         error: Optional[Exception],
     ) -> Dict[str, Any]:
         """Assemble the payload sent to the trace API."""
+        # Only include input messages, not the response
         trace_messages = cls._prepare_trace_messages(kwargs.get("messages") or [])
         result_text: Optional[str] = None
 
+        # Extract result text from response, but don't add to messages array
         if response_message is not None:
             assistant_message = cls._normalize_message(response_message)
             assistant_message.setdefault("role", "assistant")
-            trace_messages = [*trace_messages, assistant_message]
             content = assistant_message.get("content")
-            if isinstance(content, str):
+            # Only set result if there's actual text content
+            if isinstance(content, str) and content.strip():
                 result_text = content
 
         payload: Dict[str, Any] = {

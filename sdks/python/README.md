@@ -45,19 +45,25 @@ response = traced_client.chat.completions.create(
 from langchain_openai import ChatOpenAI
 from r4u.integrations.langchain import wrap_langchain
 
-# Build your LangChain runnable or model
-llm = ChatOpenAI(model="gpt-3.5-turbo")
+# Create the R4U callback handler
+r4u_handler = wrap_langchain(api_url="http://localhost:8000")
 
-# Wrap it with R4U to attach tracing callbacks (sync + async)
-traced_llm = wrap_langchain(llm, api_url="http://localhost:8000")
+# Add it to your LangChain model
+llm = ChatOpenAI(model="gpt-3.5-turbo", callbacks=[r4u_handler])
 
-# Invoke as usual - traces are sent via LangChain's callback system
-response = traced_llm.invoke("Hello, world!")
+# Use it normally - traces will be automatically created
+response = llm.invoke("Hello, world!")
 ```
 
-Under the hood, the LangChain integration registers synchronous and asynchronous callback handlers rather than monkey-patching methods. This keeps compatibility with the broader LangChain runnable ecosystem while still capturing every LLM call.
+The LangChain integration uses callback handlers to capture all LLM calls, including:
+- **Message history**: All messages in a conversation are automatically captured
+- **Tool/Function calls**: Tool definitions and invocations are tracked
+- **Agents**: Multi-step agent executions are fully traced
+- **Chains**: Works seamlessly with LangChain chains and runnables
 
-You can find a runnable example in `examples/langchain_openai.py` that demonstrates both sync and async invocations.
+For more details, see [docs/LANGCHAIN_INTEGRATION.md](docs/LANGCHAIN_INTEGRATION.md).
+
+You can find runnable examples in `examples/basic_langchain.py` and `examples/advanced_langchain.py`.
 
 ### Manual Tracing
 
