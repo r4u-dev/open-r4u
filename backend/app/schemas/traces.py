@@ -66,6 +66,7 @@ class TraceBase(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     tools: list[ToolDefinition] | None = None
+    task_id: int | None = None
     
     # Token usage
     prompt_tokens: int | None = None

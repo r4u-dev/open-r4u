@@ -19,12 +19,17 @@ class Trace(Base):
 		Index("ix_trace_started_at", "started_at"),
 		Index("ix_trace_model", "model"),
 		Index("ix_trace_project_id", "project_id"),
+		Index("ix_trace_task_id", "task_id"),
 	)
 
 	id: Mapped[intpk]
 	project_id: Mapped[int] = mapped_column(
 		ForeignKey("project.id", ondelete="CASCADE"),
 		nullable=False,
+	)
+	task_id: Mapped[int | None] = mapped_column(
+		ForeignKey("task.id", ondelete="SET NULL"),
+		nullable=True,
 	)
 	model: Mapped[str] = mapped_column(String(255), nullable=False)
 	result: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -43,6 +48,7 @@ class Trace(Base):
 	trace_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
 
 	project: Mapped["Project"] = relationship("Project", back_populates="traces")  # type: ignore
+	task: Mapped["Task | None"] = relationship("Task", back_populates="traces")  # type: ignore
 	messages: Mapped[list["TraceMessage"]] = relationship(
 		"TraceMessage",
 		back_populates="trace",

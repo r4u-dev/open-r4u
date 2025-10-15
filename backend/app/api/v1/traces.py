@@ -52,6 +52,7 @@ async def create_trace(
         started_at=payload.started_at,
         completed_at=payload.completed_at,
         path=payload.path,
+        task_id=payload.task_id,
         tools=
         [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
         if payload.tools

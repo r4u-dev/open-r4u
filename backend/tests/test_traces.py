@@ -370,3 +370,64 @@ class TestTraceEndpoints:
         assert data["total_tokens"] == 100
         assert data["prompt_tokens"] is None
         assert data["completion_tokens"] is None
+
+    async def test_create_trace_with_task_id(self, client: AsyncClient, test_session: AsyncSession):
+        """Test creating a trace with an associated task_id."""
+        from app.models.tasks import Task
+
+        # First, create a project
+        project = Project(name="Test Project")
+        test_session.add(project)
+        await test_session.flush()
+
+        # Create a task
+        task = Task(
+            project_id=project.id,
+            prompt="What is the weather?",
+            model="gpt-4",
+            tools=None,
+            response_schema=None,
+        )
+        test_session.add(task)
+        await test_session.commit()
+
+        # Create a trace with the task_id
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "What is the weather in NYC?"}],
+            "result": "It's sunny and 72F",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+            "project": "Test Project",
+            "task_id": task.id,
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["task_id"] == task.id
+        assert data["model"] == "gpt-4"
+
+        # Verify the trace is linked to the task in the database
+        result = await test_session.execute(
+            select(Trace).where(Trace.id == data["id"])
+        )
+        trace = result.scalar_one()
+        assert trace.task_id == task.id
+
+    async def test_create_trace_without_task_id(self, client: AsyncClient):
+        """Test creating a trace without a task_id (should be None)."""
+        payload = {
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "Test"}],
+            "result": "Response",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["task_id"] is None

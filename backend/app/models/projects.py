@@ -20,6 +20,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    tasks: Mapped[list["Task"]] = relationship(  # type: ignore
+        "Task",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]

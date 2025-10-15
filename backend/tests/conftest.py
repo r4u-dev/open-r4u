@@ -15,6 +15,7 @@ from app.main import app
 from app.models.base import Base
 # Import all models so they're registered with SQLAlchemy
 from app.models.projects import Project  # noqa: F401
+from app.models.tasks import Task  # noqa: F401
 from app.models.traces import Trace, TraceMessage  # noqa: F401
 
 
