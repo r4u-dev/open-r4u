@@ -98,6 +98,11 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
         tools = self._extract_tools(invocation_params)
         if tools:
             self._current_trace["tools"] = tools
+        
+        # Extract response_schema if provided (for structured outputs)
+        response_schema = self._extract_response_schema(invocation_params)
+        if response_schema:
+            self._current_trace["response_schema"] = response_schema
     
     def on_llm_end(
         self,
@@ -127,11 +132,17 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
                 if text and text.strip():
                     result_text = text
         
+        # Extract token usage from response
+        prompt_tokens, completion_tokens, total_tokens = self._extract_token_usage(response)
+        
         # Create the trace
         self._create_trace(
             completed_at=completed_at,
             result=result_text,
             error=None,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
         )
     
     def on_llm_error(
@@ -154,6 +165,9 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
         completed_at: datetime,
         result: Optional[str],
         error: Optional[str],
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
     ) -> None:
         """Create a trace in R4U."""
         try:
@@ -173,10 +187,96 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
             if tools:
                 payload["tools"] = tools
             
+            # Add response_schema if present
+            response_schema = self._current_trace.get("response_schema")
+            if response_schema:
+                payload["response_schema"] = response_schema
+            
+            # Add token usage if present
+            if prompt_tokens is not None:
+                payload["prompt_tokens"] = prompt_tokens
+            if completion_tokens is not None:
+                payload["completion_tokens"] = completion_tokens
+            if total_tokens is not None:
+                payload["total_tokens"] = total_tokens
+            
             self._r4u_client.create_trace(**payload)
         except Exception as e:
             # Don't let tracing errors break the application
             print(f"Failed to create trace: {e}")
+    
+    @staticmethod
+    def _extract_response_schema(invocation_params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract response schema from invocation parameters.
+        
+        LangChain passes response_format to underlying providers when using
+        structured outputs (e.g., with_structured_output()).
+        
+        Args:
+            invocation_params: Invocation parameters from LangChain
+            
+        Returns:
+            Response schema dict if found, None otherwise
+        """
+        response_format = invocation_params.get("response_format")
+        if response_format is None:
+            return None
+        
+        # Handle different response_format types (similar to OpenAI integration)
+        if isinstance(response_format, dict):
+            # If it has json_schema, extract the schema
+            if "json_schema" in response_format:
+                json_schema = response_format["json_schema"]
+                if isinstance(json_schema, dict):
+                    schema = json_schema.get("schema")
+                    if schema:
+                        return schema
+            # If it's a schema dict directly, return it
+            # But skip simple {"type": "json_object"} format markers
+            elif response_format.get("type") != "json_object":
+                return response_format
+        
+        # Handle Pydantic models or objects with schema
+        if hasattr(response_format, "schema"):
+            schema = getattr(response_format, "schema", None)
+            if callable(schema):
+                return schema()
+            return schema
+        
+        if hasattr(response_format, "model_json_schema"):
+            return response_format.model_json_schema()
+        
+        return None
+    
+    @staticmethod
+    def _extract_token_usage(response: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
+        """Extract token usage from LangChain LLMResult.
+        
+        Args:
+            response: LangChain LLMResult object
+            
+        Returns:
+            Tuple of (prompt_tokens, completion_tokens, total_tokens)
+        """
+        # LangChain stores token usage in llm_output
+        llm_output = getattr(response, "llm_output", None)
+        if llm_output is None:
+            return None, None, None
+        
+        # Token usage can be in different formats depending on the provider
+        token_usage = None
+        if isinstance(llm_output, dict):
+            token_usage = llm_output.get("token_usage")
+        
+        if token_usage is None:
+            return None, None, None
+        
+        # Extract individual token counts
+        prompt_tokens = token_usage.get("prompt_tokens")
+        completion_tokens = token_usage.get("completion_tokens")
+        total_tokens = token_usage.get("total_tokens")
+        
+        return prompt_tokens, completion_tokens, total_tokens
     
     @staticmethod
     def _extract_model_name(serialized: Dict[str, Any], kwargs: Dict[str, Any]) -> str:

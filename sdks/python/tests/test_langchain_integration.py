@@ -273,6 +273,72 @@ class TestR4UCallbackHandler:
         assert tools[0]["name"] == "get_weather"
         assert tools[0]["description"] == "Get the weather"
 
+    def test_extract_token_usage(self, handler):
+        """Test token usage extraction from LLMResult."""
+        from langchain_core.outputs import LLMResult, Generation
+        
+        # Test with token usage
+        response = LLMResult(
+            generations=[[Generation(text="Hello")]],
+            llm_output={
+                "token_usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15
+                }
+            }
+        )
+        
+        prompt_tokens, completion_tokens, total_tokens = handler._extract_token_usage(response)
+        assert prompt_tokens == 10
+        assert completion_tokens == 5
+        assert total_tokens == 15
+        
+        # Test without token usage
+        response_no_tokens = LLMResult(generations=[[Generation(text="Hello")]])
+        prompt_tokens, completion_tokens, total_tokens = handler._extract_token_usage(response_no_tokens)
+        assert prompt_tokens is None
+        assert completion_tokens is None
+        assert total_tokens is None
+
+    def test_on_llm_end_with_token_tracking(self, handler, mock_r4u_client):
+        """Test that token usage is tracked when available."""
+        from langchain_core.messages import AIMessage
+        from langchain_core.outputs import LLMResult, ChatGeneration
+        
+        # Setup initial trace
+        handler._current_trace = {
+            "started_at": datetime.utcnow(),
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "tools": None,
+        }
+        handler._call_path = "test_file.py::test_function"
+        
+        # Create mock response with token usage
+        message = AIMessage(content="Hi there!")
+        generation = ChatGeneration(message=message)
+        response = LLMResult(
+            generations=[[generation]],
+            llm_output={
+                "token_usage": {
+                    "prompt_tokens": 8,
+                    "completion_tokens": 3,
+                    "total_tokens": 11
+                }
+            }
+        )
+        
+        handler.on_llm_end(response)
+        
+        # Verify trace was created with token usage
+        mock_r4u_client.create_trace.assert_called_once()
+        call_kwargs = mock_r4u_client.create_trace.call_args[1]
+        
+        assert call_kwargs["prompt_tokens"] == 8
+        assert call_kwargs["completion_tokens"] == 3
+        assert call_kwargs["total_tokens"] == 11
+
 
 class TestWrapLangChain:
     """Test wrap_langchain function."""
