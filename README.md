@@ -230,6 +230,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## 🙏 Acknowledgments
 
 - Inspired by [Langfuse](https://github.com/langfuse/langfuse) for LLM observability concepts
+- Inspired by [LangSmith](https://smith.langchain.com/) for LLM monitoring and evaluation
+- Inspired by [Opik](https://github.com/comet-ml/opik) for comprehensive LLM debugging and evaluation
 - Built with [FastAPI](https://fastapi.tiangolo.com/) and [SQLAlchemy](https://www.sqlalchemy.org/)
 - Powered by the open-source community
 
