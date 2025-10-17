@@ -10,6 +10,7 @@ from app.schemas.traces import Reasoning, ToolDefinition
 class TaskBase(BaseModel):
     """Base schema for task details."""
 
+    path: str | None = None
     prompt: str
     tools: list[ToolDefinition] | None = None
     model: str
@@ -41,6 +42,7 @@ class TaskRead(TaskBase):
 class TaskUpdate(BaseModel):
     """Schema for task update payload."""
 
+    path: str | None = None
     prompt: str | None = None
     tools: list[ToolDefinition] | None = None
     model: str | None = None

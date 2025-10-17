@@ -9,6 +9,7 @@ from app.database import get_session
 from app.models.projects import Project
 from app.models.traces import Trace, TraceInputItem
 from app.schemas.traces import TraceCreate, TraceRead
+from app.services.task_grouping import find_or_create_task_for_trace, try_match_existing_task
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 
@@ -97,6 +98,18 @@ async def create_trace(
     await session.flush()
     await session.commit()
 
+    # Auto-match to existing task (fast - only queries existing tasks)
+    # Don't create new tasks here to keep creation fast
+    if not trace.task_id:
+        try:
+            matching_task = await try_match_existing_task(trace.id, session)
+            if matching_task:
+                trace.task_id = matching_task.id
+                await session.commit()
+        except Exception as e:
+            # Log but don't fail trace creation if grouping fails
+            print(f"Failed to auto-match trace {trace.id}: {e}")
+
     query = (
         select(Trace)
         .options(selectinload(Trace.input_items))
@@ -106,3 +119,50 @@ async def create_trace(
     created_trace = result.scalar_one()
 
     return TraceRead.model_validate(created_trace)
+
+
+@router.post("/{trace_id}/group", response_model=TraceRead)
+async def group_trace(
+    trace_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> TraceRead:
+    """
+    Find or create a task for a trace by analyzing similar traces.
+    
+    This endpoint:
+    1. Extracts instructions from the trace
+    2. Compares with existing tasks
+    3. If no match, finds similar traces and creates a new task
+    4. Assigns the trace to the task
+    """
+    # Check if trace exists
+    query = (
+        select(Trace)
+        .options(selectinload(Trace.input_items))
+        .where(Trace.id == trace_id)
+    )
+    result = await session.execute(query)
+    trace = result.scalar_one_or_none()
+    
+    if not trace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Trace with id {trace_id} not found",
+        )
+    
+    # Try to find or create task
+    task = await find_or_create_task_for_trace(trace_id, session)
+    
+    if task:
+        trace.task_id = task.id
+        await session.commit()
+        
+        # Reload trace with eager-loaded input_items
+        result = await session.execute(
+            select(Trace)
+            .options(selectinload(Trace.input_items))
+            .where(Trace.id == trace_id)
+        )
+        trace = result.scalar_one()
+    
+    return TraceRead.model_validate(trace)

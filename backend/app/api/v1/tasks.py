@@ -11,6 +11,7 @@ from app.database import get_session
 from app.models.projects import Project
 from app.models.tasks import Task
 from app.schemas.tasks import TaskCreate, TaskRead, TaskUpdate
+from app.services.task_grouping import group_all_traces
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -169,3 +170,36 @@ async def delete_task(
 
     await session.delete(task)
     await session.commit()
+
+
+@router.post("/group-traces", response_model=list[TaskRead], status_code=status.HTTP_201_CREATED)
+async def group_traces_into_tasks(
+    session: AsyncSession = Depends(get_session),
+    similarity_threshold: float = 0.6,
+    min_cluster_size: int = 2,
+) -> list[TaskRead]:
+    """
+    Automatically group all ungrouped traces into tasks.
+    
+    This endpoint:
+    1. Finds all traces without a task_id
+    2. Groups them by path
+    3. Within each path, groups by instruction similarity
+    4. Infers templates for each group
+    5. Creates tasks with templated instructions
+    6. Assigns traces to their tasks
+    
+    Args:
+        similarity_threshold: Minimum similarity to group traces (0.0-1.0, default 0.6)
+        min_cluster_size: Minimum traces needed to create a task (default 2)
+        
+    Returns:
+        List of created tasks
+    """
+    created_tasks = await group_all_traces(
+        session,
+        similarity_threshold=similarity_threshold,
+        min_cluster_size=min_cluster_size
+    )
+    
+    return [TaskRead.model_validate(task) for task in created_tasks]
