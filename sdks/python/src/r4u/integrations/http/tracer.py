@@ -17,12 +17,12 @@ class RequestInfo:
     
     # Request details
     headers: Optional[Dict[str, str]] = None
-    request_payload: Optional[str] = None
+    request_payload: Optional[bytes] = None
     request_size: Optional[int] = None
     
     # Response details
     status_code: Optional[int] = None
-    response_payload: Optional[str] = None
+    response_payload: Optional[bytes] = None
     response_size: Optional[int] = None
     error: Optional[str] = None
     
