@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, Mock
 from openai import OpenAI as OriginalOpenAI
 from openai import AsyncOpenAI as OriginalAsyncOpenAI
 
+from r4u.integrations.http.tracer import AbstractTracer, RequestInfo
+
 from .http.httpx import trace_async_client, trace_client
 
 from ..client import R4UClient
@@ -483,10 +485,49 @@ def wrap_openai(
     return OpenAIWrapper(client, r4u_client, project)
 
 
+def get_chat_completions_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
+    """Trace a chat completions request."""
+    pass
+
+def get_completions_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
+    """Trace a completions request."""
+    pass
+
+def get_responses_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
+    """Trace a responses request."""
+    pass
+
+def get_embeddings_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
+    """Trace a embeddings request."""
+    pass
+
+class OpenAITracer(AbstractTracer):
+    """Tracer for OpenAI client."""
+    def __init__(self, r4u_client: R4UClient):
+        self._r4u_client = r4u_client
+
+    def trace_request(self, request_info: RequestInfo):
+        """Trace a request."""
+        if request_info.url.endswith("/chat/completions"):
+            trace = get_chat_completions_trace(request_info)
+        elif request_info.url.endswith("/completions"):
+            trace = get_completions_trace(request_info)
+        elif request_info.url.endswith("/responses"):
+            trace = get_responses_trace(request_info)
+        elif request_info.url.endswith("/embeddings"):
+            trace = get_embeddings_trace(request_info)
+        else:
+            raise ValueError(f"Unsupported request: {request_info.url}")
+
+        if trace is not None:
+            self._r4u_client.create_trace(**trace)
+
+
+r4u_client = R4UClient()
 class OpenAI(OriginalOpenAI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        trace_client(self._client, OpenAITracer(R4UClient()))
+        trace_client(self._client, OpenAITracer(r4u_client))
 
 
 class AsyncOpenAI(OriginalAsyncOpenAI):
