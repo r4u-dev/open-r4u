@@ -1,19 +1,15 @@
 """Basic example of using R4U with LangChain."""
 
-# from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from r4u.integrations.langchain import ChatOpenAI
 
 
 def main():
     """Run a basic LangChain example with tracing."""
-    # Create the R4U callback handler
-    # r4u_handler = wrap_langchain(api_url="http://localhost:8000")
-    
+
     # Create a LangChain chat model with the callback handler
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        # callbacks=[r4u_handler]
     )
     
     # Example 1: Simple message
