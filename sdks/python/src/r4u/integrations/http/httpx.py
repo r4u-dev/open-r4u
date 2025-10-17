@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import functools
 import types
-from typing import Any, Callable
+from typing import Callable
 
 import httpx
 
