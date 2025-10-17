@@ -1,19 +1,15 @@
 """Basic example of using R4U with LangChain."""
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from r4u.integrations.langchain import wrap_langchain
+from r4u.integrations.langchain import ChatOpenAI
 
 
 def main():
     """Run a basic LangChain example with tracing."""
-    # Create the R4U callback handler
-    r4u_handler = wrap_langchain(api_url="http://localhost:8000")
-    
+
     # Create a LangChain chat model with the callback handler
     llm = ChatOpenAI(
-        model="gpt-3.5-turbo",
-        callbacks=[r4u_handler]
+        model="gpt-4o-mini",
     )
     
     # Example 1: Simple message
@@ -42,7 +38,6 @@ def main():
     chain = prompt | llm
     response = chain.invoke(
         {"input": "Tell me a short joke"},
-        config={"callbacks": [r4u_handler]}
     )
     print(f"Response: {response.content}\n")
 

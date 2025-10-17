@@ -5,8 +5,14 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+import httpx
+
+from .http.httpx import trace_client
 from ..client import R4UClient
 from ..utils import extract_call_path
+
+from langchain_openai import ChatOpenAI as OriginalChatOpenAI
+
 
 try:
     from langchain_core.callbacks.base import BaseCallbackHandler
@@ -477,3 +483,15 @@ def wrap_langchain(
     
     r4u_client = R4UClient(api_url=api_url, timeout=timeout)
     return R4UCallbackHandler(r4u_client, project)
+
+
+class ChatOpenAI(OriginalChatOpenAI):
+    """ChatOpenAI wrapper that automatically creates traces."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """Initialize the wrapper."""
+        http_client = kwargs.get("http_client",
+                                 httpx.Client(base_url="https://api.openai.com/v1", timeout=300.0))
+        trace_client(http_client)
+        kwargs["http_client"] = http_client
+        super().__init__(*args, **kwargs)
