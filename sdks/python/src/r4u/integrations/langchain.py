@@ -490,8 +490,15 @@ class ChatOpenAI(OriginalChatOpenAI):
 
     def __init__(self, *args: Any, **kwargs: Any):
         """Initialize the wrapper."""
-        http_client = kwargs.get("http_client",
-                                 httpx.Client(base_url="https://api.openai.com/v1", timeout=300.0))
+        http_client = kwargs.get(
+            "http_client",
+            httpx.Client(
+                base_url=kwargs.get("base_url", "https://api.openai.com/v1"),
+                timeout=kwargs.get("timeout", 300.0),
+                max_retries=kwargs.get("max_retries", 2),
+                follow_redirects=kwargs.get("follow_redirects", True),
+            )
+        )
         trace_client(http_client)
         kwargs["http_client"] = http_client
         super().__init__(*args, **kwargs)
