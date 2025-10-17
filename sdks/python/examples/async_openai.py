@@ -1,16 +1,12 @@
 """Async example of using R4U with OpenAI."""
 
 import asyncio
-from openai import AsyncOpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.integrations.openai import AsyncOpenAI
 
 async def main():
     """Run an async OpenAI example with tracing."""
     # Initialize async OpenAI client
     client = AsyncOpenAI()
-    
-    # Wrap with R4U for automatic tracing
-    traced_client = wrap_openai(client, api_url="http://localhost:8000")
     
     # Make multiple concurrent chat completions - each will create a trace
     tasks = []
@@ -21,8 +17,8 @@ async def main():
     ]
     
     for question in questions:
-        task = traced_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        task = client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": question}
