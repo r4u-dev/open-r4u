@@ -4,10 +4,16 @@ import inspect
 import json
 import os
 from datetime import datetime
+import types
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from unittest.mock import AsyncMock, Mock
+
+from openai import OpenAI as OriginalOpenAI
+from openai import AsyncOpenAI as OriginalAsyncOpenAI
+
+from .http.httpx import trace_async_client, trace_client
 
 from ..client import R4UClient
 from ..utils import extract_call_path
@@ -475,3 +481,15 @@ def wrap_openai(
         project = os.getenv("R4U_PROJECT", "Default Project")
     r4u_client = R4UClient(api_url=api_url, timeout=timeout)
     return OpenAIWrapper(client, r4u_client, project)
+
+
+class OpenAI(OriginalOpenAI):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        trace_client(self._client)
+
+
+class AsyncOpenAI(OriginalAsyncOpenAI):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        trace_async_client(self._client)
