@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.traces import ToolDefinition
+from app.schemas.traces import Reasoning, ToolDefinition
 
 
 class TaskBase(BaseModel):
@@ -14,6 +14,14 @@ class TaskBase(BaseModel):
     tools: list[ToolDefinition] | None = None
     model: str
     response_schema: dict[str, Any] | None = None
+    
+    # Request parameters (matching traces)
+    instructions: str | None = None
+    temperature: float | None = None
+    tool_choice: str | dict[str, Any] | None = None  # "auto", "none", "required", or specific tool
+    
+    # Reasoning attributes (matching traces)
+    reasoning: Reasoning | None = None  # Reasoning configuration for models that support it
 
 
 class TaskCreate(TaskBase):
@@ -37,3 +45,11 @@ class TaskUpdate(BaseModel):
     tools: list[ToolDefinition] | None = None
     model: str | None = None
     response_schema: dict[str, Any] | None = None
+    
+    # Request parameters (matching traces)
+    instructions: str | None = None
+    temperature: float | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    
+    # Reasoning attributes (matching traces)
+    reasoning: Reasoning | None = None

@@ -29,6 +29,14 @@ class Task(Base):
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    
+    # Request parameters (matching traces)
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    temperature: Mapped[float | None] = mapped_column(nullable=True)
+    tool_choice: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    
+    # Reasoning attributes (matching traces)
+    reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")  # type: ignore
     traces: Mapped[list["Trace"]] = relationship(  # type: ignore

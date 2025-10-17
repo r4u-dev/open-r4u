@@ -79,6 +79,18 @@ async def create_task(
         else None,
         model=payload.model,
         response_schema=payload.response_schema,
+        instructions=payload.instructions,
+        temperature=payload.temperature,
+        tool_choice=(
+            payload.tool_choice
+            if isinstance(payload.tool_choice, dict)
+            else {"type": payload.tool_choice} if payload.tool_choice else None
+        ),
+        reasoning=(
+            payload.reasoning.model_dump(mode="json", exclude_unset=True)
+            if payload.reasoning
+            else None
+        ),
     )
 
     session.add(task)
@@ -119,6 +131,18 @@ async def update_task(
         task.model = payload.model
     if payload.response_schema is not None:
         task.response_schema = payload.response_schema
+    if payload.instructions is not None:
+        task.instructions = payload.instructions
+    if payload.temperature is not None:
+        task.temperature = payload.temperature
+    if payload.tool_choice is not None:
+        task.tool_choice = (
+            payload.tool_choice
+            if isinstance(payload.tool_choice, dict)
+            else {"type": payload.tool_choice}
+        )
+    if payload.reasoning is not None:
+        task.reasoning = payload.reasoning.model_dump(mode="json", exclude_unset=True)
 
     await session.commit()
     await session.refresh(task)

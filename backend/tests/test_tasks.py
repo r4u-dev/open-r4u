@@ -218,3 +218,86 @@ async def test_delete_task_not_found(client: AsyncClient):
     """Test deleting a non-existent task."""
     response = await client.delete("/tasks/99999")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_request_parameters(client: AsyncClient):
+    """Test creating a task with instructions, temperature, tool_choice, and reasoning."""
+    payload = {
+        "project": "Test Project",
+        "prompt": "What is the weather like?",
+        "model": "o1-preview",
+        "instructions": "Be concise and accurate",
+        "temperature": 0.7,
+        "tool_choice": "auto",
+        "reasoning": {
+            "effort": "medium",
+            "summary": "auto"
+        },
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        ],
+    }
+
+    response = await client.post("/tasks", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    
+    assert data["prompt"] == payload["prompt"]
+    assert data["model"] == payload["model"]
+    assert data["instructions"] == payload["instructions"]
+    assert data["temperature"] == payload["temperature"]
+    assert data["tool_choice"] == {"type": "auto"}
+    assert data["reasoning"]["effort"] == "medium"
+    assert data["reasoning"]["summary"] == "auto"
+    assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_update_task_with_request_parameters(client: AsyncClient, test_session):
+    """Test updating a task with new request parameters."""
+    # Create a project and task
+    project = Project(name="Test Project")
+    test_session.add(project)
+    await test_session.flush()
+
+    task = Task(
+        project_id=project.id,
+        prompt="Original prompt",
+        model="gpt-4",
+    )
+    test_session.add(task)
+    await test_session.commit()
+
+    # Update with new parameters
+    update_payload = {
+        "instructions": "Updated instructions",
+        "temperature": 0.9,
+        "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
+        "reasoning": {
+            "effort": "high",
+            "summary": "detailed"
+        }
+    }
+    response = await client.patch(f"/tasks/{task.id}", json=update_payload)
+    assert response.status_code == 200
+    data = response.json()
+    
+    assert data["instructions"] == "Updated instructions"
+    assert data["temperature"] == 0.9
+    assert data["tool_choice"]["type"] == "function"
+    assert data["tool_choice"]["function"]["name"] == "get_weather"
+    assert data["reasoning"]["effort"] == "high"
+    assert data["reasoning"]["summary"] == "detailed"
