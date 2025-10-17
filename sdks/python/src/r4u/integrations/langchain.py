@@ -3,15 +3,18 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
-from .http.httpx import trace_client
-from ..client import R4UClient
+from r4u.integrations.openai import OpenAITracer
+
+from .http.httpx import trace_async_client, trace_client
+from ..client import R4UClient, r4u_client
 from ..utils import extract_call_path
 
 from langchain_openai import ChatOpenAI as OriginalChatOpenAI
+from langchain_openai import AzureChatOpenAI as OriginalAzureChatOpenAI
 
 
 try:
@@ -490,15 +493,43 @@ class ChatOpenAI(OriginalChatOpenAI):
 
     def __init__(self, *args: Any, **kwargs: Any):
         """Initialize the wrapper."""
-        http_client = kwargs.get(
-            "http_client",
-            httpx.Client(
-                base_url=kwargs.get("base_url", "https://api.openai.com/v1"),
-                timeout=kwargs.get("timeout", 300.0),
-                max_retries=kwargs.get("max_retries", 2),
-                follow_redirects=kwargs.get("follow_redirects", True),
-            )
-        )
-        trace_client(http_client)
+        http_config = {
+            "base_url": kwargs.get("base_url", "https://api.openai.com/v1"),
+            "timeout": kwargs.get("timeout", 300.0),
+            "follow_redirects": kwargs.get("follow_redirects", True),
+        }
+
+
+        http_client = kwargs.get("http_client", httpx.Client(**http_config))
+        trace_client(http_client, OpenAITracer(r4u_client))
         kwargs["http_client"] = http_client
+
+        http_async_client = kwargs.get("http_async_client", httpx.AsyncClient(**http_config))
+        trace_async_client(http_async_client, OpenAITracer(r4u_client))
+        kwargs["http_async_client"] = http_async_client
+
+        super().__init__(*args, **kwargs)
+
+
+class AzureChatOpenAI(OriginalAzureChatOpenAI):
+    """AzureChatOpenAI wrapper that automatically creates traces."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """Initialize the wrapper."""
+        http_config = {
+            "base_url": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "timeout": kwargs.get("timeout", 300.0),
+            "max_retries": kwargs.get("max_retries", 2),
+            "follow_redirects": kwargs.get("follow_redirects", True),
+        }
+
+
+        http_client = kwargs.get("http_client", httpx.Client(**http_config))
+        trace_client(http_client, OpenAITracer(r4u_client))
+        kwargs["http_client"] = http_client
+
+        http_async_client = kwargs.get("http_async_client", httpx.AsyncClient(**http_config))
+        trace_async_client(http_async_client, OpenAITracer(r4u_client))
+        kwargs["http_async_client"] = http_async_client
+
         super().__init__(*args, **kwargs)

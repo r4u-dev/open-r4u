@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime
+import os
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
@@ -307,3 +308,9 @@ class R4UClient:
         if isinstance(value, datetime):
             return value
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+r4u_client = R4UClient(
+    api_url=os.getenv("R4U_API_URL", "http://localhost:8000"),
+    timeout=float(os.getenv("R4U_TIMEOUT", "30.0")),
+)

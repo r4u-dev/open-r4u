@@ -17,7 +17,7 @@ from r4u.integrations.http.tracer import AbstractTracer, RequestInfo
 
 from .http.httpx import trace_async_client, trace_client
 
-from ..client import R4UClient
+from ..client import R4UClient, r4u_client
 from ..utils import extract_call_path
 
 
@@ -487,19 +487,22 @@ def wrap_openai(
 
 def get_chat_completions_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
     """Trace a chat completions request."""
-    pass
+    request_json = json.loads(request_info.request_payload)
+    print(f"{request_info.method.upper()} {request_info.url}")
+    print(json.dumps(request_json, indent=2))
 
 def get_completions_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
     """Trace a completions request."""
-    pass
+    request_json = json.loads(request_info.request_payload)
+    print(f"{request_info.method.upper()} {request_info.url}")
+    print(json.dumps(request_json, indent=2))
 
 def get_responses_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
     """Trace a responses request."""
-    pass
+    request_json = json.loads(request_info.request_payload)
+    print(f"{request_info.method.upper()} {request_info.url}")
+    print(json.dumps(request_json, indent=2))
 
-def get_embeddings_trace(request_info: RequestInfo) -> Optional[Dict[str, Any]]:
-    """Trace a embeddings request."""
-    pass
 
 class OpenAITracer(AbstractTracer):
     """Tracer for OpenAI client."""
@@ -515,7 +518,7 @@ class OpenAITracer(AbstractTracer):
         elif request_info.url.endswith("/responses"):
             trace = get_responses_trace(request_info)
         elif request_info.url.endswith("/embeddings"):
-            trace = get_embeddings_trace(request_info)
+            raise ValueError(f"Unsupported request: {request_info.url}")
         else:
             raise ValueError(f"Unsupported request: {request_info.url}")
 
@@ -523,7 +526,6 @@ class OpenAITracer(AbstractTracer):
             self._r4u_client.create_trace(**trace)
 
 
-r4u_client = R4UClient()
 class OpenAI(OriginalOpenAI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -533,4 +535,4 @@ class OpenAI(OriginalOpenAI):
 class AsyncOpenAI(OriginalAsyncOpenAI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        trace_async_client(self._client)
+        trace_async_client(self._client, OpenAITracer(r4u_client))
