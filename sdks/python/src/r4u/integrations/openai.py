@@ -486,7 +486,7 @@ def wrap_openai(
 class OpenAI(OriginalOpenAI):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        trace_client(self._client)
+        trace_client(self._client, OpenAITracer(R4UClient()))
 
 
 class AsyncOpenAI(OriginalAsyncOpenAI):

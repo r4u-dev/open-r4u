@@ -18,7 +18,7 @@ def _build_request_info(request: httpx.Request) -> RequestInfo:
         started_at=datetime.now(timezone.utc)
     )
 
-def _update_request_info(request_info: RequestInfo, response: Any, error: str = None) -> None:
+def _update_request_info(request_info: RequestInfo, response: httpx.Response, error: str = None) -> None:
     """
     Common logic for processing request info after request completion.
     """
@@ -28,15 +28,8 @@ def _update_request_info(request_info: RequestInfo, response: Any, error: str = 
     request_info.response_size = len(response.content) if response and response.content else None
     request_info.completed_at = completed_at
     
-    # Extract response payload
     if response and response.content:
-        try:
-            # Try to decode as text first
-            response_payload = response.text
-        except UnicodeDecodeError:
-            # If it's binary, just show the size
-            response_payload = f"<binary data, {len(response.content)} bytes>"
-        request_info.response_payload = response_payload
+        request_info.response_payload = response.content
 
 
 def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
