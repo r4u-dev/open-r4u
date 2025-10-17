@@ -17,12 +17,15 @@ async def test_create_task(client: AsyncClient, test_session):
         "model": "gpt-4",
         "tools": [
             {
-                "name": "get_weather",
-                "description": "Get weather for a location",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "location": {"type": "string"}
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string"}
+                        }
                     }
                 }
             }
@@ -43,7 +46,8 @@ async def test_create_task(client: AsyncClient, test_session):
     assert data["model"] == payload["model"]
     assert data["tools"] is not None
     assert len(data["tools"]) == 1
-    assert data["tools"][0]["name"] == "get_weather"
+    assert data["tools"][0]["type"] == "function"
+    assert data["tools"][0]["function"]["name"] == "get_weather"
     assert data["response_schema"] == payload["response_schema"]
     assert "id" in data
     assert "project_id" in data

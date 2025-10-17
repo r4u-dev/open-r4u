@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any
 
-from app.enums import MessageRole
+from app.enums import FinishReason, ItemType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import DateTime, Enum as SQLEnum, Float, ForeignKey, Index, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,7 +12,7 @@ JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 
 
 class Trace(Base):
-	"""Trace model capturing LLM execution metadata and message history."""
+	"""Trace model capturing LLM execution metadata and input history."""
 
 	__tablename__ = "trace"
 	__table_args__ = (
@@ -20,6 +20,7 @@ class Trace(Base):
 		Index("ix_trace_model", "model"),
 		Index("ix_trace_project_id", "project_id"),
 		Index("ix_trace_task_id", "task_id"),
+		Index("ix_trace_finish_reason", "finish_reason"),
 	)
 
 	id: Mapped[intpk]
@@ -38,10 +39,26 @@ class Trace(Base):
 	started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+	# Request parameters
+	instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+	prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+	temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+	tool_choice: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+
 	# Token usage
 	prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 	completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 	total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+	# Completion details
+	finish_reason: Mapped[FinishReason | None] = mapped_column(
+		SQLEnum(FinishReason, name="finish_reason"),
+		nullable=True,
+	)
+	system_fingerprint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+	reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
 
 	# Schema and metadata
 	response_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
@@ -49,11 +66,11 @@ class Trace(Base):
 
 	project: Mapped["Project"] = relationship("Project", back_populates="traces")  # type: ignore
 	task: Mapped["Task | None"] = relationship("Task", back_populates="traces")  # type: ignore
-	messages: Mapped[list["TraceMessage"]] = relationship(
-		"TraceMessage",
+	input_items: Mapped[list["TraceInputItem"]] = relationship(
+		"TraceInputItem",
 		back_populates="trace",
 		cascade="all, delete-orphan",
-		order_by="TraceMessage.position",
+		order_by="TraceInputItem.position",
 	)
 	tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
 
@@ -61,12 +78,13 @@ class Trace(Base):
 	updated_at: Mapped[updated_at_col]
 
 
-class TraceMessage(Base):
-	"""Individual message belonging to a trace."""
+class TraceInputItem(Base):
+	"""Individual input item belonging to a trace."""
 
-	__tablename__ = "trace_message"
+	__tablename__ = "trace_input_item"
 	__table_args__ = (
-		Index("ix_trace_message_trace_id_position", "trace_id", "position", unique=True),
+		Index("ix_trace_input_item_trace_id_position", "trace_id", "position", unique=True),
+		Index("ix_trace_input_item_type", "type"),
 	)
 
 	id: Mapped[intpk]
@@ -74,17 +92,14 @@ class TraceMessage(Base):
 		ForeignKey("trace.id", ondelete="CASCADE"),
 		nullable=False,
 	)
-	role: Mapped[MessageRole] = mapped_column(
-		SQLEnum(MessageRole, name="message_role"),
+	type: Mapped[ItemType] = mapped_column(
+		SQLEnum(ItemType, name="item_type"),
 		nullable=False,
 	)
-	content: Mapped[Any | None] = mapped_column(JSONType, nullable=True)
+	data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
 	position: Mapped[int] = mapped_column(Integer, nullable=False)
-	name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-	tool_call_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-	tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
 
-	trace: Mapped[Trace] = relationship("Trace", back_populates="messages")
+	trace: Mapped[Trace] = relationship("Trace", back_populates="input_items")
 
 	created_at: Mapped[created_at_col]
 	updated_at: Mapped[updated_at_col]
