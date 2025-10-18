@@ -25,6 +25,7 @@ class Task(Base):
         ForeignKey("project.id", ondelete="CASCADE"),
         nullable=False,
     )
+    path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     model: Mapped[str] = mapped_column(String(255), nullable=False)
