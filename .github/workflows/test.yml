@@ -35,6 +35,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Cache backend dependencies
         uses: actions/cache@v4
         with:
@@ -46,27 +51,22 @@ jobs:
       - name: Install backend dependencies
         working-directory: ./backend
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip
-          pip install -e .
-          pip install pytest pytest-asyncio httpx
+          uv venv
+          uv sync --dev
 
       - name: Run database migrations
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
         run: |
-          source .venv/bin/activate
-          alembic upgrade head
+          uv run alembic upgrade head
 
       - name: Run backend tests
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
         run: |
-          source .venv/bin/activate
-          pytest tests/ -v --tb=short
+          uv run pytest tests/ -v --tb=short
 
   test-sdk-python:
     name: Python SDK Tests
@@ -98,8 +98,7 @@ jobs:
         working-directory: ./sdks/python
         run: |
           uv venv
-          uv pip install -e .
-          uv pip install pytest pytest-asyncio pytest-mock
+          uv sync --dev
 
       - name: Run Python SDK tests
         working-directory: ./sdks/python
