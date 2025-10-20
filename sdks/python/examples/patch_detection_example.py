@@ -7,7 +7,7 @@ has already been patched to prevent double-patching.
 """
 
 import requests
-from r4u.tracing.http.requests import trace_session, PrintTracer
+from r4u.tracing.http.requests import trace_session
 
 
 def demonstrate_patch_detection():
@@ -23,7 +23,7 @@ def demonstrate_patch_detection():
 
     # First patch
     print("1. Applying first patch...")
-    trace_session(session, PrintTracer())
+    trace_session(session)
     print(f"After first patch - send method: {session.send}")
     print(f"Has _r4u_patched attribute: {hasattr(session.send, '_r4u_patched')}")
     session_send = session.send
@@ -31,7 +31,7 @@ def demonstrate_patch_detection():
     
     # Second patch (should be ignored)
     print("2. Applying second patch (should be ignored)...")
-    trace_session(session, PrintTracer())
+    trace_session(session)
     print(f"After second patch - send method: {session.send}")
     print(f"Has _r4u_patched attribute: {hasattr(session.send, '_r4u_patched')}")
     print()

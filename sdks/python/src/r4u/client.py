@@ -15,6 +15,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class HTTPTrace(BaseModel):
     """Schema for HTTP trace creation (provider-agnostic)."""
 
+    # Request identification
+    url: str = Field(..., description="The request URL")
+    method: str = Field(..., description="The HTTP method (GET, POST, etc.)")
+
     # Timing
     started_at: datetime = Field(..., description="When the request started")
     completed_at: datetime = Field(..., description="When the request completed")
@@ -35,31 +39,43 @@ class HTTPTrace(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class AbstractClient(ABC):
-    """Abstract base class for HTTP request clients."""
+class AbstractTracer(ABC):
+    """Abstract base class for HTTP request tracing."""
 
     @abstractmethod
-    def send(self, trace: HTTPTrace) -> None:
-        """Send a trace entry to R4U Server
+    def log(self, trace: HTTPTrace) -> None:
+        """Log a trace entry
 
         Args:
-            trace: HTTP trace to send to R4U Server.
+            trace: HTTP trace to log.
         """
         raise NotImplementedError
 
 
-class R4UClient(AbstractClient):
-    """Client for interacting with R4U Server."""
+class ConsoleTracer(AbstractTracer):
+    """Tracer for printing HTTP traces to the console."""
+
+    def log(self, trace: HTTPTrace) -> None:
+        """Log a trace entry.
+
+        Args:
+            trace: HTTP trace to log.
+        """
+        print(trace.model_dump_json(indent=2))
+
+
+class R4UClient(AbstractTracer):
+    """Tracer for logging HTTP traces on R4U Server."""
 
     def __init__(
         self,
         api_url: str = "http://localhost:8000",
         timeout: float = 30.0,
     ):
-        """Initialize the R4U client.
+        """Initialize the R4U tracer.
 
         Args:
-            api_url: Base URL for the R4U API
+            api_url: Base URL for the R4U Server
             timeout: HTTP request timeout in seconds
         """
         self.api_url = api_url.rstrip("/")
@@ -71,11 +87,11 @@ class R4UClient(AbstractClient):
         self._stop_worker = threading.Event()
         self._start_worker_thread()
 
-    def send(self, trace: HTTPTrace) -> None:
-        """Send a trace entry to the queue for processing.
+    def log(self, trace: HTTPTrace) -> None:
+        """Log a trace entry.
 
         Args:
-            trace: LLM trace to send to R4U Server.
+            trace: HTTP trace to log.
         """
         self._trace_queue.put(trace)
 
@@ -149,7 +165,7 @@ class R4UClient(AbstractClient):
 
 
 @lru_cache(maxsize=1)
-def get_r4u_client() -> R4UClient:
+def get_r4u_client() -> AbstractTracer:
     """Get the R4U client."""
 
     return R4UClient(

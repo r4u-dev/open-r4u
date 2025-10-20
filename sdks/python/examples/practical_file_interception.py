@@ -15,7 +15,7 @@ from typing import Dict, Any, List
 
 import requests
 from r4u.tracing.http import trace_requests_session
-from r4u.tracing.http.tracer import UniversalTracer, RawRequestInfo
+from r4u.tracing.http.tracer import RawRequestInfo
 from r4u.client import R4UClient
 
 
@@ -41,11 +41,11 @@ class FileUploadInterceptor:
         self.captured_files.clear()
 
 
-class EnhancedFileTracer(UniversalTracer):
+class EnhancedFileTracer:
     """Enhanced tracer that captures file upload information."""
     
-    def __init__(self, r4u_client: R4UClient, provider: str):
-        super().__init__(r4u_client, provider)
+    def __init__(self, r4u_client: R4UClient):
+        self._r4u_client = r4u_client
         self.file_interceptor = None
     
     def set_file_interceptor(self, interceptor: FileUploadInterceptor):
@@ -292,7 +292,7 @@ def demonstrate_file_interception():
     # Create a mock R4U client
     class MockR4UClient:
         def send(self, trace):
-            print(f"Trace sent: {trace.provider} - {trace.endpoint}")
+            print(f"Trace sent: {trace.endpoint}")
     
     # Set up interceptor
     mock_client = MockR4UClient()

@@ -6,10 +6,10 @@ Debug version to understand why file upload detection isn't working.
 import io
 import json
 import requests
-from r4u.tracing.http import trace_requests_session, PrintTracer
+from r4u.tracing.http import trace_requests_session
 
 
-class DebugFileUploadTracer(PrintTracer):
+class DebugFileUploadTracer:
     """Debug tracer to understand file upload detection."""
     
     def trace_request(self, request_info):

@@ -20,7 +20,13 @@ The enhanced OpenAITracer now captures:
 
 import asyncio
 import os
-from r4u.tracing.openai import AsyncOpenAI
+
+from r4u.client import ConsoleTracer
+from r4u.tracing import trace_all
+# Enable universal interception
+trace_all(ConsoleTracer())
+
+from openai import AsyncOpenAI
 
 
 async def test_regular_completions():

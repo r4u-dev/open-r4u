@@ -14,6 +14,10 @@ from typing import Dict, Optional, Any
 class HTTPTrace(BaseModel):
     """Schema for HTTP trace creation (provider-agnostic)."""
 
+    # Request identification
+    url: str = Field(..., description="The request URL")
+    method: str = Field(..., description="The HTTP method (GET, POST, etc.)")
+
     # Timing
     started_at: datetime = Field(..., description="When the request started")
     completed_at: datetime = Field(..., description="When the request completed")
@@ -44,7 +48,8 @@ class HTTPTrace(BaseModel):
 ### 2. **Simplified Schema**
 - Removed unnecessary fields like `endpoint`, `operation_type`
 - Focus on essential HTTP data: timing, status, headers, payloads
-- Metadata field for additional context (method, URL, etc.)
+- Direct fields for URL and method for easy access
+- Metadata field for additional context
 
 ### 3. **Raw Data Capture**
 - Captures complete request/response bytes
@@ -62,7 +67,6 @@ class HTTPTrace(BaseModel):
 
 ```python
 from r4u.tracing.http.httpx import trace_async_client
-from r4u.tracing.http.tracer import PrintTracer
 
 # Trace an httpx client
 async with httpx.AsyncClient() as client:
@@ -81,7 +85,7 @@ from r4u.client import HTTPTrace
 class MyTracer(AbstractTracer):
     def trace_request(self, trace: HTTPTrace) -> None:
         # Access trace data
-        print(f"Request: {trace.metadata.get('method')} {trace.metadata.get('url')}")
+        print(f"Request: {trace.method} {trace.url}")
         print(f"Status: {trace.status_code}")
         print(f"Duration: {(trace.completed_at - trace.started_at).total_seconds() * 1000:.2f}ms")
         
@@ -121,7 +125,7 @@ The old `RawRequestInfo` schema has been replaced with `HTTPTrace`. Key changes:
 - `request` instead of `request_payload`
 - `response` instead of `response_payload`
 - `request_headers` instead of `headers`
-- `metadata` for additional context (method, URL, etc.)
+- `metadata` for additional context
 
 ### Updated Tracer Interface
 
@@ -164,7 +168,7 @@ All tracing errors are logged but don't fail the original request, ensuring obse
 ## Best Practices
 
 1. **Use explicit providers** - Pass provider name when setting up tracing
-2. **Handle metadata carefully** - Store method, URL, and other context in metadata
+2. **Handle metadata carefully** - Store additional context in metadata
 3. **Test with real requests** - Verify tracing works with actual HTTP calls
 4. **Monitor performance** - Ensure tracing doesn't significantly impact request latency
-5. **Use appropriate tracers** - Choose between PrintTracer for debugging and UniversalTracer for production
+5. **Monitor traces** - Check that traces are being sent to the R4U server correctly

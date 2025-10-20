@@ -15,7 +15,7 @@ The R4U SDK has migrated from an **API-based tracing approach** to an **HTTP tra
 ### New System (HTTP transport-level)
 - Uses traced clients: `from r4u.tracing.openai import OpenAI`
 - Automatically captures raw HTTP requests/responses at transport level
-- Backend parses HTTP traces to extract provider-specific data
+- Backend processes HTTP traces to extract relevant data
 - No manual trace creation needed - completely transparent
 
 ## Test Files in This Directory

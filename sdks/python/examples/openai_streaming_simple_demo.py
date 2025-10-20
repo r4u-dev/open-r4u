@@ -11,10 +11,9 @@ import asyncio
 
 import httpx
 from r4u.tracing.http.httpx import trace_async_client, trace_client
-from r4u.tracing.http.tracer import PrintTracer
 
 
-class SimpleStreamingTracer(PrintTracer):
+class SimpleStreamingTracer:
     """Simple tracer that shows streaming information."""
     
     def trace_request(self, request_info):

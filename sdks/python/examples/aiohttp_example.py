@@ -5,7 +5,7 @@ Example demonstrating aiohttp tracing with R4U.
 
 import asyncio
 import aiohttp
-from r4u.tracing.http import trace_aiohttp_client, PrintTracer
+from r4u.tracing.http import trace_aiohttp_client
 
 
 async def main():
@@ -14,7 +14,7 @@ async def main():
     # Create an aiohttp session
     async with aiohttp.ClientSession() as session:
         # Enable tracing on the session
-        trace_aiohttp_client(session, PrintTracer())
+        trace_aiohttp_client(session)
         
         print("Making HTTP requests with aiohttp tracing enabled...")
         

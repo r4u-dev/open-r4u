@@ -199,7 +199,7 @@ file_metadata = {
 ### Basic File Upload Detection
 
 ```python
-from r4u.tracing.http import trace_requests_session, PrintTracer
+from r4u.tracing.http import trace_requests_session
 
 # Create session with file upload tracing
 session = requests.Session()
