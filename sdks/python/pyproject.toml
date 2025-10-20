@@ -40,3 +40,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Exclude legacy tests from old API-based tracing system
+norecursedirs = ["tests/legacy", "tests/manual"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]

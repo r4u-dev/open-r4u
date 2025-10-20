@@ -1,0 +1,126 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: r4u_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache backend dependencies
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: backend-venv-${{ runner.os }}-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            backend-venv-${{ runner.os }}-
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
+        run: |
+          source .venv/bin/activate
+          alembic upgrade head
+
+      - name: Run backend tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v --tb=short
+
+  test-sdk-python:
+    name: Python SDK Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache Python SDK dependencies
+        uses: actions/cache@v4
+        with:
+          path: sdks/python/.venv
+          key: sdk-python-venv-${{ runner.os }}-${{ hashFiles('sdks/python/pyproject.toml') }}
+          restore-keys: |
+            sdk-python-venv-${{ runner.os }}-
+
+      - name: Install Python SDK dependencies
+        working-directory: ./sdks/python
+        run: |
+          uv venv
+          uv pip install -e .
+          uv pip install pytest pytest-asyncio pytest-mock
+
+      - name: Run Python SDK tests
+        working-directory: ./sdks/python
+        run: |
+          uv run pytest -v
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-sdk-python]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.test-backend.result }}" != "success" ]; then
+            echo "❌ Backend tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.test-sdk-python.result }}" != "success" ]; then
+            echo "❌ Python SDK tests failed"
+            exit 1
+          fi
+          echo "✅ All tests passed!"

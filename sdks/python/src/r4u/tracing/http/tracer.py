@@ -8,10 +8,6 @@ from typing import Optional
 from r4u.client import AbstractClient, HTTPTrace
 
 
-
-
-
-
 class AbstractTracer(ABC):
     """Abstract base class for HTTP request tracers."""
     

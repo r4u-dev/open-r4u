@@ -95,6 +95,6 @@ def trace_session(session: requests.Session, provider: str) -> None:
     if hasattr(session.send, '_r4u_patched'):
         return
     
-    wrapper = _create_send_wrapper(session.send, UniversalTracer(get_r4u_client()))
+    wrapper = _create_send_wrapper(session.send, UniversalTracer(get_r4u_client(), provider))
     wrapper._r4u_patched = True  # Mark as patched
     session.send = types.MethodType(wrapper, session)

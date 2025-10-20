@@ -120,7 +120,7 @@ class R4UClient(AbstractClient):
         for trace in traces:
             try:
                 self._sync_client.post(
-                    f"{self.api_url}/traces",
+                    f"{self.api_url}/http-traces",
                     json=trace.model_dump(mode="json", by_alias=True),
                     headers={"Content-Type": "application/json"},
                 ).raise_for_status()
