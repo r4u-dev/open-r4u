@@ -1,16 +1,19 @@
 """Example usage of R4U LangChain Google GenAI integration."""
 
 import os
-from r4u.tracing.langchain.google_genai import ChatGoogleGenerativeAI
 
-# Set your Google API key
-# os.environ["GOOGLE_API_KEY"] = "your-api-key-here"
+from langchain_openai import ChatOpenAI
+
+from r4u.tracing import trace_all
+from r4u.client import ConsoleTracer
+
+trace_all(ConsoleTracer())
 
 def main():
-    """Example of using LangChain Google GenAI with R4U tracing."""
+    """Example of using LangChain OpenAI with R4U tracing."""
     
     # Initialize the model with tracing
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
+    llm = ChatOpenAI(model="gpt-4o-mini")
     
     # Generate content - this will be automatically traced
     response = llm.invoke("What is the capital of France?")

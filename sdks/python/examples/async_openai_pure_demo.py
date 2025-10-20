@@ -247,7 +247,7 @@ using only the high-level OpenAI API - no httpx knowledge required:
 2. What happens behind the scenes:
    - AsyncOpenAI wraps the original OpenAI client
    - Automatically traces the underlying httpx client
-   - Uses UniversalTracer for comprehensive tracing
+   - Uses direct R4U client for comprehensive tracing
    - Detects streaming requests via stream=True parameter
    - Collects complete response content during streaming
    - Sends traces when requests complete

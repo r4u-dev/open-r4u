@@ -13,15 +13,19 @@ import json
 import tempfile
 import requests
 from pathlib import Path
-from r4u.tracing.http import trace_requests_session, PrintTracer
+from r4u.tracing.http import trace_requests_session
 
 
-class FileUploadTracer(PrintTracer):
+class FileUploadTracer:
     """Enhanced tracer that specifically handles file upload detection and analysis."""
     
     def trace_request(self, request_info):
         """Enhanced tracing with file upload detection."""
-        super().trace_request(request_info)
+        # Basic trace information
+        print("--------------------------------")
+        print(f"Request: {request_info.method} {request_info.url}")
+        print(f"Status: {request_info.status_code}")
+        print(f"Duration: {request_info.duration_ms:.2f}ms")
         
         # Check if this is a file upload request
         if self._is_file_upload(request_info):

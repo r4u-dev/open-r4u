@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from r4u.tracing.http.tracer import UniversalTracer, RawRequestInfo
+from r4u.tracing.http.tracer import RawRequestInfo
 from r4u.client import R4UClient, HTTPTrace
 
 
@@ -31,11 +31,11 @@ class FileInfo:
     is_binary: bool = False
 
 
-class EnhancedFileTracer(UniversalTracer):
+class EnhancedFileTracer:
     """Enhanced tracer that specifically handles file uploads and extracts file metadata."""
     
-    def __init__(self, r4u_client: R4UClient, provider: str):
-        super().__init__(r4u_client, provider)
+    def __init__(self, r4u_client: R4UClient):
+        self._r4u_client = r4u_client
         self.file_analysis_enabled = True
     
     def trace_request(self, request_info: RawRequestInfo) -> None:
@@ -373,7 +373,6 @@ def demonstrate_enhanced_tracing():
     class MockR4UClient:
         def send(self, trace: HTTPTrace):
             print("\n=== TRACE SENT ===")
-            print(f"Provider: {trace.provider}")
             print(f"Endpoint: {trace.endpoint}")
             print(f"Model: {trace.model}")
             print(f"Status: {trace.status_code}")
@@ -391,7 +390,7 @@ def demonstrate_enhanced_tracing():
     
     # Create enhanced tracer
     mock_client = MockR4UClient()
-    tracer = EnhancedFileTracer(mock_client, "test_provider")
+    tracer = EnhancedFileTracer(mock_client)
     
     # Simulate different types of file uploads
     print("\n1. Simulating multipart file upload...")
@@ -423,7 +422,6 @@ File upload test
         started_at=datetime.now(),
         completed_at=datetime.now(),
         duration_ms=150.0,
-        provider="test_provider",
         endpoint="/upload"
     )
     
@@ -447,7 +445,6 @@ File upload test
         started_at=datetime.now(),
         completed_at=datetime.now(),
         duration_ms=200.0,
-        provider="test_provider",
         endpoint="/upload"
     )
     

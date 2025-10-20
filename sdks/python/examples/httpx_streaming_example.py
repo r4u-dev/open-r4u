@@ -12,38 +12,35 @@ import json
 
 import httpx
 from r4u.tracing.http.httpx import trace_async_client, trace_client
-from r4u.tracing.http.tracer import PrintTracer, UniversalTracer
 from r4u.client import R4UClient
 
 
-class StreamingTracer(PrintTracer):
+class StreamingTracer:
     """Custom tracer that shows streaming detection."""
     
     def trace_request(self, request_info):
         """Override to show streaming-specific information."""
-        if hasattr(request_info, 'provider'):
-            # RawRequestInfo from UniversalTracer
-            print("\n=== STREAMING TRACE (Raw) ===")
-            print(f"Provider: {request_info.provider}")
-            print(f"Endpoint: {request_info.endpoint}")
-            print(f"Operation: {request_info.operation_type}")
-            print(f"Duration: {request_info.duration_ms:.2f}ms")
-            print(f"Status: {request_info.status_code}")
-            print(f"Request size: {request_info.request_size} bytes")
-            print(f"Response size: {request_info.response_size} bytes")
-            
-            # Show if this was a streaming response
-            if request_info.response_size > 0:
-                try:
-                    response_data = json.loads(request_info.response_payload.decode('utf-8'))
-                    if isinstance(response_data, dict) and 'stream' in str(response_data):
-                        print("✅ Streaming response detected and traced!")
-                    else:
-                        print("📄 Regular response traced")
-                except Exception:
-                    print("📄 Response traced (non-JSON)")
+        # RawRequestInfo from HTTP tracing
+        print("\n=== STREAMING TRACE (Raw) ===")
+        print(f"Endpoint: {request_info.endpoint}")
+        print(f"Operation: {request_info.operation_type}")
+        print(f"Duration: {request_info.duration_ms:.2f}ms")
+        print(f"Status: {request_info.status_code}")
+        print(f"Request size: {request_info.request_size} bytes")
+        print(f"Response size: {request_info.response_size} bytes")
+        
+        # Show if this was a streaming response
+        if request_info.response_size > 0:
+            try:
+                response_data = json.loads(request_info.response_payload.decode('utf-8'))
+                if isinstance(response_data, dict) and 'stream' in str(response_data):
+                    print("✅ Streaming response detected and traced!")
+                else:
+                    print("📄 Regular response traced")
+            except Exception:
+                print("📄 Response traced (non-JSON)")
         else:
-            # RawRequestInfo from PrintTracer
+            # RawRequestInfo from HTTP tracing
             print("\n=== STREAMING TRACE (Legacy) ===")
             print(f"{request_info.method} {request_info.url} -> {request_info.status_code}")
             if request_info.response_size:
@@ -162,48 +159,6 @@ def test_sync_streaming():
             print(f"Error in regular request: {e}")
 
 
-async def test_with_universal_tracer():
-    """Test streaming with UniversalTracer for more detailed tracing."""
-    print("\n" + "="*60)
-    print("TESTING WITH UNIVERSAL TRACER")
-    print("="*60)
-    
-    # Create a UniversalTracer (requires R4U client)
-    try:
-        r4u_client = R4UClient(api_key="demo-key", base_url="https://demo.r4u.com")
-        tracer = UniversalTracer(r4u_client, "demo")
-        
-        async with httpx.AsyncClient() as client:
-            trace_async_client(client, tracer)
-            
-            print("\nTesting streaming with UniversalTracer...")
-            
-            request_data = {
-                "model": "gpt-4",
-                "messages": [{"role": "user", "content": "Test streaming"}],
-                "stream": True,
-                "max_tokens": 50
-            }
-            
-            try:
-                # Using client.send() with stream=True
-                request = client.build_request("POST", "https://httpbin.org/stream/2", json=request_data)
-                response = await client.send(request, stream=True)
-                
-                print(f"Response status: {response.status_code}")
-                
-                # Read streaming response
-                async for chunk in response.iter_bytes():
-                    print(f"Received chunk: {len(chunk)} bytes")
-                
-                print("✅ Streaming response traced with UniversalTracer!")
-                
-            except Exception as e:
-                print(f"Error: {e}")
-                
-    except Exception as e:
-        print(f"UniversalTracer test skipped (R4U client not available): {e}")
-
 
 def demonstrate_streaming_detection():
     """Demonstrate how streaming detection works."""
@@ -258,8 +213,6 @@ async def main():
     # Test sync streaming
     test_sync_streaming()
     
-    # Test with UniversalTracer
-    await test_with_universal_tracer()
     
     print("\n" + "="*60)
     print("STREAMING TRACING DEMO COMPLETE")
@@ -270,7 +223,7 @@ Key Takeaways:
 2. Streaming responses are automatically wrapped and traced
 3. Complete response content is collected during streaming
 4. Traces are sent when streaming completes or is aborted
-5. Works with both PrintTracer and UniversalTracer
+5. Provides detailed tracing information
 6. Simple and reliable - uses httpx's own stream parameter
 """)
 

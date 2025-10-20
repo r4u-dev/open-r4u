@@ -110,7 +110,6 @@ def raw_trace_analysis_example():
             # Get the first trace
             trace = raw_traces[0]
             print(f"\nTrace ID: {trace.id}")
-            print(f"Provider: {trace.provider}")
             print(f"Endpoint: {trace.endpoint}")
             print(f"Model: {trace.model}")
             print(f"Operation Type: {trace.operation_type}")
@@ -170,7 +169,6 @@ async def main():
     print("\nKey Benefits of Raw Tracing:")
     print("- Complete request/response data preserved")
     print("- No data loss from parsing")
-    print("- Automatic provider detection")
     print("- Future-proof against API changes")
     print("- Single implementation for all providers")
 

@@ -3,30 +3,28 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import functools
 import types
-from typing import Callable, Optional
+from typing import Callable, Optional, Type
 
 import httpx
 
-from r4u.client import get_r4u_client, HTTPTrace
-
-from .tracer import AbstractTracer, UniversalTracer
+from r4u.client import AbstractTracer, get_r4u_client, HTTPTrace
 
 
 class StreamingResponseWrapper:
     """Wrapper for httpx.Response that tracks streaming completion and collects content."""
-    
+
     def __init__(self, response: httpx.Response, trace_ctx: dict, tracer: AbstractTracer):
         self._response = response
         self._trace_ctx = trace_ctx
-        self._tracer = tracer
         self._content_collected = b""
         self._is_streaming_complete = False
         self._error = None
-    
+        self._tracer = tracer
+
     # Delegate all attributes to the original response
     def __getattr__(self, name):
         return getattr(self._response, name)
-    
+
     # Override streaming methods to track content
     def iter_bytes(self, chunk_size: Optional[int] = None):
         try:
@@ -38,7 +36,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     def iter_text(self, chunk_size: Optional[int] = None):
         try:
             for chunk in self._response.iter_text(chunk_size):
@@ -49,7 +47,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     def iter_lines(self):
         try:
             for line in self._response.iter_lines():
@@ -60,7 +58,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     def read(self):
         try:
             content = self._response.read()
@@ -71,7 +69,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     # Async methods
     async def aiter_bytes(self, chunk_size: Optional[int] = None):
         try:
@@ -83,7 +81,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     async def aiter_text(self, chunk_size: Optional[int] = None):
         try:
             async for chunk in self._response.aiter_text(chunk_size):
@@ -94,7 +92,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     async def aiter_lines(self):
         try:
             async for line in self._response.aiter_lines():
@@ -105,7 +103,7 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     async def aread(self):
         try:
             content = await self._response.aread()
@@ -116,31 +114,31 @@ class StreamingResponseWrapper:
             raise
         finally:
             self._complete_streaming()
-    
+
     async def aclose(self):
         try:
             if hasattr(self._response, 'aclose'):
                 await self._response.aclose()
         finally:
             self._complete_streaming()
-    
+
     def close(self):
         try:
             if hasattr(self._response, 'close'):
                 self._response.close()
         finally:
             self._complete_streaming()
-    
+
     def _complete_streaming(self):
         """Complete the streaming trace when streaming is finished."""
         if self._is_streaming_complete:
             return
-        
+
         self._is_streaming_complete = True
-        
+
         # Build and send final HTTPTrace
         self._finalize_and_send_trace()
-    
+
     def _finalize_and_send_trace(self):
         completed_at = datetime.now(timezone.utc)
         self._trace_ctx["completed_at"] = completed_at
@@ -150,6 +148,8 @@ class StreamingResponseWrapper:
         self._trace_ctx["response_headers"] = dict(self._response.headers)
 
         trace = HTTPTrace(
+            url=self._trace_ctx.get("url", ""),
+            method=self._trace_ctx.get("method", ""),
             started_at=self._trace_ctx["started_at"],
             completed_at=self._trace_ctx["completed_at"],
             status_code=self._trace_ctx.get("status_code", 0),
@@ -158,12 +158,12 @@ class StreamingResponseWrapper:
             request_headers=self._trace_ctx["request_headers"],
             response=self._trace_ctx.get("response_bytes", b""),
             response_headers=self._trace_ctx.get("response_headers", {}),
-            metadata={
-                "method": self._trace_ctx.get("method"),
-                "url": self._trace_ctx.get("url"),
-            },
         )
-        self._tracer.trace_request(trace)
+        try:
+            self._tracer.log(trace)
+        except Exception as error:
+            # Log error but don't fail the request
+            print(f"Failed to create HTTP trace: {error}")
 
 
 def _is_streaming_request(kwargs: dict) -> bool:
@@ -190,6 +190,8 @@ def _finalize_trace(trace_ctx: dict, response: httpx.Response, error: Optional[s
     response_headers = dict(response.headers) if response else {}
 
     return HTTPTrace(
+        url=trace_ctx.get("url", ""),
+        method=trace_ctx.get("method", ""),
         started_at=trace_ctx["started_at"],
         completed_at=completed_at,
         status_code=status_code,
@@ -198,10 +200,6 @@ def _finalize_trace(trace_ctx: dict, response: httpx.Response, error: Optional[s
         request_headers=trace_ctx["request_headers"],
         response=response_bytes,
         response_headers=response_headers,
-        metadata={
-            "method": trace_ctx.get("method"),
-            "url": trace_ctx.get("url"),
-        },
     )
 
 
@@ -214,7 +212,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
         error = None
         try:
             response = await original(*args, **kwargs)
-            
+
             # Check if this is a streaming request using httpx's stream parameter
             if _is_streaming_request(kwargs):
                 # Wrap the response to track streaming completion
@@ -222,13 +220,21 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
             else:
                 # For non-streaming responses, trace immediately
                 trace = _finalize_trace(trace_ctx, response, error)
-                tracer.trace_request(trace)
+                try:
+                    tracer.log(trace)
+                except Exception as trace_error:
+                    # Log error but don't fail the request
+                    print(f"Failed to create HTTP trace: {trace_error}")
                 return response
-                
+
         except Exception as e:
             error = str(e)
             trace = _finalize_trace(trace_ctx, response, error)
-            tracer.trace_request(trace)
+            try:
+                tracer.log(trace)
+            except Exception as trace_error:
+                # Log error but don't fail the request
+                print(f"Failed to create HTTP trace: {trace_error}")
             raise
 
     return wrapper
@@ -244,7 +250,7 @@ def _create_sync_wrapper(original: Callable, tracer: AbstractTracer):
         error = None
         try:
             response = original(*args, **kwargs)
-            
+
             # Check if this is a streaming request using httpx's stream parameter
             if _is_streaming_request(kwargs):
                 # Wrap the response to track streaming completion
@@ -252,41 +258,144 @@ def _create_sync_wrapper(original: Callable, tracer: AbstractTracer):
             else:
                 # For non-streaming responses, trace immediately
                 trace = _finalize_trace(trace_ctx, response, error)
-                tracer.trace_request(trace)
+                try:
+                    tracer.log(trace)
+                except Exception as trace_error:
+                    # Log error but don't fail the request
+                    print(f"Failed to create HTTP trace: {trace_error}")
                 return response
-                
+
         except Exception as e:
             error = str(e)
             trace = _finalize_trace(trace_ctx, response, error)
-            tracer.trace_request(trace)
+            try:
+                tracer.log(trace)
+            except Exception as trace_error:
+                # Log error but don't fail the request
+                print(f"Failed to create HTTP trace: {trace_error}")
             raise
 
     return wrapper
 
 
-def trace_async_client(client: httpx.AsyncClient, provider: str) -> None:
+def trace_async_client(client: httpx.AsyncClient, tracer: AbstractTracer) -> None:
     """
     Trace an asynchronous httpx client.
     """
-    
+
     if hasattr(client.send, '_r4u_patched'):
         return
 
     # Patch send method (this handles both regular and streaming requests)
-    wrapper = _create_async_wrapper(client.send, UniversalTracer(get_r4u_client(), provider))
+    wrapper = _create_async_wrapper(client.send, tracer)
     wrapper._r4u_patched = True
     client.send = types.MethodType(wrapper, client)
 
 
-def trace_client(client: httpx.Client, provider: str) -> None:
+def trace_client(client: httpx.Client, tracer: AbstractTracer) -> None:
     """
     Trace a synchronous httpx client.
     """
-    
+
     if hasattr(client.send, '_r4u_patched'):
         return
 
     # Patch send method (this handles both regular and streaming requests)
-    wrapper = _create_sync_wrapper(client.send, UniversalTracer(get_r4u_client(), provider))
+    wrapper = _create_sync_wrapper(client.send, tracer)
     wrapper._r4u_patched = True
     client.send = types.MethodType(wrapper, client)
+
+
+
+
+def _create_httpx_constructor_wrapper(original_init: Callable, client_class: Type, tracer: AbstractTracer):
+    """Create a wrapper for httpx client constructors."""
+    @functools.wraps(original_init)
+    def wrapper(self, *args, **kwargs):
+        # Call original constructor
+        original_init(self, *args, **kwargs)
+
+        # Apply tracing
+        try:
+            if isinstance(self, client_class):
+                if hasattr(self, 'send') and not hasattr(self.send, '_r4u_patched'):
+                    if 'Async' in client_class.__name__:
+                        trace_async_client(self, tracer)
+                    else:
+                        trace_client(self, tracer)
+        except Exception as e:
+            # Don't fail client creation if tracing fails
+            print(f"Failed to apply tracing to {client_class.__name__}: {e}")
+
+    return wrapper
+
+
+
+
+def trace_all(tracer: AbstractTracer | None = None) -> None:
+    """
+    Intercept httpx client creation to automatically trace all instances.
+
+    This function intercepts the httpx.Client and httpx.AsyncClient constructors
+    to automatically apply tracing to all instances that will be created.
+    This approach works even when libraries create their own httpx client instances.
+
+    Args:
+        tracer: Optional tracer instance. If None, uses the default R4U client.
+
+    Example:
+        >>> from r4u.tracing.http.httpx import trace_all
+        >>> trace_all()
+        >>>
+        >>> # Now all httpx clients will be automatically traced
+        >>> import httpx
+        >>> client = httpx.Client()  # Automatically traced
+        >>> async_client = httpx.AsyncClient()  # Automatically traced
+    """
+    # Check if already patched to avoid double-patching
+    if hasattr(httpx.Client, '_r4u_constructor_patched'):
+        return
+
+    if tracer is None:
+        tracer = get_r4u_client()
+
+    # Store original constructors
+    httpx._original_client_init = httpx.Client.__init__
+    httpx._original_async_client_init = httpx.AsyncClient.__init__
+
+    # Create constructor wrappers
+    httpx.Client.__init__ = _create_httpx_constructor_wrapper(
+        httpx.Client.__init__, httpx.Client, tracer
+    )
+    httpx.AsyncClient.__init__ = _create_httpx_constructor_wrapper(
+        httpx.AsyncClient.__init__, httpx.AsyncClient, tracer
+    )
+
+    # Mark as patched
+    httpx.Client._r4u_constructor_patched = True
+    httpx.AsyncClient._r4u_constructor_patched = True
+
+
+def untrace_all() -> None:
+    """
+    Remove constructor interception from httpx classes.
+
+    This restores the original httpx.Client and httpx.AsyncClient constructors.
+    """
+    if not hasattr(httpx.Client, '_r4u_constructor_patched'):
+        return
+
+    # Restore original constructors
+    if hasattr(httpx, '_original_client_init'):
+        httpx.Client.__init__ = httpx._original_client_init
+        delattr(httpx, '_original_client_init')
+
+    if hasattr(httpx, '_original_async_client_init'):
+        httpx.AsyncClient.__init__ = httpx._original_async_client_init
+        delattr(httpx, '_original_async_client_init')
+
+    # Remove patch markers
+    if hasattr(httpx.Client, '_r4u_constructor_patched'):
+        delattr(httpx.Client, '_r4u_constructor_patched')
+    if hasattr(httpx.AsyncClient, '_r4u_constructor_patched'):
+        delattr(httpx.AsyncClient, '_r4u_constructor_patched')

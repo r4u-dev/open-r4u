@@ -13,42 +13,39 @@ from typing import Dict, Any
 
 import httpx
 from r4u.tracing.http.httpx import trace_async_client, trace_client
-from r4u.tracing.http.tracer import PrintTracer, UniversalTracer
 from r4u.client import R4UClient
 
 
-class OpenAIStreamingTracer(PrintTracer):
+class OpenAIStreamingTracer:
     """Custom tracer that shows OpenAI-style streaming information."""
     
     def trace_request(self, request_info):
         """Override to show OpenAI-style streaming information."""
-        if hasattr(request_info, 'provider'):
-            # RawRequestInfo from UniversalTracer
-            print(f"\n=== OPENAI-STYLE STREAMING TRACE ===")
-            print(f"Provider: {request_info.provider}")
-            print(f"Endpoint: {request_info.endpoint}")
-            print(f"Operation: {request_info.operation_type}")
-            print(f"Duration: {request_info.duration_ms:.2f}ms")
-            print(f"Status: {request_info.status_code}")
-            print(f"Request size: {request_info.request_size} bytes")
-            print(f"Response size: {request_info.response_size} bytes")
+        # RawRequestInfo from HTTP tracing
+        print(f"\n=== OPENAI-STYLE STREAMING TRACE ===")
+        print(f"Endpoint: {request_info.endpoint}")
+        print(f"Operation: {request_info.operation_type}")
+        print(f"Duration: {request_info.duration_ms:.2f}ms")
+        print(f"Status: {request_info.status_code}")
+        print(f"Request size: {request_info.request_size} bytes")
+        print(f"Response size: {request_info.response_size} bytes")
+        
+        # Parse and show request details
+        try:
+            request_data = json.loads(request_info.request_payload.decode('utf-8'))
+            print(f"Model: {request_data.get('model', 'unknown')}")
+            print(f"Stream: {request_data.get('stream', False)}")
+            print(f"Max tokens: {request_data.get('max_tokens', 'unlimited')}")
+            print(f"Temperature: {request_data.get('temperature', 'default')}")
             
-            # Parse and show request details
-            try:
-                request_data = json.loads(request_info.request_payload.decode('utf-8'))
-                print(f"Model: {request_data.get('model', 'unknown')}")
-                print(f"Stream: {request_data.get('stream', False)}")
-                print(f"Max tokens: {request_data.get('max_tokens', 'unlimited')}")
-                print(f"Temperature: {request_data.get('temperature', 'default')}")
-                
-                # Show message count
-                messages = request_data.get('messages', [])
-                print(f"Messages: {len(messages)}")
-                if messages:
-                    print(f"First message: {messages[0].get('role', 'unknown')} - {messages[0].get('content', '')[:50]}...")
-                
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                print(f"Could not parse request: {e}")
+            # Show message count
+            messages = request_data.get('messages', [])
+            print(f"Messages: {len(messages)}")
+            if messages:
+                print(f"First message: {messages[0].get('role', 'unknown')} - {messages[0].get('content', '')[:50]}...")
+            
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            print(f"Could not parse request: {e}")
             
             # Parse and show response details
             try:
@@ -245,56 +242,6 @@ def test_sync_openai_style_streaming():
             print(f"Error in sync streaming test: {e}")
 
 
-async def test_with_universal_tracer():
-    """Test OpenAI-style streaming with UniversalTracer."""
-    print("\n" + "="*70)
-    print("TESTING WITH UNIVERSAL TRACER")
-    print("="*70)
-    
-    try:
-        r4u_client = R4UClient(api_key="demo-key", base_url="https://demo.r4u.com")
-        tracer = UniversalTracer(r4u_client, "openai")
-        
-        async with httpx.AsyncClient() as client:
-            trace_async_client(client, tracer)
-            
-            request_data = {
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "user", "content": "Tell me a short joke about programming."}
-                ],
-                "stream": True,
-                "max_tokens": 50
-            }
-            
-            try:
-                request = client.build_request(
-                    "POST",
-                    "https://httpbin.org/stream/2",
-                    json=request_data,
-                    headers={"Content-Type": "application/json"}
-                )
-                
-                response = await client.send(request, stream=True)
-                
-                print(f"Response status: {response.status_code}")
-                print("Streaming response:")
-                
-                chunk_count = 0
-                async for chunk in response.aiter_bytes():
-                    chunk_count += 1
-                    chunk_text = chunk.decode('utf-8')
-                    print(f"Chunk {chunk_count}: {len(chunk_text)} bytes")
-                
-                print(f"Total chunks received: {chunk_count}")
-                print("✅ OpenAI-style streaming traced with UniversalTracer!")
-                
-            except Exception as e:
-                print(f"Error: {e}")
-                
-    except Exception as e:
-        print(f"UniversalTracer test skipped (R4U client not available): {e}")
-
 
 def demonstrate_openai_streaming_tracing():
     """Demonstrate how OpenAI streaming tracing works."""
@@ -355,8 +302,6 @@ async def main():
     # Test sync streaming
     test_sync_openai_style_streaming()
     
-    # Test with UniversalTracer
-    await test_with_universal_tracer()
     
     print("\n" + "="*70)
     print("OPENAI STREAMING TRACING DEMO COMPLETE")
