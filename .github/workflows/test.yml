@@ -57,14 +57,14 @@ jobs:
       - name: Run database migrations
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/r4u_test
         run: |
           uv run alembic upgrade head
 
       - name: Run backend tests
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/r4u_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/r4u_test
         run: |
           uv run pytest tests/ -v --tb=short
 
