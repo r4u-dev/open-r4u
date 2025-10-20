@@ -24,7 +24,7 @@ pip install r4u[langchain]
 
 ```python
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 # Initialize your OpenAI client
 client = OpenAI(api_key="your-api-key")
@@ -43,7 +43,7 @@ response = traced_client.chat.completions.create(
 
 ```python
 from langchain_openai import ChatOpenAI
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 # Create the R4U callback handler
 r4u_handler = wrap_langchain(api_url="http://localhost:8000")
@@ -68,9 +68,9 @@ You can find runnable examples in `examples/basic_langchain.py` and `examples/ad
 ### Manual Tracing
 
 ```python
-from r4u.client import R4UClient
+from r4u.client import get_r4u_client
 
-client = R4UClient(api_url="http://localhost:8000")
+client = get_r4u_client()
 
 # Create a trace manually
 trace = await client.create_trace(

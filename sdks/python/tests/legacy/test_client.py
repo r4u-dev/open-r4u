@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
 from r4u.client import (
-    MessageCreate,
+    InputEntry,
     R4UClient,
     ToolCall,
     ToolDefinition,
@@ -168,8 +168,8 @@ class TestR4UClient:
             started_at=now,
             completed_at=now,
             messages=[
-                MessageCreate(role="user", content="Hello"),
-                MessageCreate(
+                InputEntry(role="user", content="Hello"),
+                InputEntry(
                     role="assistant",
                     content=None,
                     tool_calls=[
@@ -206,12 +206,12 @@ class TestR4UClient:
 
     def test_message_create_schema(self):
         """Test MessageCreate schema."""
-        message = MessageCreate(role="user", content="Test message")
+        message = InputEntry(role="user", content="Test message")
         
         assert message.role == "user"
         assert message.content == "Test message"
 
-        tool_message = MessageCreate(
+        tool_message = InputEntry(
             role="assistant",
             content=None,
             tool_call_id="call_1",

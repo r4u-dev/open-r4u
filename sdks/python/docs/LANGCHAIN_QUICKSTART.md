@@ -14,7 +14,7 @@ pip install langchain-core langchain-openai
 
 ```python
 from langchain_openai import ChatOpenAI
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 # 1. Create the R4U callback handler
 r4u_handler = wrap_langchain(api_url="http://localhost:8000")

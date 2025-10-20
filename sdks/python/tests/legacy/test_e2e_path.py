@@ -6,8 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from unittest.mock import Mock, patch
-from r4u.integrations.openai import wrap_openai
-from r4u.client import R4UClient
+from r4u.tracing.openai import wrap_openai
 
 
 def simulate_llm_call():

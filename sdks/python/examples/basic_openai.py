@@ -1,7 +1,7 @@
 """Basic example of using R4U with OpenAI synchronously."""
 
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 def main():
     """Run a basic OpenAI example with tracing."""

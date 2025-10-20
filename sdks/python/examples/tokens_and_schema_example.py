@@ -1,7 +1,7 @@
 """Example demonstrating token usage and response schema tracking with R4U."""
 
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 # Initialize OpenAI client
 client = OpenAI()
@@ -9,8 +9,7 @@ client = OpenAI()
 # Wrap it with R4U observability
 wrapped_client = wrap_openai(
     client,
-    api_url="http://localhost:8000",
-    project="Token Tracking Demo"
+    api_url="http://localhost:8000"
 )
 
 # Example 1: Basic completion with automatic token tracking

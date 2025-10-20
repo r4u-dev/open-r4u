@@ -34,7 +34,7 @@ The `extract_call_path()` function performs the stack inspection:
 - Returns relative path from current working directory
 - Returns tuple of (path_signature, line_number)
 
-### Integration: `src/r4u/integrations/openai.py`
+### Integration: `src/r4u/tracing/openai.py`
 
 The OpenAI wrapper has been updated to:
 
@@ -56,7 +56,7 @@ The R4U client schemas have been updated:
 
 ```python
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 def process_request():
     client = wrap_openai(OpenAI())

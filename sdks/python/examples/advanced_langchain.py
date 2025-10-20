@@ -3,7 +3,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import tool
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 
 @tool

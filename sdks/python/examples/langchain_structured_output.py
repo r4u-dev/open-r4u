@@ -3,7 +3,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 # Define a Pydantic model for structured output
 class Person(BaseModel):
@@ -16,8 +16,7 @@ class Person(BaseModel):
 
 # Create the R4U callback handler
 r4u_handler = wrap_langchain(
-    api_url="http://localhost:8000",
-    project="LangChain Structured Output Demo"
+    api_url="http://localhost:8000"
 )
 
 # Create a LangChain model

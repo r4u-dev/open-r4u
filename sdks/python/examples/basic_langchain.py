@@ -1,7 +1,7 @@
 """Basic example of using R4U with LangChain."""
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from r4u.integrations.langchain import ChatOpenAI
+from r4u.tracing.langchain.openai import ChatOpenAI
 
 
 def main():

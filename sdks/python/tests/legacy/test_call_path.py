@@ -6,8 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
-from r4u.client import R4UClient
+from r4u.tracing.openai import wrap_openai
 
 
 def inner_function():
@@ -36,7 +35,8 @@ def main():
     print()
     
     # Get initial trace count
-    r4u_client = R4UClient(api_url="http://localhost:8000")
+    from r4u.client import get_r4u_client
+    r4u_client = get_r4u_client()
     initial_traces = r4u_client.list_traces()
     initial_count = len(initial_traces)
     

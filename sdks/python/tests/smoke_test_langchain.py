@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.outputs import LLMResult, ChatGeneration
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 
 def test_langchain_integration_smoke_test():

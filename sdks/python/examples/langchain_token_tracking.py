@@ -2,12 +2,11 @@
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from r4u.integrations.langchain import wrap_langchain
+from r4u.tracing.langchain import wrap_langchain
 
 # Create the R4U callback handler
 r4u_handler = wrap_langchain(
-    api_url="http://localhost:8000",
-    project="LangChain Token Tracking Demo"
+    api_url="http://localhost:8000"
 )
 
 # Create a LangChain model with the R4U callback handler

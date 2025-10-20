@@ -3,14 +3,14 @@
 
 import asyncio
 from datetime import datetime
-from r4u.client import R4UClient
 
 
 async def demo_manual_tracing():
     """Demonstrate manual trace creation."""
     print("=== Manual Tracing Demo ===")
     
-    client = R4UClient(api_url="http://localhost:8000")
+    from r4u.client import get_r4u_client
+    client = get_r4u_client()
     
     try:
         # Create a manual trace
@@ -56,7 +56,7 @@ def demo_openai_integration():
     
     try:
         from openai import OpenAI
-        from r4u.integrations.openai import wrap_openai
+        from r4u.tracing.openai import wrap_openai
         
         print("Setting up OpenAI client with R4U tracing...")
         
@@ -89,8 +89,8 @@ def demo_openai_integration():
         # Verify trace was created by listing traces
         print("\nVerifying trace creation...")
         try:
-            from r4u.client import R4UClient
-            r4u_client = R4UClient(api_url="http://localhost:8000")
+            from r4u.client import get_r4u_client
+            r4u_client = get_r4u_client()
             traces = r4u_client.list_traces()
             
             print(f"Total traces in system: {len(traces)}")

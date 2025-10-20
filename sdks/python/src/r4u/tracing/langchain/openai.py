@@ -3,15 +3,16 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
-from .http.httpx import trace_client
-from ..client import R4UClient
-from ..utils import extract_call_path
+from ..http.httpx import trace_async_client, trace_client
+from ...client import R4UClient, get_r4u_client
+from ...utils import extract_call_path
 
 from langchain_openai import ChatOpenAI as OriginalChatOpenAI
+from langchain_openai import AzureChatOpenAI as OriginalAzureChatOpenAI
 
 
 try:
@@ -29,12 +30,11 @@ except ImportError:
 class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
     """LangChain callback handler that automatically creates traces in R4U."""
 
-    def __init__(self, r4u_client: R4UClient, project: str):
+    def __init__(self, r4u_client: R4UClient):
         """Initialize the callback handler.
 
         Args:
             r4u_client: R4U client for creating traces
-            project: Project name for traces
         """
         if not LANGCHAIN_AVAILABLE:
             raise ImportError(
@@ -43,7 +43,6 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
             )
         
         self._r4u_client = r4u_client
-        self._project = project
         self._current_trace: Dict[str, Any] = {}
         self._call_path: Optional[str] = None
         
@@ -185,7 +184,6 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
                 "path": self._call_path,
                 "result": result,
                 "error": error,
-                "project": self._project,
             }
             
             # Add tools if present
@@ -442,21 +440,19 @@ class R4UCallbackHandler(BaseCallbackHandler):  # type: ignore
 def wrap_langchain(
     api_url: str = "http://localhost:8000",
     timeout: float = 30.0,
-    project: Optional[str] = None,
 ) -> "R4UCallbackHandler":
     """Create a LangChain callback handler that sends traces to R4U.
     
     Args:
         api_url: Base URL for the R4U API
         timeout: HTTP request timeout in seconds
-        project: Project name for traces. If not provided, uses R4U_PROJECT env variable or defaults to "Default Project"
     
     Returns:
         R4UCallbackHandler that can be used with LangChain
     
     Example:
         >>> from langchain_openai import ChatOpenAI
-        >>> from r4u.integrations.langchain import wrap_langchain
+        >>> from r4u.tracing.langchain import wrap_langchain
         >>> 
         >>> # Create the callback handler
         >>> r4u_handler = wrap_langchain(api_url="http://localhost:8000")
@@ -478,11 +474,8 @@ def wrap_langchain(
             "pip install langchain-core"
         )
     
-    if project is None:
-        project = os.getenv("R4U_PROJECT", "Default Project")
-    
-    r4u_client = R4UClient(api_url=api_url, timeout=timeout)
-    return R4UCallbackHandler(r4u_client, project)
+    r4u_client = get_r4u_client()
+    return R4UCallbackHandler(r4u_client)
 
 
 class ChatOpenAI(OriginalChatOpenAI):
@@ -490,8 +483,43 @@ class ChatOpenAI(OriginalChatOpenAI):
 
     def __init__(self, *args: Any, **kwargs: Any):
         """Initialize the wrapper."""
-        http_client = kwargs.get("http_client",
-                                 httpx.Client(base_url="https://api.openai.com/v1", timeout=300.0))
-        trace_client(http_client)
+        http_config = {
+            "base_url": kwargs.get("base_url", "https://api.openai.com/v1"),
+            "timeout": kwargs.get("timeout", 300.0),
+            "follow_redirects": kwargs.get("follow_redirects", True),
+        }
+
+
+        http_client = kwargs.get("http_client", httpx.Client(**http_config))
+        trace_client(http_client, "openai")
         kwargs["http_client"] = http_client
+
+        http_async_client = kwargs.get("http_async_client", httpx.AsyncClient(**http_config))
+        trace_async_client(http_async_client, "openai")
+        kwargs["http_async_client"] = http_async_client
+
+        super().__init__(*args, **kwargs)
+
+
+class AzureChatOpenAI(OriginalAzureChatOpenAI):
+    """AzureChatOpenAI wrapper that automatically creates traces."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """Initialize the wrapper."""
+        http_config = {
+            "base_url": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "timeout": kwargs.get("timeout", 300.0),
+            "max_retries": kwargs.get("max_retries", 2),
+            "follow_redirects": kwargs.get("follow_redirects", True),
+        }
+
+
+        http_client = kwargs.get("http_client", httpx.Client(**http_config))
+        trace_client(http_client, "openai")
+        kwargs["http_client"] = http_client
+
+        http_async_client = kwargs.get("http_async_client", httpx.AsyncClient(**http_config))
+        trace_async_client(http_async_client, "openai")
+        kwargs["http_async_client"] = http_async_client
+
         super().__init__(*args, **kwargs)

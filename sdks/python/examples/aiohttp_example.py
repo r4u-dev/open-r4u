@@ -5,7 +5,7 @@ Example demonstrating aiohttp tracing with R4U.
 
 import asyncio
 import aiohttp
-from r4u.integrations.http import trace_aiohttp_client, PrintTracer
+from r4u.tracing.http import trace_aiohttp_client, PrintTracer
 
 
 async def main():
