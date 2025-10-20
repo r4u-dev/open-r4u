@@ -2,12 +2,12 @@
 """
 Example demonstrating patch detection to avoid double-patching.
 
-This example shows how the R4U HTTP integrations detect if a function
+This example shows how the R4U HTTP tracing detect if a function
 has already been patched to prevent double-patching.
 """
 
 import requests
-from r4u.integrations.http.requests import trace_session, PrintTracer
+from r4u.tracing.http.requests import trace_session, PrintTracer
 
 
 def demonstrate_patch_detection():

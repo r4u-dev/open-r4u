@@ -69,10 +69,10 @@ class CallPathExtractor:
     
     # Patterns that identify integration layer code
     INTEGRATION_PATTERNS: Set[str] = {
-        "r4u/integrations",
-        "integrations/openai.py",
-        "integrations/anthropic.py",
-        "integrations/cohere.py",
+        "r4u/tracing",
+        "tracing/openai.py",
+        "tracing/anthropic.py",
+        "tracing/cohere.py",
     }
     
     def __init__(self, max_depth: int = 50, include_cross_file: bool = False):

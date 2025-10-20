@@ -1,7 +1,7 @@
 """Example usage of R4U Google GenAI integration."""
 
 import os
-from r4u.integrations.google_genai import GenerativeModel
+from r4u.tracing.google_genai import GenerativeModel
 
 # Set your Google API key
 # os.environ["GOOGLE_API_KEY"] = "your-api-key-here"

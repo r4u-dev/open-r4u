@@ -1,7 +1,7 @@
 """Example demonstrating token usage and metadata tracking with R4U."""
 
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 # Initialize OpenAI client
 client = OpenAI()
@@ -9,8 +9,7 @@ client = OpenAI()
 # Wrap it with R4U observability
 wrapped_client = wrap_openai(
     client,
-    api_url="http://localhost:8000",
-    project="Token Tracking Demo"
+    api_url="http://localhost:8000"
 )
 
 # Example 1: Basic completion with automatic token tracking
@@ -60,16 +59,14 @@ print()
 
 # Example 3: Using custom metadata
 print("Example 3: Using custom metadata (via direct client)")
-from r4u import R4UClient
-
-r4u_client = R4UClient(api_url="http://localhost:8000")
+from r4u.client import get_r4u_client
+r4u_client = get_r4u_client()
 trace = r4u_client.create_trace(
     model="gpt-4",
     messages=[
         {"role": "user", "content": "Hello, how are you?"},
     ],
     result="I'm doing well, thank you!",
-    project="Metadata Example",
     prompt_tokens=10,
     completion_tokens=15,
     total_tokens=25,

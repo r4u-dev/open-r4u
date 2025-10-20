@@ -6,7 +6,7 @@ This example shows how to trace HTTP requests made with the requests library.
 """
 
 import requests
-from r4u.integrations.http import trace_requests_session
+from r4u.tracing.http import trace_requests_session
 
 
 def example_trace_session():

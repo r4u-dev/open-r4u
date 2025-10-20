@@ -1,106 +1,61 @@
 """R4U HTTP client for creating traces."""
 
-import asyncio
-from datetime import datetime
 import os
-from typing import Any, Dict, List, Optional, Sequence, Union
+import queue
+import threading
+from abc import ABC, abstractmethod
+from datetime import datetime
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ToolFunctionCall(BaseModel):
-    """Schema representing a tool function invocation."""
+class HTTPTrace(BaseModel):
+    """Schema for HTTP trace creation (provider-agnostic)."""
 
-    name: str
-    arguments: Any
+    # Timing
+    started_at: datetime = Field(..., description="When the request started")
+    completed_at: datetime = Field(..., description="When the request completed")
+
+    # Status
+    status_code: int = Field(..., description="HTTP status code")
+    error: Optional[str] = Field(None, description="Error message if any")
+
+    # Raw data
+    request: bytes = Field(..., description="Complete raw request bytes (raw or JSON)")
+    request_headers: Dict[str, str] = Field(..., description="Complete raw request headers")
+    response: bytes = Field(..., description="Complete raw response bytes (raw or JSON)")
+    response_headers: Dict[str, str] = Field(..., description="Complete raw response headers")
+
+    # Optional extracted fields for convenience
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
     model_config = ConfigDict(extra="allow")
 
 
-class ToolCall(BaseModel):
-    """Schema describing an LLM-issued tool call."""
+class AbstractClient(ABC):
+    """Abstract base class for HTTP request clients."""
 
-    id: Optional[str] = None
-    type: Optional[str] = None
-    function: Optional[ToolFunctionCall] = None
-    model_config = ConfigDict(extra="allow")
+    @abstractmethod
+    def send(self, trace: HTTPTrace) -> None:
+        """Send a trace entry to R4U Server
 
-
-class ToolDefinition(BaseModel):
-    """Schema for a tool definition supplied to the LLM."""
-
-    name: str
-    description: Optional[str] = None
-    parameters: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
-    type: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    model_config = ConfigDict(extra="allow", populate_by_name=True, serialize_by_alias=True)
+        Args:
+            trace: HTTP trace to send to R4U Server.
+        """
+        raise NotImplementedError
 
 
-class MessageCreate(BaseModel):
-    """Schema for creating a message."""
+class R4UClient(AbstractClient):
+    """Client for interacting with R4U Server."""
 
-    role: str
-    content: Any = None
-    name: Optional[str] = None
-    tool_call_id: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    model_config = ConfigDict(extra="allow")
-
-
-class TraceCreate(BaseModel):
-    """Schema for trace creation payload."""
-
-    model: str
-    result: Optional[str] = None
-    error: Optional[str] = None
-    started_at: datetime
-    completed_at: Optional[datetime] = None
-    messages: List[MessageCreate]
-    path: Optional[str] = None
-    tools: Optional[List[ToolDefinition]] = None
-    project: str = "Default Project"
-    
-    # Token usage
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    
-    # Schema and metadata
-    response_schema: Optional[Dict[str, Any]] = None
-    trace_metadata: Optional[Dict[str, Any]] = None
-
-
-class TraceRead(BaseModel):
-    """Schema for trace responses."""
-
-    id: int
-    project_id: int
-    model: str
-    result: Optional[str] = None
-    error: Optional[str] = None
-    started_at: datetime
-    completed_at: Optional[datetime] = None
-    messages: List[Dict[str, Any]]
-    path: Optional[str] = None
-    tools: Optional[List[Dict[str, Any]]] = None
-    
-    # Token usage
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    
-    # Schema and metadata
-    response_schema: Optional[Dict[str, Any]] = None
-    trace_metadata: Optional[Dict[str, Any]] = None
-    
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-
-class R4UClient:
-    """Client for interacting with R4U trace API."""
-
-    def __init__(self, api_url: str = "http://localhost:8000", timeout: float = 30.0):
+    def __init__(
+        self,
+        api_url: str = "http://localhost:8000",
+        timeout: float = 30.0,
+    ):
         """Initialize the R4U client.
 
         Args:
@@ -108,209 +63,96 @@ class R4UClient:
             timeout: HTTP request timeout in seconds
         """
         self.api_url = api_url.rstrip("/")
-        self.timeout = timeout
-        self._async_client: Optional[httpx.AsyncClient] = None
-        self._sync_client: Optional[httpx.Client] = None
+        self._sync_client = httpx.Client(base_url=self.api_url, timeout=timeout)
 
-    @property
-    def async_client(self) -> httpx.AsyncClient:
-        """Get or create async HTTP client."""
-        if self._async_client is None:
-            self._async_client = httpx.AsyncClient(timeout=self.timeout)
-        return self._async_client
+        # Queue-based processing
+        self._trace_queue: queue.Queue = queue.Queue()
+        self._worker_thread: Optional[threading.Thread] = None
+        self._stop_worker = threading.Event()
+        self._start_worker_thread()
 
-    @property
-    def sync_client(self) -> httpx.Client:
-        """Get or create sync HTTP client."""
-        if self._sync_client is None:
-            self._sync_client = httpx.Client(timeout=self.timeout)
-        return self._sync_client
+    def send(self, trace: HTTPTrace) -> None:
+        """Send a trace entry to the queue for processing.
 
-    async def create_trace_async(
-        self,
-        model: str,
-        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
-        result: Optional[str] = None,
-        error: Optional[str] = None,
-        started_at: Optional[Union[datetime, str]] = None,
-        completed_at: Optional[Union[datetime, str]] = None,
-        path: Optional[str] = None,
-        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
-        project: str = "Default Project",
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        total_tokens: Optional[int] = None,
-        response_schema: Optional[Dict[str, Any]] = None,
-        trace_metadata: Optional[Dict[str, Any]] = None,
-    ) -> TraceRead:
-        """Create a trace asynchronously."""
-        normalized_started_at, normalized_completed_at = self._normalize_timestamps(
-            started_at,
-            completed_at,
-        )
+        Args:
+            trace: LLM trace to send to R4U Server.
+        """
+        self._trace_queue.put(trace)
 
-        trace_data = TraceCreate(
-            model=model,
-            result=result,
-            error=error,
-            started_at=normalized_started_at,
-            completed_at=normalized_completed_at,
-            messages=self._prepare_messages(messages),
-            path=path,
-            tools=self._prepare_tools(tools),
-            project=project,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            response_schema=response_schema,
-            trace_metadata=trace_metadata,
-        )
+    def _start_worker_thread(self) -> None:
+        """Start the worker thread for processing trace queue."""
+        if self._worker_thread is None or not self._worker_thread.is_alive():
+            self._stop_worker.clear()
+            self._worker_thread = threading.Thread(
+                target=self._worker_loop, daemon=True
+            )
+            self._worker_thread.start()
 
-        response = await self.async_client.post(
-            f"{self.api_url}/traces",
-            json=trace_data.model_dump(mode="json", by_alias=True),
-            headers={"Content-Type": "application/json"},
-        )
-        response.raise_for_status()
+    def _worker_loop(self) -> None:
+        """Worker thread loop that processes trace queue every 5 seconds."""
+        while not self._stop_worker.is_set():
+            try:
+                # Collect all traces in queue
+                traces_to_send = []
+                while True:
+                    try:
+                        trace = self._trace_queue.get_nowait()
+                        traces_to_send.append(trace)
+                    except queue.Empty:
+                        break
 
-        return TraceRead(**response.json())
+                # Send all traces if any exist
+                if traces_to_send:
+                    self._send_traces_batch(traces_to_send)
 
-    def create_trace(
-        self,
-        model: str,
-        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
-        result: Optional[str] = None,
-        error: Optional[str] = None,
-        started_at: Optional[Union[datetime, str]] = None,
-        completed_at: Optional[Union[datetime, str]] = None,
-        path: Optional[str] = None,
-        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]] = None,
-        project: str = "Default Project",
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        total_tokens: Optional[int] = None,
-        response_schema: Optional[Dict[str, Any]] = None,
-        trace_metadata: Optional[Dict[str, Any]] = None,
-    ) -> TraceRead:
-        """Create a trace synchronously."""
-        normalized_started_at, normalized_completed_at = self._normalize_timestamps(
-            started_at,
-            completed_at,
-        )
+                # Wait 5 seconds or until stop event is set
+                self._stop_worker.wait(5.0)
+            except Exception as e:
+                # Log error but continue processing
+                print(f"Error in worker thread: {e}")
 
-        trace_data = TraceCreate(
-            model=model,
-            result=result,
-            error=error,
-            started_at=normalized_started_at,
-            completed_at=normalized_completed_at,
-            messages=self._prepare_messages(messages),
-            path=path,
-            tools=self._prepare_tools(tools),
-            project=project,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            response_schema=response_schema,
-            trace_metadata=trace_metadata,
-        )
+    def _send_traces_batch(self, traces: List[HTTPTrace]) -> None:
+        """Send a batch of traces to the server.
 
-        response = self.sync_client.post(
-            f"{self.api_url}/traces",
-            json=trace_data.model_dump(mode="json", by_alias=True),
-            headers={"Content-Type": "application/json"},
-        )
-        response.raise_for_status()
+        Args:
+            traces: List of traces to send.
+        """
+        for trace in traces:
+            try:
+                self._sync_client.post(
+                    f"{self.api_url}/traces",
+                    json=trace.model_dump(mode="json", by_alias=True),
+                    headers={"Content-Type": "application/json"},
+                ).raise_for_status()
+            except Exception as e:
+                # Log error but continue processing other traces
+                print(f"Error sending trace: {e}")
 
-        return TraceRead(**response.json())
+    def stop_worker(self) -> None:
+        """Stop the worker thread."""
+        self._stop_worker.set()
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=1.0)
 
-    async def list_traces_async(self) -> List[TraceRead]:
-        """List all traces asynchronously."""
-        response = await self.async_client.get(f"{self.api_url}/traces")
-        response.raise_for_status()
-        return [TraceRead(**trace) for trace in response.json()]
 
-    def list_traces(self) -> List[TraceRead]:
-        """List all traces synchronously."""
-        response = self.sync_client.get(f"{self.api_url}/traces")
-        response.raise_for_status()
-        return [TraceRead(**trace) for trace in response.json()]
-
-    async def close(self):
-        """Close HTTP clients."""
-        if self._async_client:
-            await self._async_client.aclose()
+    def close(self):
+        """Close HTTP clients and stop worker thread."""
+        self.stop_worker()
         if self._sync_client:
             self._sync_client.close()
 
     def __del__(self):
         """Cleanup on deletion."""
-        if self._async_client and not self._async_client.is_closed:
-            # Try to close async client if event loop is running
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._async_client.aclose())
-            except RuntimeError:
-                pass
+        self.stop_worker()
         if self._sync_client:
             self._sync_client.close()
 
-    @staticmethod
-    def _prepare_messages(
-        messages: Sequence[Union[MessageCreate, Dict[str, Any]]],
-    ) -> List[MessageCreate]:
-        """Normalize incoming messages into MessageCreate objects."""
-        prepared: List[MessageCreate] = []
-        for message in messages:
-            if isinstance(message, MessageCreate):
-                prepared.append(message)
-            else:
-                prepared.append(MessageCreate.model_validate(message))
-        return prepared
 
-    @staticmethod
-    def _prepare_tools(
-        tools: Optional[Sequence[Union[ToolDefinition, Dict[str, Any]]]],
-    ) -> Optional[List[ToolDefinition]]:
-        """Normalize tool definitions for trace creation."""
-        if not tools:
-            return None
+@lru_cache(maxsize=1)
+def get_r4u_client() -> R4UClient:
+    """Get the R4U client."""
 
-        prepared: List[ToolDefinition] = []
-        for tool in tools:
-            if isinstance(tool, ToolDefinition):
-                prepared.append(tool)
-            else:
-                prepared.append(ToolDefinition.model_validate(tool))
-        return prepared
-
-    @staticmethod
-    def _normalize_timestamps(
-        started_at: Optional[Union[datetime, str]],
-        completed_at: Optional[Union[datetime, str]],
-    ) -> tuple[datetime, datetime]:
-        """Normalize and default timestamps for trace creation."""
-        if started_at is None:
-            started = datetime.utcnow()
-        else:
-            started = R4UClient._coerce_datetime(started_at)
-
-        if completed_at is None:
-            completed = datetime.utcnow()
-        else:
-            completed = R4UClient._coerce_datetime(completed_at)
-
-        return started, completed
-
-    @staticmethod
-    def _coerce_datetime(value: Union[datetime, str]) -> datetime:
-        """Convert ISO timestamps or datetimes into datetime objects."""
-        if isinstance(value, datetime):
-            return value
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
-r4u_client = R4UClient(
-    api_url=os.getenv("R4U_API_URL", "http://localhost:8000"),
-    timeout=float(os.getenv("R4U_TIMEOUT", "30.0")),
-)
+    return R4UClient(
+        api_url=os.getenv("R4U_API_URL", "http://localhost:8000"),
+        timeout=float(os.getenv("R4U_TIMEOUT", "30.0")),
+    )

@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from r4u.integrations.openai import wrap_openai, OpenAIWrapper
+from r4u.tracing.openai import wrap_openai, OpenAIWrapper
 
 
 class TestOpenAIIntegration:
@@ -25,7 +25,7 @@ class TestOpenAIIntegration:
         wrapped = wrap_openai(mock_client)
         assert wrapped.some_attribute == "test_value"
 
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     def test_create_completion_with_tracing(self, mock_r4u_client_class):
         """Test that completion calls create traces."""
         # Setup mocks
@@ -79,7 +79,7 @@ class TestOpenAIIntegration:
         assert result == mock_response
         assert messages == [{"role": "user", "content": "Hello"}]
 
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     def test_create_completion_with_error_tracing(self, mock_r4u_client_class):
         """Test that errors are traced when completion fails."""
         # Setup mocks
@@ -110,7 +110,7 @@ class TestOpenAIIntegration:
         assert call_args.get("result") is None
 
     @pytest.mark.asyncio
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     async def test_async_create_completion_with_tracing(self, mock_r4u_client_class):
         """Test that async completion calls create traces."""
         # Setup mocks
@@ -165,7 +165,7 @@ class TestOpenAIIntegration:
         assert result == mock_response
         assert messages == [{"role": "user", "content": "Hello"}]
 
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     def test_tool_calls_are_traced(self, mock_r4u_client_class):
         """Ensure tool definitions and tool calls are captured in traces."""
         mock_r4u_client = Mock()
@@ -236,7 +236,7 @@ class TestOpenAIIntegration:
         assert request_messages == [{"role": "user", "content": "Find user 42"}]
         assert tools[0]["function"]["name"] == "lookup_user"
 
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     def test_trace_creation_failure_doesnt_break_request(self, mock_r4u_client_class):
         """Test that trace creation failures don't break the original request."""
         # Setup mocks
@@ -270,7 +270,7 @@ class TestOpenAIIntegration:
         # Verify trace creation was attempted
         mock_r4u_client.create_trace.assert_called_once()
 
-    @patch('r4u.integrations.openai.R4UClient')
+    @patch('r4u.tracing.openai.R4UClient')
     def test_path_includes_method_name(self, mock_r4u_client_class):
         """Test that the call path includes the method name (create)."""
         # Setup mocks

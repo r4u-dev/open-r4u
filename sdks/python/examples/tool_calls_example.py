@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 
 from openai import OpenAI
 
-from r4u.integrations.openai import wrap_openai
+from r4u.tracing.openai import wrap_openai
 
 
 def lookup_weather(location: str) -> Dict[str, Any]:

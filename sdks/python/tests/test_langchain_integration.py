@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 
-from r4u.integrations.langchain import wrap_langchain, R4UCallbackHandler, LANGCHAIN_AVAILABLE
+from r4u.tracing.langchain import wrap_langchain, R4UCallbackHandler, LANGCHAIN_AVAILABLE
 from r4u.client import R4UClient
 
 

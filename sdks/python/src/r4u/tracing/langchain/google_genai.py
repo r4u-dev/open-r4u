@@ -2,10 +2,7 @@
 
 from typing import Any
 
-from r4u.integrations.google_genai import GoogleGenAITracer
-
-from ...client import r4u_client
-from ..http.requests import trace_requests_session
+from ..http import trace_requests_session
 
 
 try:
@@ -28,4 +25,4 @@ class ChatGoogleGenerativeAI(OriginalChatGoogleGenerativeAI):
             )
         
         super().__init__(*args, **kwargs)
-        trace_requests_session(self.client._client._session, GoogleGenAITracer(r4u_client))
+        trace_requests_session(self.client._client._session, "google")

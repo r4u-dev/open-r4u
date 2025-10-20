@@ -3,7 +3,7 @@
 import asyncio
 import os
 from anthropic import Anthropic as OriginalAnthropic, AsyncAnthropic as OriginalAsyncAnthropic
-from r4u.integrations import Anthropic, AsyncAnthropic, wrap_anthropic
+from r4u.tracing import Anthropic, AsyncAnthropic, wrap_anthropic
 
 
 def sync_anthropic_example():
