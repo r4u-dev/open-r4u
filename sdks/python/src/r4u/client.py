@@ -9,6 +9,8 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import httpx
+import atexit
+from time import sleep
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -29,12 +31,20 @@ class HTTPTrace(BaseModel):
 
     # Raw data
     request: bytes = Field(..., description="Complete raw request bytes (raw or JSON)")
-    request_headers: Dict[str, str] = Field(..., description="Complete raw request headers")
-    response: bytes = Field(..., description="Complete raw response bytes (raw or JSON)")
-    response_headers: Dict[str, str] = Field(..., description="Complete raw response headers")
+    request_headers: Dict[str, str] = Field(
+        ..., description="Complete raw request headers"
+    )
+    response: bytes = Field(
+        ..., description="Complete raw response bytes (raw or JSON)"
+    )
+    response_headers: Dict[str, str] = Field(
+        ..., description="Complete raw response headers"
+    )
 
     # Optional extracted fields for convenience
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
     model_config = ConfigDict(extra="allow")
 
@@ -86,6 +96,7 @@ class R4UClient(AbstractTracer):
         self._worker_thread: Optional[threading.Thread] = None
         self._stop_worker = threading.Event()
         self._start_worker_thread()
+        atexit.register(self.close)
 
     def log(self, trace: HTTPTrace) -> None:
         """Log a trace entry.
@@ -121,8 +132,8 @@ class R4UClient(AbstractTracer):
                 if traces_to_send:
                     self._send_traces_batch(traces_to_send)
 
-                # Wait 5 seconds or until stop event is set
-                self._stop_worker.wait(5.0)
+                # Wait 1 seconds or until stop event is set
+                self._stop_worker.wait(1.0)
             except Exception as e:
                 # Log error but continue processing
                 print(f"Error in worker thread: {e}")
@@ -150,9 +161,9 @@ class R4UClient(AbstractTracer):
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=1.0)
 
-
     def close(self):
         """Close HTTP clients and stop worker thread."""
+        sleep(1)
         self.stop_worker()
         if self._sync_client:
             self._sync_client.close()
