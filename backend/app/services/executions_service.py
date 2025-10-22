@@ -137,6 +137,11 @@ async def execute(
     executor = LLMExecutor(settings)
     service_result = await executor.execute(implementation, variables, input)
 
+    # Convert input items to JSON-serializable format
+    input_json = None
+    if input:
+        input_json = [item.model_dump() if hasattr(item, 'model_dump') else item for item in input]
+
     # Persist execution
     db_execution = ExecutionResult(
         task_id=resolved_task_id,
@@ -145,7 +150,7 @@ async def execute(
         completed_at=service_result.completed_at,
         prompt_rendered=service_result.prompt_rendered,
         variables=variables,
-        input=input,
+        input=input_json,
         result_text=service_result.result_text,
         result_json=service_result.result_json,
         error=service_result.error,
