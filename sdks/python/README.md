@@ -1,6 +1,6 @@
 # R4U Python SDK
 
-An observability SDK for LLM applications that automatically traces and monitors your AI interactions.
+An observability SDK that automatically traces HTTP requests from your applications, with special support for LLM API calls.
 
 ## Installation
 
@@ -8,124 +8,142 @@ An observability SDK for LLM applications that automatically traces and monitors
 pip install r4u
 ```
 
-For OpenAI integration:
-```bash
-pip install r4u[openai]
-```
-
-For LangChain integration:
-```bash
-pip install r4u[langchain]
-```
-
 ## Quick Start
+
+### Automatic HTTP Tracing
+
+The easiest way to get started is with automatic HTTP tracing. This will trace all HTTP requests made by any supported HTTP library:
+
+```python
+from r4u.tracing import trace_all
+
+# Enable automatic tracing for all HTTP libraries
+trace_all()
+
+# Now any HTTP requests will be automatically traced
+import httpx
+import requests
+import aiohttp
+
+# All of these will be automatically traced
+httpx_client = httpx.Client()
+requests_session = requests.Session()
+aiohttp_session = aiohttp.ClientSession()
+```
 
 ### OpenAI Integration
 
+Since OpenAI uses httpx internally, you can trace OpenAI API calls by enabling HTTP tracing:
+
 ```python
+from r4u.tracing import trace_all
+
+# Enable tracing BEFORE importing OpenAI
+trace_all()
+
+# Now import and use OpenAI normally
 from openai import OpenAI
-from r4u.tracing.openai import wrap_openai
 
-# Initialize your OpenAI client
 client = OpenAI(api_key="your-api-key")
-
-# Wrap it with R4U observability
-traced_client = wrap_openai(client, api_url="http://localhost:8000")
-
-# Use it normally - traces will be automatically created
-response = traced_client.chat.completions.create(
-    model="gpt-3.5-turbo",
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
     messages=[{"role": "user", "content": "Hello, world!"}]
 )
 ```
 
-### LangChain Integration
-
-```python
-from langchain_openai import ChatOpenAI
-from r4u.tracing.langchain import wrap_langchain
-
-# Create the R4U callback handler
-r4u_handler = wrap_langchain(api_url="http://localhost:8000")
-
-# Add it to your LangChain model
-llm = ChatOpenAI(model="gpt-3.5-turbo", callbacks=[r4u_handler])
-
-# Use it normally - traces will be automatically created
-response = llm.invoke("Hello, world!")
-```
-
-The LangChain integration uses callback handlers to capture all LLM calls, including:
-- **Message history**: All messages in a conversation are automatically captured
-- **Tool/Function calls**: Tool definitions and invocations are tracked
-- **Agents**: Multi-step agent executions are fully traced
-- **Chains**: Works seamlessly with LangChain chains and runnables
-
-For more details, see [docs/LANGCHAIN_INTEGRATION.md](docs/LANGCHAIN_INTEGRATION.md).
-
-You can find runnable examples in `examples/basic_langchain.py` and `examples/advanced_langchain.py`.
-
-### Manual Tracing
-
-```python
-from r4u.client import get_r4u_client
-
-client = get_r4u_client()
-
-# Create a trace manually
-trace = await client.create_trace(
-    model="gpt-3.5-turbo",
-    messages=[
-        {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "Hi there!"}
-    ],
-    result="Hi there!",
-    started_at="2024-01-01T00:00:00Z",
-    completed_at="2024-01-01T00:00:01Z"
-)
-```
-
-For a complete walk-through that includes tool definitions, tool call messages, and the final tool-assisted response, check out `examples/tool_calls_example.py`. The example issues real OpenAI Chat Completions requests (requiring `OPENAI_API_KEY`) and performs the multi-turn loop that fulfils the tool invocation before asking for the final assistant answer.
-
 ## Features
 
-- **Automatic LLM Tracing**: Wrap your existing LLM clients to automatically create traces
-- **Call Path Tracking**: Automatically captures where LLM calls originate from in your code
-- **OpenAI & LangChain Integrations**: Automatic tracing for OpenAI SDK calls and LangChain runnables via callbacks
-- **Async Support**: Full async/await support
+- **Automatic HTTP Tracing**: Automatically trace all HTTP requests from supported libraries (httpx, requests, aiohttp)
+- **Multiple HTTP Library Support**: Works with httpx, requests, and aiohttp
+- **OpenAI Integration**: Automatically trace OpenAI API calls since they use httpx internally
+- **Streaming Support**: Full support for streaming HTTP requests and responses
+- **Async Support**: Full async/await support for both sync and async HTTP clients
+- **Background Processing**: Traces are sent asynchronously in batches to minimize performance impact
 - **Error Tracking**: Automatic error capture and reporting
 - **Minimal Overhead**: Lightweight wrapper with minimal performance impact
+- **Custom Tracers**: Support for custom tracer implementations
 
-### Call Path Tracking
+### HTTP Trace Data
 
-The SDK automatically tracks where each LLM call originates from in your codebase:
+Each HTTP request generates a comprehensive trace with:
+
+**Request Details**:
+- HTTP method (GET, POST, etc.)
+- Full URL
+- Request headers (including Authorization)
+- Request body (raw bytes)
+
+**Response Details**:
+- HTTP status code
+- Response headers
+- Response body (raw bytes, including streaming responses)
+
+**Timing Information**:
+- Request start time
+- Request completion time
+- Total duration
+
+**Error Information** (if applicable):
+- Error messages
+- Exception details
+
+**Custom Metadata**:
+- Additional context you can provide
+- Extracted fields for convenience
+
+
+### Streaming Example
 
 ```python
-# In src/app/chatbot.py
-def process_query(user_input):
-    response = traced_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": user_input}]
-    )
-    return response
+from r4u.tracing import trace_all
 
-# The trace will include: path="src/app/chatbot.py::process_query->create"
+# Enable tracing BEFORE importing OpenAI
+trace_all()
+
+from openai import OpenAI
+
+client = OpenAI(api_key="your-api-key")
+
+# Streaming requests are automatically traced
+stream = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    stream=True
+)
+
+for chunk in stream:
+    if chunk.choices[0].delta.content is not None:
+        print(chunk.choices[0].delta.content, end="")
 ```
 
-For nested function calls, the full call chain is captured:
+### Custom Tracer Example
 
 ```python
-# The trace will show: "src/main.py::main->handle_request->process_query->create"
-def main():
-    handle_request()
+from r4u.client import AbstractTracer, HTTPTrace
+from r4u.tracing import trace_all
 
-def handle_request():
-    process_query("Hello")
+class ConsoleTracer(AbstractTracer):
+    def log(self, trace: HTTPTrace):
+        print(f"HTTP {trace.method} {trace.url} -> {trace.status_code}")
 
-def process_query(text):
-    traced_client.chat.completions.create(...)
+# Use custom tracer
+tracer = ConsoleTracer()
+trace_all(tracer)
+
+# All HTTP requests will now be printed to console
 ```
+
+For more comprehensive examples, see the `examples/` directory.
+
+## Configuration
+
+### Environment Variables
+
+- `R4U_API_URL`: Base URL for the R4U server (default: `http://localhost:8000`)
+- `R4U_TIMEOUT`: HTTP request timeout in seconds (default: `30.0`)
+- `R4U_TOKEN`: R4U Cloud server authorization token (optional, not needed for local Open R4U Server)
+
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for development setup and guidelines.
+See the `examples/` directory for comprehensive usage examples and the `tests/` directory for test cases.
