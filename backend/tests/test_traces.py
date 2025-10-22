@@ -1,7 +1,5 @@
 """Tests for trace API endpoints."""
 
-from datetime import datetime, timezone
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -15,7 +13,9 @@ from app.models.traces import Trace
 class TestTraceEndpoints:
     """Test trace CRUD operations."""
 
-    async def test_create_trace_with_default_project(self, client: AsyncClient, test_session: AsyncSession):
+    async def test_create_trace_with_default_project(
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test creating a trace with default project."""
         payload = {
             "model": "gpt-4",
@@ -38,12 +38,16 @@ class TestTraceEndpoints:
         assert data["input"][0]["data"]["content"] == "Hello"
 
         # Verify project was created
-        result = await test_session.execute(select(Project).where(Project.name == "Default Project"))
+        result = await test_session.execute(
+            select(Project).where(Project.name == "Default Project"),
+        )
         project = result.scalar_one_or_none()
         assert project is not None
         assert project.name == "Default Project"
 
-    async def test_create_trace_with_custom_project(self, client: AsyncClient, test_session: AsyncSession):
+    async def test_create_trace_with_custom_project(
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test creating a trace with a custom project."""
         payload = {
             "model": "gpt-3.5-turbo",
@@ -59,9 +63,11 @@ class TestTraceEndpoints:
 
         data = response.json()
         assert data["model"] == "gpt-3.5-turbo"
-        
+
         # Verify project was auto-created
-        result = await test_session.execute(select(Project).where(Project.name == "Custom Project"))
+        result = await test_session.execute(
+            select(Project).where(Project.name == "Custom Project"),
+        )
         project = result.scalar_one_or_none()
         assert project is not None
         assert data["project_id"] == project.id
@@ -95,7 +101,9 @@ class TestTraceEndpoints:
         """Test creating a trace with tool definitions."""
         payload = {
             "model": "gpt-4",
-            "input": [{"type": "message", "role": "user", "content": "Search for weather"}],
+            "input": [
+                {"type": "message", "role": "user", "content": "Search for weather"},
+            ],
             "result": "Searching...",
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
@@ -112,7 +120,7 @@ class TestTraceEndpoints:
                             },
                         },
                     },
-                }
+                },
             ],
         }
 
@@ -143,10 +151,15 @@ class TestTraceEndpoints:
                                 "name": "get_weather",
                                 "arguments": '{"location": "NYC"}',
                             },
-                        }
+                        },
                     ],
                 },
-                {"type": "tool_result", "call_id": "call_123", "tool_name": "get_weather", "result": "Sunny, 72F"},
+                {
+                    "type": "tool_result",
+                    "call_id": "call_123",
+                    "tool_name": "get_weather",
+                    "result": "Sunny, 72F",
+                },
             ],
             "result": "It's sunny and 72F in NYC",
             "started_at": "2025-10-15T10:00:00Z",
@@ -201,7 +214,9 @@ class TestTraceEndpoints:
         for i in range(3):
             payload = {
                 "model": f"model-{i}",
-                "input": [{"type": "message", "role": "user", "content": f"Message {i}"}],
+                "input": [
+                    {"type": "message", "role": "user", "content": f"Message {i}"},
+                ],
                 "result": f"Result {i}",
                 "started_at": f"2025-10-15T10:0{i}:00Z",
                 "completed_at": f"2025-10-15T10:0{i}:01Z",
@@ -242,7 +257,9 @@ class TestTraceEndpoints:
         assert data["error"] is None
         assert data["input"] == []
 
-    async def test_create_trace_reuses_existing_project(self, client: AsyncClient, test_session: AsyncSession):
+    async def test_create_trace_reuses_existing_project(
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that creating traces with same project name reuses the project."""
         # Create first trace with project
         payload1 = {
@@ -274,7 +291,9 @@ class TestTraceEndpoints:
         assert project_id_1 == project_id_2
 
         # Verify only one project was created
-        result = await test_session.execute(select(Project).where(Project.name == "Shared Project"))
+        result = await test_session.execute(
+            select(Project).where(Project.name == "Shared Project"),
+        )
         projects = result.scalars().all()
         assert len(projects) == 1
 
@@ -324,21 +343,23 @@ class TestTraceEndpoints:
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "age": {"type": "integer"}
+                "age": {"type": "integer"},
             },
-            "required": ["name"]
+            "required": ["name"],
         }
-        
+
         metadata = {
             "environment": "production",
             "user_id": "user123",
             "session_id": "session456",
-            "custom_field": "custom_value"
+            "custom_field": "custom_value",
         }
-        
+
         payload = {
             "model": "gpt-4",
-            "input": [{"type": "message", "role": "user", "content": "Generate a person"}],
+            "input": [
+                {"type": "message", "role": "user", "content": "Generate a person"},
+            ],
             "result": '{"name": "John", "age": 30}',
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:02Z",
@@ -392,9 +413,11 @@ class TestTraceEndpoints:
         assert data["prompt_tokens"] is None
         assert data["completion_tokens"] is None
 
-    async def test_create_trace_with_task_id(self, client: AsyncClient, test_session: AsyncSession):
+    async def test_create_trace_with_task_id(
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test creating a trace with an associated task_id."""
-        from app.models.tasks import Task
+        from app.models.tasks import Implementation, Task
 
         # First, create a project
         project = Project(name="Test Project")
@@ -404,18 +427,33 @@ class TestTraceEndpoints:
         # Create a task
         task = Task(
             project_id=project.id,
-            prompt="What is the weather?",
-            model="gpt-4",
-            tools=None,
-            response_schema=None,
         )
         test_session.add(task)
+        await test_session.flush()
+
+        # Create implementation
+        implementation = Implementation(
+            task_id=task.id,
+            prompt="What is the weather?",
+            model="gpt-4",
+            max_output_tokens=1000,
+        )
+        test_session.add(implementation)
+        await test_session.flush()
+
+        task.production_version_id = implementation.id
         await test_session.commit()
 
         # Create a trace with the task_id
         payload = {
             "model": "gpt-4",
-            "input": [{"type": "message", "role": "user", "content": "What is the weather in NYC?"}],
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": "What is the weather in NYC?",
+                },
+            ],
             "result": "It's sunny and 72F",
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
@@ -432,7 +470,7 @@ class TestTraceEndpoints:
 
         # Verify the trace is linked to the task in the database
         result = await test_session.execute(
-            select(Trace).where(Trace.id == data["id"])
+            select(Trace).where(Trace.id == data["id"]),
         )
         trace = result.scalar_one()
         assert trace.task_id == task.id
@@ -531,7 +569,7 @@ class TestTraceEndpoints:
                             "required": ["word"],
                         },
                     },
-                }
+                },
             ],
             "result": "Autumn leaves fall down\nCrisp air whispers through the trees\nNature's canvas glows",
             "started_at": "2025-10-15T10:00:00Z",
@@ -587,4 +625,3 @@ class TestTraceEndpoints:
         assert data["reasoning"]["summary"] == "auto"
         assert data["reasoning_tokens"] == 1500
         assert data["temperature"] == 1.0
-

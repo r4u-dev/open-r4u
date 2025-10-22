@@ -1,6 +1,7 @@
 
 import datetime
 from typing import Annotated
+
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, mapped_column

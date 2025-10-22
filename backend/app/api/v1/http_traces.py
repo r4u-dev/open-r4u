@@ -35,11 +35,11 @@ async def create_http_trace(
         
     Raises:
         HTTPException: If unable to parse the trace or provider is unsupported
+
     """
-    
     # Initialize parser service
     parser_service = HTTPTraceParserService()
-    
+
     # Parse the HTTP trace into a TraceCreate object
     try:
         trace_create = parser_service.parse_http_trace(
@@ -56,14 +56,14 @@ async def create_http_trace(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse HTTP trace: {str(e)}",
+            detail=f"Failed to parse HTTP trace: {e!s}",
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal error parsing HTTP trace: {str(e)}",
+            detail=f"Internal error parsing HTTP trace: {e!s}",
         )
-    
+
     # Get or create project
     project_query = select(Project).where(Project.name == trace_create.project)
     project_result = await session.execute(project_query)
@@ -123,7 +123,7 @@ async def create_http_trace(
                 type=item.type,
                 data=item_data,
                 position=position,
-            )
+            ),
         )
 
     session.add(trace)

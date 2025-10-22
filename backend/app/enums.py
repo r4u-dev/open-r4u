@@ -3,6 +3,7 @@ from enum import Enum
 
 class MessageRole(str, Enum):
     """Role of a message in a conversation."""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
@@ -12,6 +13,7 @@ class MessageRole(str, Enum):
 
 class ItemType(str, Enum):
     """Type of item in trace input."""
+
     MESSAGE = "message"
     FUNCTION_CALL = "function_call"
     FUNCTION_RESULT = "function_result"
@@ -26,6 +28,7 @@ class ItemType(str, Enum):
 
 class FinishReason(str, Enum):
     """Reason why the model stopped generating."""
+
     STOP = "stop"
     LENGTH = "length"
     TOOL_CALLS = "tool_calls"
@@ -36,6 +39,7 @@ class FinishReason(str, Enum):
 
 class ReasoningEffort(str, Enum):
     """Reasoning effort level for reasoning models."""
+
     MINIMAL = "minimal"
     LOW = "low"
     MEDIUM = "medium"

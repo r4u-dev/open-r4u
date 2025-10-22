@@ -18,3 +18,44 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "psycopg2-binary>=2.9.11",
 ]
+
+[tool.ruff]
+extend-exclude = ["alembic"]
+fix = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN001",
+    "ANN204",
+    "D100",
+    "D107",
+    "E501",
+    "INP001",
+    "EM101",
+    "TRY003",
+    "S106",
+    "TRY300",
+    "TRY301",
+    "G004",
+    "EM102"
+]
+
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "ARG",
+    "FBT",
+    "PLR2004",
+    "S311",
+    "ANN201",
+    "ANN202",
+    "ANN204",
+    "ANN401",
+    "T201",
+    "D103",
+    "S105",
+    "SLF001"
+]

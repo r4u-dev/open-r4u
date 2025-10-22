@@ -1,8 +1,9 @@
 """Project model for organizing traces."""
 
-from app.models.base import Base, created_at_col, intpk, updated_at_col
 from sqlalchemy import Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 
 class Project(Base):

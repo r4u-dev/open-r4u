@@ -7,28 +7,39 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.traces import Reasoning, ToolDefinition
 
 
+class ImplementationCreate(BaseModel):
+    """Schema for creating an implementation (version)."""
+
+    version: str = "0.1"
+    prompt: str
+    model: str
+    temperature: float | None = None
+    reasoning: Reasoning | None = None
+    tools: list[ToolDefinition] | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    response_schema: dict[str, Any] | None = None
+    max_output_tokens: int
+
+
+class ImplementationRead(ImplementationCreate):
+    """Schema for reading an implementation."""
+
+    id: int
+    task_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TaskBase(BaseModel):
     """Base schema for task details."""
 
     path: str | None = None
-    prompt: str
-    tools: list[ToolDefinition] | None = None
-    model: str
-    response_schema: dict[str, Any] | None = None
-    
-    # Request parameters (matching traces)
-    instructions: str | None = None
-    temperature: float | None = None
-    tool_choice: str | dict[str, Any] | None = None  # "auto", "none", "required", or specific tool
-    
-    # Reasoning attributes (matching traces)
-    reasoning: Reasoning | None = None  # Reasoning configuration for models that support it
 
 
 class TaskCreate(TaskBase):
     """Schema for task creation payload."""
 
     project: str = "Default Project"  # Project name, defaults to "Default Project"
+    implementation: ImplementationCreate  # Initial implementation version
 
 
 class TaskRead(TaskBase):
@@ -36,22 +47,5 @@ class TaskRead(TaskBase):
 
     id: int
     project_id: int
+    production_version_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
-
-
-class TaskUpdate(BaseModel):
-    """Schema for task update payload."""
-
-    path: str | None = None
-    prompt: str | None = None
-    tools: list[ToolDefinition] | None = None
-    model: str | None = None
-    response_schema: dict[str, Any] | None = None
-    
-    # Request parameters (matching traces)
-    instructions: str | None = None
-    temperature: float | None = None
-    tool_choice: str | dict[str, Any] | None = None
-    
-    # Reasoning attributes (matching traces)
-    reasoning: Reasoning | None = None

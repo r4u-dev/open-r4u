@@ -33,29 +33,28 @@ class AnthropicParser(ProviderParser):
         metadata: dict[str, Any] | None = None,
     ) -> TraceCreate:
         """Parse Anthropic API request/response."""
-        
         # Extract model
         model = request_body.get("model", "unknown")
-        
+
         # Extract messages from request (Anthropic format is similar to OpenAI)
         messages = request_body.get("messages", [])
         input_items: list[InputItem] = []
-        
+
         for msg in messages:
             role_str = msg.get("role", "user")
             try:
                 role = MessageRole(role_str)
             except ValueError:
                 role = MessageRole.USER
-            
+
             input_items.append(
                 MessageItem(
                     role=role,
                     content=msg.get("content"),
                     name=msg.get("name"),
-                )
+                ),
             )
-        
+
         # Extract system prompt if present
         system_prompt = request_body.get("system")
         if system_prompt:
@@ -65,23 +64,23 @@ class AnthropicParser(ProviderParser):
                 MessageItem(
                     role=MessageRole.SYSTEM,
                     content=system_prompt,
-                )
+                ),
             )
-        
+
         # Extract result from response
         result = None
         finish_reason = None
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
-        
+
         if not error and response_body:
             content = response_body.get("content", [])
             if content:
                 # Anthropic returns content as a list of content blocks
                 text_blocks = [block.get("text", "") for block in content if block.get("type") == "text"]
                 result = "\n".join(text_blocks) if text_blocks else None
-            
+
             # Extract finish reason
             stop_reason = response_body.get("stop_reason")
             if stop_reason:
@@ -97,14 +96,14 @@ class AnthropicParser(ProviderParser):
                     finish_reason = FinishReason(finish_reason_str)
                 except ValueError:
                     pass
-            
+
             # Extract token usage
             usage = response_body.get("usage", {})
             prompt_tokens = usage.get("input_tokens")
             completion_tokens = usage.get("output_tokens")
             if prompt_tokens and completion_tokens:
                 total_tokens = prompt_tokens + completion_tokens
-        
+
         # Extract tools from request
         tools = None
         tools_data = request_body.get("tools")
@@ -121,16 +120,16 @@ class AnthropicParser(ProviderParser):
                 )
                 for t in tools_data
             ]
-        
+
         # Extract other request parameters
         temperature = request_body.get("temperature")
         max_tokens = request_body.get("max_tokens")
-        
+
         # Extract project from metadata or use default
         project = metadata.get("project", "Default Project") if metadata else "Default Project"
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
-        
+
         return TraceCreate(
             project=project,
             model=model,

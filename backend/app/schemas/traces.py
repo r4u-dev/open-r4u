@@ -201,29 +201,29 @@ class TraceBase(BaseModel):
     completed_at: datetime | None = None
     tools: list[ToolDefinition] | None = None
     task_id: int | None = None
-    
+
     # Request parameters
     instructions: str | None = None
     prompt: str | None = None
     temperature: float | None = None
     tool_choice: str | dict[str, Any] | None = None  # "auto", "none", "required", or specific tool
-    
+
     # Token usage
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
-    
+
     # Additional usage metrics
     cached_tokens: int | None = None
     reasoning_tokens: int | None = None
-    
+
     # Completion details
     finish_reason: FinishReason | None = None
     system_fingerprint: str | None = None
-    
+
     # Reasoning attributes
     reasoning: Reasoning | None = None  # Reasoning configuration/output for models that support it
-    
+
     # Schema and metadata
     response_schema: dict[str, Any] | None = None
     trace_metadata: dict[str, Any] | None = None
@@ -234,7 +234,7 @@ class TraceCreate(TraceBase):
 
     input: list[InputItem]  # Replaces messages
     project: str = "Default Project"  # Project name, defaults to "Default Project"
-    
+
     @field_validator("input", mode="before")
     @classmethod
     def validate_input(cls, v):
@@ -250,5 +250,5 @@ class TraceRead(TraceBase):
     id: int
     project_id: int
     input: list[InputItemRead] = Field(default_factory=list, validation_alias="input_items", serialization_alias="input")
-    
+
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

@@ -1,11 +1,9 @@
 """Pytest configuration and fixtures."""
 
-import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -13,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import get_session
 from app.main import app
 from app.models.base import Base
+
 # Import all models so they're registered with SQLAlchemy
 from app.models.projects import Project  # noqa: F401
 from app.models.tasks import Task  # noqa: F401
