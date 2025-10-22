@@ -120,56 +120,6 @@ class URLFilter:
         
         return False
     
-    def add_allow_url(self, pattern: str) -> None:
-        """Add a new allow URL pattern.
-        
-        Args:
-            pattern: The pattern to add
-        """
-        self.allow_patterns.append(pattern)
-        self._allow_set.add(pattern)
-    
-    def add_deny_url(self, pattern: str) -> None:
-        """Add a new deny URL pattern.
-        
-        Args:
-            pattern: The pattern to add
-        """
-        self.deny_patterns.append(pattern)
-        self._deny_set.add(pattern)
-    
-    def remove_allow_url(self, pattern: str) -> None:
-        """Remove an allow URL pattern.
-        
-        Args:
-            pattern: The pattern to remove
-        """
-        if pattern in self.allow_patterns:
-            self.allow_patterns.remove(pattern)
-        if pattern in self._allow_set:
-            self._allow_set.remove(pattern)
-    
-    def remove_deny_url(self, pattern: str) -> None:
-        """Remove a deny URL pattern.
-        
-        Args:
-            pattern: The pattern to remove
-        """
-        if pattern in self.deny_patterns:
-            self.deny_patterns.remove(pattern)
-        if pattern in self._deny_set:
-            self._deny_set.remove(pattern)
-    
-    def clear_allow_urls(self) -> None:
-        """Clear all allow URL patterns."""
-        self.allow_patterns.clear()
-        self._allow_set.clear()
-    
-    def clear_deny_urls(self) -> None:
-        """Clear all deny URL patterns."""
-        self.deny_patterns.clear()
-        self._deny_set.clear()
-    
     def get_allow_urls(self) -> List[str]:
         """Get a copy of the allow URL patterns.
         
