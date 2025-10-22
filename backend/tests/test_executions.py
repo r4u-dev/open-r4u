@@ -31,7 +31,7 @@ async def test_implementation(test_session: AsyncSession) -> Implementation:
     """Create a test implementation."""
     implementation = Implementation(
         version="1.0",
-        prompt="Summarize this text: {text}",
+        prompt="Summarize this text: {{text}}",
         model="gpt-4",
         temperature=0.7,
         max_output_tokens=100,
@@ -85,7 +85,7 @@ class TestExecutor:
                 pass
 
         executor = TestExecutor()
-        prompt = "Hello, {name}! You are {age} years old."
+        prompt = "Hello, {{name}}! You are {{age}} years old."
         variables = {"name": "Alice", "age": 30}
         result = executor.render_prompt(prompt, variables)
         assert result == "Hello, Alice! You are 30 years old."
@@ -99,7 +99,7 @@ class TestExecutor:
                 pass
 
         executor = TestExecutor()
-        prompt = "Hello, {name}!"
+        prompt = "Hello, {{name}}!"
         variables = {"age": 30}
 
         with pytest.raises(ValueError, match="Missing variable"):

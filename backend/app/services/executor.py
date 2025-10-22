@@ -74,24 +74,28 @@ class LLMExecutor:
     def _render_prompt(
         self, prompt: str, variables: dict[str, Any] | None = None
     ) -> str:
-        """Render a prompt template with variables."""
+        """Render a prompt template with variables using double curly braces {{ }}."""
         if not variables:
             return prompt
 
         try:
-            return prompt.format(**variables)
+            # Replace {{variable}} with {variable} for Python's format method
+            formatted_prompt = prompt.replace("{{", "{").replace("}}", "}")
+            return formatted_prompt.format(**variables)
         except KeyError as e:
             raise ValueError(f"Missing variable in prompt template: {e}")
         except Exception as e:
             raise ValueError(f"Error rendering prompt template: {e}")
 
     def _render_value(self, value: Any, variables: dict[str, Any] | None) -> Any:
-        """Recursively render placeholders in strings within arbitrarily nested structures."""
+        """Recursively render placeholders in strings within arbitrarily nested structures using double curly braces {{ }}."""
         if variables is None:
             return value
         if isinstance(value, str):
             try:
-                return value.format(**variables)
+                # Replace {{variable}} with {variable} for Python's format method
+                formatted_value = value.replace("{{", "{").replace("}}", "}")
+                return formatted_value.format(**variables)
             except KeyError as e:
                 raise ValueError(f"Missing variable in input message template: {e}")
         if isinstance(value, list):
