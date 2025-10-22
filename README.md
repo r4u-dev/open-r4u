@@ -9,48 +9,67 @@ Open R4U is an open-source LLM observability and optimization platform that help
 
 ## 🌟 Features
 
-### 🔍 **LLM Observability**
-- **Automatic Tracing**: Seamlessly trace OpenAI and LangChain calls with minimal code changes
-- **Call Path Tracking**: Automatically capture where LLM calls originate from in your codebase
-- **Message History**: Full conversation tracking with complete message context
-- **Tool & Function Call Monitoring**: Track tool definitions, invocations, and responses
-- **Error Tracking**: Comprehensive error capture and debugging information
+### 🔍 **HTTP-Level Observability**
+
+- **Automatic HTTP Tracing**: Trace all HTTP requests from httpx, requests, and aiohttp libraries
+- **Zero Code Changes**: Works transparently with OpenAI, Anthropic, and any HTTP-based LLM API
+- **Comprehensive Data Capture**: Full request/response bodies, headers, timing, and errors
+- **Streaming Support**: Automatic detection and collection of streaming responses
+- **Async Compatible**: Full support for async/await patterns with asyncio
 
 ### 📊 **Analytics & Insights**
+
 - **Performance Metrics**: Track latency, token usage, and cost per request
 - **Usage Analytics**: Understand your LLM consumption patterns
+- **Error Tracking**: Comprehensive error capture and debugging information
+- **Request/Response Inspection**: View complete HTTP transactions
 - **Project Organization**: Organize traces by projects for better management
-- **Task Management**: Define and track specific AI tasks and workflows
 
-### 🔌 **Easy Integrations**
-- **OpenAI SDK**: Drop-in wrapper for automatic tracing
-- **LangChain**: Native callback handler integration
-- **Manual Tracing**: Full control with programmatic trace creation
-- **Async Support**: Complete async/await compatibility
+### 🔌 **Universal Integrations**
+
+- **OpenAI**: Automatically trace all OpenAI API calls (sync and async)
+- **Any HTTP-based LLM API**: Works with Anthropic, Cohere, Hugging Face, and more
+- **Multiple HTTP Libraries**: Support for httpx, requests, and aiohttp
+- **Non-Invasive**: Tracing errors never break your application
 
 ### 🛠 **Developer Experience**
+
 - **Minimal Overhead**: Lightweight SDK with negligible performance impact
 - **Self-Hosted**: Run your own instance with full data control
 - **REST API**: Complete API for custom integrations
-- **Comprehensive Testing**: Full test coverage with examples
+- **Comprehensive Testing**: 102 tests covering all HTTP wrapper functionality
+- **Well-Documented**: Extensive examples and troubleshooting guides
 
 ## 🏗 Architecture
 
-Open R4U consists of three main components:
-
-- **Backend API** (`/backend`): FastAPI-based REST API with PostgreSQL database
-- **Python SDK** (`/sdks/python`): Client libraries for easy integration
-- **Web Interface** (coming soon): Dashboard for visualization and analysis
+Open R4U uses HTTP-level tracing to capture all LLM API calls transparently:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Your App      │───▶│   R4U SDK       │───▶│   R4U Backend   │
+│   Your App      │    │   R4U SDK       │    │   R4U Backend   │
 │                 │    │                 │    │                 │
-│ - OpenAI calls  │    │ - Auto tracing  │    │ - FastAPI       │
-│ - LangChain     │    │ - Call paths    │    │ - PostgreSQL    │
-│ - Custom LLMs   │    │ - Error capture │    │ - Analytics     │
+│ OpenAI API call │───▶│ httpx wrapper   │───▶│   FastAPI       │
+│      ↓          │    │      ↓          │    │      ↓          │
+│ httpx.Client    │    │ Intercepts HTTP │    │ Stores traces   │
+│      ↓          │    │ Captures data   │    │ PostgreSQL      │
+│ HTTP Request    │───▶│ Forwards request│───▶│ Analytics       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
+
+**How it works:**
+
+1. Call `trace_all()` to patch HTTP client constructors (httpx, requests, aiohttp)
+2. All HTTP clients created afterwards are automatically traced
+3. When your app makes an LLM API call, the HTTP request is intercepted
+4. Request/response data is captured and queued
+5. Background worker sends traces to backend every 5 seconds
+6. Backend stores and analyzes the traces
+
+**Supported HTTP Libraries:**
+
+- ✅ **httpx** (sync and async) - Used by OpenAI Python SDK
+- ✅ **requests** (sync only) - Popular HTTP library
+- ✅ **aiohttp** (async only) - High-performance async HTTP
 
 ## 🚀 Quick Start
 
@@ -71,75 +90,161 @@ docker compose up -d
 
 ```bash
 pip install r4u
+# or
+uv add r4u
 ```
 
-### 3. Start Tracing Your LLM Calls
+### 3. Trace OpenAI API Calls
 
-#### OpenAI Integration
+**🚨 IMPORTANT:** You must call `trace_all()` BEFORE importing OpenAI!
 
 ```python
+import os
+
+# STEP 1: Import R4U and enable tracing FIRST
+from r4u.tracing.http.httpx import trace_all, untrace_all
+trace_all()
+
+# STEP 2: Import OpenAI AFTER enabling tracing
 from openai import OpenAI
-from r4u.integrations.openai import wrap_openai
 
-# Initialize your OpenAI client
-client = OpenAI(api_key="your-api-key")
+# STEP 3: Use OpenAI normally - all calls are automatically traced!
+def main():
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Wrap it with R4U observability
-traced_client = wrap_openai(client, api_url="http://localhost:8000")
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
 
-# Use it normally - traces will be automatically created
-response = traced_client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": "Hello, world!"}]
-)
+    print(response.choices[0].message.content)
+
+    # Wait for traces to be sent (background worker sends every 5s)
+    import time
+    time.sleep(6)
+
+    # Cleanup
+    untrace_all()
+
+if __name__ == "__main__":
+    main()
 ```
 
-#### LangChain Integration
+**Why this order matters:** OpenAI creates its internal httpx client when the module is imported. If you call `trace_all()` afterwards, the client won't be patched and requests won't be traced.
+
+### 4. Async OpenAI Support
 
 ```python
-from langchain_openai import ChatOpenAI
-from r4u.integrations.langchain import wrap_langchain
+import asyncio
+import os
 
-# Create the R4U callback handler
-r4u_handler = wrap_langchain(api_url="http://localhost:8000")
+# Enable tracing BEFORE importing OpenAI
+from r4u.tracing.http.httpx import trace_all, untrace_all
+trace_all()
 
-# Add it to your LangChain model
-llm = ChatOpenAI(model="gpt-3.5-turbo", callbacks=[r4u_handler])
+from openai import AsyncOpenAI
 
-# Use it normally - traces will be automatically created
-response = llm.invoke("Hello, world!")
+async def main():
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # Make concurrent requests - all traced!
+    tasks = [
+        client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": f"Question {i}"}]
+        )
+        for i in range(5)
+    ]
+
+    responses = await asyncio.gather(*tasks)
+
+    # All 5 requests are traced
+    await asyncio.sleep(6)
+    untrace_all()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-### 4. View Your Traces
+### 5. Streaming Support
 
-Visit `http://localhost:8000/docs` to explore the API and view your traces, or use the API directly:
+Streaming responses are automatically detected and captured:
+
+```python
+from r4u.tracing.http.httpx import trace_all
+trace_all()
+
+from openai import OpenAI
+
+client = OpenAI()
+
+# Streaming is automatically detected
+stream = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Count to 5"}],
+    stream=True
+)
+
+# Consume the stream normally
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")
+
+# Full response content is captured in the trace!
+```
+
+### 6. View Your Traces
+
+Visit `http://localhost:8000/docs` to explore the API, or use it directly:
 
 ```bash
 # List all traces
-curl http://localhost:8000/api/v1/traces
+curl http://localhost:8000/api/v1/http-traces
 
-# List all projects
-curl http://localhost:8000/api/v1/projects
+# Get specific trace
+curl http://localhost:8000/api/v1/http-traces/{trace_id}
 ```
 
 ## 📚 Documentation
 
-### SDK Documentation
+### Python SDK
+
 - [Python SDK README](sdks/python/README.md)
-- [LangChain Integration Guide](sdks/python/docs/LANGCHAIN_INTEGRATION.md)
-- [Call Path Tracking](sdks/python/docs/CALL_PATH_FEATURE.md)
-- [Quick Start Guide](sdks/python/docs/LANGCHAIN_QUICKSTART.md)
+- [HTTP Tracing Schema](sdks/python/docs/HTTP_TRACING_SCHEMA.md)
+- [Test Suite Documentation](sdks/python/tests/README.md)
+- [Test Implementation Summary](sdks/python/tests/IMPLEMENTATION_SUMMARY.md)
 
 ### Examples
-- [Basic LangChain Example](sdks/python/examples/basic_langchain.py)
-- [Advanced LangChain Example](sdks/python/examples/advanced_langchain.py)
-- [OpenAI Integration Example](sdks/python/examples/basic_openai.py)
-- [Tool Calls Example](sdks/python/examples/tool_calls_example.py)
-- [Project Management Example](sdks/python/examples/project_example.py)
 
-### API Documentation
+- **⭐ [Working OpenAI Example](sdks/python/examples/working_openai_example.py)** - Recommended starting point
+- [Simple OpenAI Example](sdks/python/examples/simple_openai_example.py) - Minimal example
+- [Comprehensive OpenAI Example](sdks/python/examples/openai_tracing_example.py) - Multiple patterns
+- [Async OpenAI Example](sdks/python/examples/async_openai_example.py) - Async/await patterns
+- [Examples README](sdks/python/examples/README.md) - Complete guide with troubleshooting
+- [Import Order Fix Guide](sdks/python/examples/IMPORT_ORDER_FIX.md) - Explains the import order requirement
+
+### Backend API
+
 - [Backend API Documentation](backend/README.md)
-- [Test Coverage](backend/tests/README.md)
+- [API Tests](backend/tests/README.md)
+
+## 🧪 Testing
+
+The Python SDK has comprehensive test coverage:
+
+- **102 tests** covering all HTTP wrapper functionality
+- Tests for httpx (sync & async), requests, and aiohttp
+- Streaming response handling tests
+- Error handling and edge case tests
+- All tests pass in < 0.4 seconds
+
+```bash
+cd sdks/python
+uv run pytest tests/ -v
+
+# Run with coverage
+uv run pytest tests/ --cov=src/r4u --cov-report=html
+```
 
 ## 🛠 Development
 
@@ -173,30 +278,141 @@ uvicorn app.main:app --reload
 cd ../sdks/python
 uv install
 
-# Run tests
-pytest tests/
+# Run SDK tests
+uv run pytest tests/ -v
 ```
 
 ### Project Structure
 
 ```
 open-r4u/
-├── backend/                 # FastAPI backend
+├── backend/                    # FastAPI backend
 │   ├── app/
-│   │   ├── api/v1/         # API endpoints
-│   │   ├── models/         # Database models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   └── main.py         # FastAPI app
-│   ├── migrations/         # Database migrations
-│   └── tests/              # Backend tests
-├── sdks/python/            # Python SDK
+│   │   ├── api/v1/            # API endpoints
+│   │   ├── models/            # Database models
+│   │   ├── schemas/           # Pydantic schemas
+│   │   └── main.py            # FastAPI app
+│   ├── migrations/            # Database migrations
+│   └── tests/                 # Backend tests
+├── sdks/python/               # Python SDK
 │   ├── src/r4u/
-│   │   ├── integrations/   # OpenAI, LangChain integrations
-│   │   ├── client.py       # API client
-│   │   └── utils.py        # Utilities
-│   ├── examples/           # Usage examples
-│   └── tests/              # SDK tests
-└── compose.yaml            # Docker Compose setup
+│   │   ├── tracing/
+│   │   │   └── http/          # HTTP library wrappers
+│   │   │       ├── httpx.py   # httpx wrapper
+│   │   │       ├── requests.py # requests wrapper
+│   │   │       └── aiohttp.py  # aiohttp wrapper
+│   │   ├── client.py          # R4U client
+│   │   └── utils.py           # Utilities
+│   ├── examples/              # Usage examples
+│   │   ├── simple_openai_example.py
+│   │   ├── openai_tracing_example.py
+│   │   ├── async_openai_example.py
+│   │   └── README.md          # Examples documentation
+│   ├── tests/                 # SDK tests (102 tests)
+│   │   ├── test_client.py
+│   │   ├── test_httpx_wrapper.py
+│   │   ├── test_requests_wrapper.py
+│   │   ├── test_aiohttp_wrapper.py
+│   │   └── README.md          # Test documentation
+│   └── docs/                  # Documentation
+└── compose.yaml               # Docker Compose setup
+```
+
+## 🔧 Advanced Usage
+
+### Custom Tracer
+
+Use a custom tracer instead of the default:
+
+```python
+from r4u.client import R4UClient
+from r4u.tracing.http.httpx import trace_all
+
+# Create custom tracer with specific settings
+tracer = R4UClient(
+    api_url="https://your-r4u-instance.com",
+    timeout=60.0
+)
+
+# Use it for tracing
+trace_all(tracer)
+```
+
+### Selective Tracing
+
+Trace only specific HTTP clients:
+
+```python
+from r4u.tracing.http.httpx import trace_client
+from r4u.client import get_r4u_client
+import httpx
+
+# Create a specific client to trace
+client = httpx.Client()
+
+# Trace only this client
+tracer = get_r4u_client()
+trace_client(client, tracer)
+
+# Other httpx clients won't be traced
+```
+
+### Testing with Capturing Tracer
+
+For testing, capture traces in memory instead of sending to backend:
+
+```python
+from r4u.client import AbstractTracer, HTTPTrace
+from r4u.tracing.http.httpx import trace_all
+
+class CapturingTracer(AbstractTracer):
+    def __init__(self):
+        self.traces = []
+
+    def log(self, trace: HTTPTrace):
+        self.traces.append(trace)
+
+tracer = CapturingTracer()
+trace_all(tracer)
+
+# Make API calls...
+
+# Check captured traces
+print(f"Captured {len(tracer.traces)} traces")
+for trace in tracer.traces:
+    print(f"{trace.method} {trace.url} -> {trace.status_code}")
+```
+
+## ❓ Troubleshooting
+
+### Traces Not Appearing
+
+**Problem:** Made OpenAI API call but no trace in backend.
+
+**Solutions:**
+
+1. ✅ Check import order - `trace_all()` MUST be before `from openai import OpenAI`
+2. ✅ Verify backend is running: `curl http://localhost:8000/health`
+3. ✅ Wait 6+ seconds for background worker to send traces
+4. ✅ Check backend logs for errors
+5. ✅ Run diagnostic script: `uv run python examples/test_patching.py`
+
+### Import Order Issues
+
+If you're getting no traces, the most common issue is import order. See [Import Order Fix Guide](sdks/python/examples/IMPORT_ORDER_FIX.md) for details.
+
+**Quick fix:**
+
+```python
+# ✅ Correct order
+from r4u.tracing.http.httpx import trace_all
+trace_all()
+from openai import OpenAI
+
+# ❌ Wrong order
+from openai import OpenAI
+from r4u.tracing.http.httpx import trace_all
+trace_all()  # Too late!
 ```
 
 ## 🤝 Contributing
@@ -206,7 +422,7 @@ We welcome contributions! Please see our contributing guidelines:
 1. **Fork the repository**
 2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
 3. **Make your changes** and add tests
-4. **Run the test suite**: `pytest`
+4. **Run the test suite**: `uv run pytest tests/`
 5. **Commit your changes**: `git commit -m 'Add amazing feature'`
 6. **Push to the branch**: `git push origin feature/amazing-feature`
 7. **Open a Pull Request**
@@ -214,9 +430,10 @@ We welcome contributions! Please see our contributing guidelines:
 ### Development Guidelines
 
 - Follow Python type hints and use `mypy` for type checking
-- Write comprehensive tests for new features
+- Write comprehensive tests for new features (see `sdks/python/tests/`)
 - Update documentation for API changes
 - Follow the existing code style and patterns
+- Test import order requirements for HTTP wrappers
 
 ## 📄 License
 
@@ -226,6 +443,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - **Website**: [r4u.dev](https://r4u.dev)
 - **Documentation**: [docs.r4u.dev](https://docs.r4u.dev) (coming soon)
+- **GitHub**: [github.com/your-org/open-r4u](https://github.com/your-org/open-r4u)
 
 ## 🙏 Acknowledgments
 
@@ -233,6 +451,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - Inspired by [LangSmith](https://smith.langchain.com/) for LLM monitoring and evaluation
 - Inspired by [Opik](https://github.com/comet-ml/opik) for comprehensive LLM debugging and evaluation
 - Built with [FastAPI](https://fastapi.tiangolo.com/) and [SQLAlchemy](https://www.sqlalchemy.org/)
+- HTTP-level tracing powered by [httpx](https://www.python-httpx.org/), [requests](https://requests.readthedocs.io/), and [aiohttp](https://docs.aiohttp.org/)
 - Powered by the open-source community
 
 ---
