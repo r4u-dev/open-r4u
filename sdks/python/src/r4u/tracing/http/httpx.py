@@ -335,7 +335,7 @@ def _create_httpx_constructor_wrapper(
     return wrapper
 
 
-def trace_all(tracer: AbstractTracer | None = None) -> None:
+def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     """
     Intercept httpx client creation to automatically trace all instances.
 
