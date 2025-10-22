@@ -8,6 +8,7 @@ from typing import Callable, Optional, Type
 import aiohttp
 
 from r4u.client import AbstractTracer, HTTPTrace, get_r4u_client
+from r4u.tracing.http.filters import should_trace_url
 
 
 class StreamingResponseWrapper:
@@ -164,6 +165,10 @@ def _create_async_wrapper(original: Callable, tracer: Optional[AbstractTracer] =
         # Extract method and url from args/kwargs for aiohttp session methods
         method = args[0] if len(args) > 0 else kwargs.get('method', 'GET')
         url = args[1] if len(args) > 1 else kwargs.get('url')
+
+        # Check if we should trace this URL
+        if not should_trace_url(str(url)):
+            return await original(*args, **kwargs)
 
         started_at = datetime.now(timezone.utc)
         request_payload = kwargs.get('data') or kwargs.get('json') or b""

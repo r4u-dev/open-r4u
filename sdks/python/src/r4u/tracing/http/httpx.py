@@ -8,6 +8,7 @@ from typing import Callable, Optional, Type
 import httpx
 
 from r4u.client import AbstractTracer, get_r4u_client, HTTPTrace
+from r4u.tracing.http.filters import should_trace_url
 
 
 class StreamingResponseWrapper:
@@ -211,6 +212,10 @@ def _finalize_trace(
 def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
     @functools.wraps(original)
     async def wrapper(self, *args, **kwargs):
+        # Check if we should trace this URL
+        if not should_trace_url(str(args[0].url)):
+            return await original(*args, **kwargs)
+
         trace_ctx = _build_trace_context(args[0])
 
         response = None
@@ -248,6 +253,9 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
 def _create_sync_wrapper(original: Callable, tracer: AbstractTracer):
     @functools.wraps(original)
     def wrapper(self, *args, **kwargs):
+        # Check if we should trace this URL
+        if not should_trace_url(str(args[0].url)):
+            return original(*args, **kwargs)
         trace_ctx = _build_trace_context(args[0])
 
         response = None

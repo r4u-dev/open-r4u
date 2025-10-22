@@ -6,21 +6,37 @@ from various HTTP libraries without requiring manual patching of individual inst
 """
 
 from contextlib import suppress
-from typing import Optional
+from typing import List, Optional
 
 from r4u.client import AbstractTracer
+from r4u.tracing.http.filters import URLFilter, get_global_filter, set_global_filter
 
 
-def trace_all_http(tracer: Optional[AbstractTracer] = None) -> None:
+def trace_all_http(
+    tracer: Optional[AbstractTracer] = None,
+    allow_urls: Optional[List[str]] = None,
+    deny_urls: Optional[List[str]] = None,
+) -> None:
     """
     Enable automatic tracing for all supported HTTP libraries.
 
     This function monkey patches all supported HTTP libraries to automatically
     trace all HTTP requests made through them.
 
+    Args:
+        tracer: Optional tracer instance. If None, uses the default R4U client.
+        allow_urls: Optional list of URL patterns to allow. If provided, extends default AI provider patterns.
+        deny_urls: Optional list of URL patterns to deny. Takes precedence over allow patterns.
+
     Example:
         >>> from r4u.tracing.http.auto import trace_all_http
-        >>> trace_all_http()  # Enable tracing for all HTTP libraries
+        >>> trace_all_http()  # Enable tracing for all HTTP libraries with default patterns
+        >>>
+        >>> # Or with custom patterns
+        >>> trace_all_http(
+        ...     allow_urls=["https://api.custom.com/*"],
+        ...     deny_urls=["https://api.openai.com/v1/models"]
+        ... )
         >>>
         >>> # Now all HTTP requests will be automatically traced
         >>> import httpx
@@ -32,6 +48,14 @@ def trace_all_http(tracer: Optional[AbstractTracer] = None) -> None:
         >>> requests_session = requests.Session()
         >>> aiohttp_session = aiohttp.ClientSession()
     """
+    # Configure URL filter if patterns are provided
+    if allow_urls is not None or deny_urls is not None:
+        configure_url_filter(
+            allow_urls=allow_urls,
+            deny_urls=deny_urls,
+            extend_defaults=True  # Always extend defaults when called from trace_all_http
+        )
+
     with suppress(Exception):
         from .httpx import trace_all as trace_httpx_all
         trace_httpx_all(tracer)
@@ -63,6 +87,76 @@ def untrace_all_http() -> None:
     with suppress(Exception):
         from .aiohttp import untrace_all as untrace_aiohttp_all
         untrace_aiohttp_all()
+
+
+def configure_url_filter(
+    allow_urls: Optional[List[str]] = None,
+    deny_urls: Optional[List[str]] = None,
+    extend_defaults: bool = True,
+) -> None:
+    """
+    Configure the global URL filter for HTTP tracing.
+
+    Args:
+        allow_urls: List of URL patterns to allow. If None, uses default AI provider patterns.
+        deny_urls: List of URL patterns to deny. Takes precedence over allow patterns.
+        extend_defaults: If True and allow_urls is provided, extends default patterns instead of replacing them.
+
+    Example:
+        >>> from r4u.tracing.http.auto import configure_url_filter
+        >>> configure_url_filter(
+        ...     allow_urls=["https://api.openai.com/*", "https://api.anthropic.com/*"],
+        ...     deny_urls=["https://api.openai.com/v1/models"]
+        ... )
+    """
+    # If extending defaults and we have an existing filter, extend from it
+    if extend_defaults and (allow_urls is not None or deny_urls is not None):
+        try:
+            current_filter = get_global_filter()
+            # Extend existing allow patterns
+            if allow_urls is not None:
+                current_allow = current_filter.get_allow_urls()
+                new_allow = current_allow + allow_urls
+            else:
+                new_allow = current_filter.get_allow_urls()
+
+            # Extend existing deny patterns
+            if deny_urls is not None:
+                current_deny = current_filter.get_deny_urls()
+                new_deny = current_deny + deny_urls
+            else:
+                new_deny = current_filter.get_deny_urls()
+
+            filter_instance = URLFilter(
+                allow_urls=new_allow,
+                deny_urls=new_deny,
+                extend_defaults=False  # Don't extend again since we already did
+            )
+        except Exception:
+            # If no existing filter or error, create new one
+            filter_instance = URLFilter(
+                allow_urls=allow_urls,
+                deny_urls=deny_urls,
+                extend_defaults=extend_defaults
+            )
+    else:
+        filter_instance = URLFilter(
+            allow_urls=allow_urls,
+            deny_urls=deny_urls,
+            extend_defaults=extend_defaults
+        )
+
+    set_global_filter(filter_instance)
+
+
+def get_url_filter() -> URLFilter:
+    """
+    Get the current global URL filter.
+
+    Returns:
+        The current global URL filter instance
+    """
+    return get_global_filter()
 
 
 # Convenience aliases

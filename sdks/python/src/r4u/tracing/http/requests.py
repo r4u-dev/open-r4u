@@ -8,6 +8,7 @@ from typing import Callable, Optional, Type
 import requests
 
 from r4u.client import AbstractTracer, HTTPTrace, get_r4u_client
+from r4u.tracing.http.filters import should_trace_url
 
 
 class StreamingResponseWrapper:
@@ -195,6 +196,10 @@ def _create_send_wrapper(original: Callable, tracer: Optional[AbstractTracer] = 
     """Create wrapper for requests.Session.send method."""
     @functools.wraps(original)
     def wrapper(self, request, **kwargs):
+        # Check if we should trace this URL
+        if not should_trace_url(request.url):
+            return original(request, **kwargs)
+
         trace_ctx = _build_trace_context(request)
 
         response = None
