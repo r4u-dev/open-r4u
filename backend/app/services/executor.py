@@ -40,7 +40,7 @@ class LLMExecutor:
         self, prompt: str, variables: dict[str, Any] | None = None
     ) -> str:
         """Render a prompt template with variables using double curly braces {{ }}."""
-        if not variables:
+        if variables is None:
             return prompt
 
         try:
