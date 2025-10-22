@@ -12,6 +12,5 @@ AsyncSessionMaker = async_sessionmaker(engine, expire_on_commit=False, class_=As
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     """Yield a database session for dependency injection."""
-
     async with AsyncSessionMaker() as session:
         yield session

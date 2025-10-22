@@ -1,6 +1,6 @@
 """Project API endpoints."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select

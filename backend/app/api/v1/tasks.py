@@ -1,6 +1,6 @@
 """API endpoints for Task management."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -21,7 +21,6 @@ async def list_tasks(
     session: AsyncSession = Depends(get_session),
 ) -> list[TaskRead]:
     """Return all tasks, optionally filtered by project_id."""
-
     query = select(Task)
     if project_id is not None:
         query = query.where(Task.project_id == project_id)
@@ -39,7 +38,6 @@ async def get_task(
     session: AsyncSession = Depends(get_session),
 ) -> TaskRead:
     """Get a specific task by ID."""
-
     query = select(Task).where(Task.id == task_id)
     result = await session.execute(query)
     task = result.scalar_one_or_none()
@@ -59,7 +57,6 @@ async def create_task(
     session: AsyncSession = Depends(get_session),
 ) -> TaskRead:
     """Create a new task."""
-
     # Get or create project
     project_query = select(Project).where(Project.name == payload.project)
     project_result = await session.execute(project_query)
@@ -131,7 +128,6 @@ async def delete_task(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete a task."""
-
     query = select(Task).where(Task.id == task_id)
     result = await session.execute(query)
     task = result.scalar_one_or_none()
@@ -147,15 +143,14 @@ async def delete_task(
 
 
 @router.post(
-    "/group-traces", response_model=list[TaskRead], status_code=status.HTTP_201_CREATED
+    "/group-traces", response_model=list[TaskRead], status_code=status.HTTP_201_CREATED,
 )
 async def group_traces_into_tasks(
     session: AsyncSession = Depends(get_session),
     similarity_threshold: float = 0.6,
     min_cluster_size: int = 2,
 ) -> list[TaskRead]:
-    """
-    Automatically group all ungrouped traces into tasks.
+    """Automatically group all ungrouped traces into tasks.
 
     This endpoint:
     1. Finds all traces without a task_id
@@ -171,6 +166,7 @@ async def group_traces_into_tasks(
 
     Returns:
         List of created tasks
+
     """
     created_tasks = await group_all_traces(
         session,

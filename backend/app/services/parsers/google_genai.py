@@ -27,14 +27,13 @@ class GoogleGenAIParser(ProviderParser):
         metadata: dict[str, Any] | None = None,
     ) -> TraceCreate:
         """Parse Google GenAI API request/response."""
-        
         # Extract model from URL or metadata (Google uses model in URL path)
         model = metadata.get("model", "unknown") if metadata else "unknown"
-        
+
         # Extract contents from request (Google format)
         contents = request_body.get("contents", [])
         input_items: list[InputItem] = []
-        
+
         for content in contents:
             role_str = content.get("role", "user")
             # Map Google roles to our MessageRole
@@ -43,19 +42,19 @@ class GoogleGenAIParser(ProviderParser):
                 "model": MessageRole.ASSISTANT,
             }
             role = role_map.get(role_str, MessageRole.USER)
-            
+
             # Extract parts (Google uses parts instead of content)
             parts = content.get("parts", [])
             text_parts = [part.get("text", "") for part in parts if "text" in part]
             content_text = "\n".join(text_parts) if text_parts else None
-            
+
             input_items.append(
                 MessageItem(
                     role=role,
                     content=content_text,
-                )
+                ),
             )
-        
+
         # Extract system instruction if present
         system_instruction = request_body.get("systemInstruction")
         if system_instruction and isinstance(system_instruction, dict):
@@ -67,16 +66,16 @@ class GoogleGenAIParser(ProviderParser):
                     MessageItem(
                         role=MessageRole.SYSTEM,
                         content="\n".join(text_parts),
-                    )
+                    ),
                 )
-        
+
         # Extract result from response
         result = None
         finish_reason = None
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
-        
+
         if not error and response_body:
             candidates = response_body.get("candidates", [])
             if candidates:
@@ -85,7 +84,7 @@ class GoogleGenAIParser(ProviderParser):
                 parts = content.get("parts", [])
                 text_parts = [part.get("text", "") for part in parts if "text" in part]
                 result = "\n".join(text_parts) if text_parts else None
-                
+
                 # Extract finish reason
                 finish_reason_str = candidate.get("finishReason")
                 if finish_reason_str:
@@ -101,22 +100,22 @@ class GoogleGenAIParser(ProviderParser):
                         finish_reason = FinishReason(mapped_reason)
                     except ValueError:
                         pass
-            
+
             # Extract token usage
             usage_metadata = response_body.get("usageMetadata", {})
             prompt_tokens = usage_metadata.get("promptTokenCount")
             completion_tokens = usage_metadata.get("candidatesTokenCount")
             total_tokens = usage_metadata.get("totalTokenCount")
-        
+
         # Extract generation config
         generation_config = request_body.get("generationConfig", {})
         temperature = generation_config.get("temperature")
-        
+
         # Extract project from metadata or use default
         project = metadata.get("project", "Default Project") if metadata else "Default Project"
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
-        
+
         return TraceCreate(
             project=project,
             model=model,

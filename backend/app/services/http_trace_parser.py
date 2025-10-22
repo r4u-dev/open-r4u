@@ -54,12 +54,12 @@ class HTTPTraceParserService:
             
         Raises:
             ValueError: If unable to parse the trace or determine the provider
+
         """
-        
         # Extract URL from request headers or reconstruct from request
         # For now, we'll try to get it from metadata or request path
         url = metadata.get("url", "") if metadata else ""
-        
+
         # If URL is not in metadata, try to parse it from the request
         if not url:
             # Try to extract from request line (first line of HTTP request)
@@ -77,23 +77,23 @@ class HTTPTraceParserService:
                             url = f"https://{host}{path}"
             except Exception:
                 pass
-        
+
         # Find the appropriate parser
         parser = None
         for p in self.parsers:
             if p.can_parse(url):
                 parser = p
                 break
-        
+
         if not parser:
             raise ValueError(f"No parser found for URL: {url}")
-        
+
         # Parse request and response bodies
         try:
             request_body = json.loads(request.decode("utf-8"))
         except Exception as e:
             raise ValueError(f"Failed to parse request body: {e}")
-        
+
         response_body = {}
         if not error and response:
             try:
@@ -102,7 +102,7 @@ class HTTPTraceParserService:
                 # If response parsing fails, it's not necessarily an error
                 # (could be streaming or non-JSON response)
                 pass
-        
+
         # Use the parser to create TraceCreate
         return parser.parse(
             request_body=request_body,

@@ -65,7 +65,7 @@ async def test_create_task_with_tools(client: AsyncClient, test_session):
                             "properties": {"location": {"type": "string"}},
                         },
                     },
-                }
+                },
             ],
             "tool_choice": "auto",
         },
@@ -153,10 +153,10 @@ async def test_list_tasks_by_project(client: AsyncClient, test_session):
     await test_session.flush()
 
     impl1 = Implementation(
-        task_id=task1.id, prompt="V1", model="gpt-4", max_output_tokens=1000
+        task_id=task1.id, prompt="V1", model="gpt-4", max_output_tokens=1000,
     )
     impl2 = Implementation(
-        task_id=task2.id, prompt="V2", model="gpt-4", max_output_tokens=1000
+        task_id=task2.id, prompt="V2", model="gpt-4", max_output_tokens=1000,
     )
     test_session.add_all([impl1, impl2])
     await test_session.flush()

@@ -1,4 +1,4 @@
-from typing import Sequence
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,7 +9,10 @@ from app.database import get_session
 from app.models.projects import Project
 from app.models.traces import Trace, TraceInputItem
 from app.schemas.traces import TraceCreate, TraceRead
-from app.services.task_grouping import find_or_create_task_for_trace, try_match_existing_task
+from app.services.task_grouping import (
+    find_or_create_task_for_trace,
+    try_match_existing_task,
+)
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 
@@ -19,7 +22,6 @@ async def list_traces(
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
     """Return all traces with their associated input items."""
-
     query = select(Trace).options(selectinload(Trace.input_items)).order_by(Trace.started_at.desc())
     result = await session.execute(query)
     traces: Sequence[Trace] = result.scalars().unique().all()
@@ -33,7 +35,6 @@ async def create_trace(
     session: AsyncSession = Depends(get_session),
 ) -> TraceRead:
     """Create a trace along with its input items."""
-
     # Get or create project
     project_query = select(Project).where(Project.name == payload.project)
     project_result = await session.execute(project_query)
@@ -91,7 +92,7 @@ async def create_trace(
                 type=item.type,
                 data=item_data,
                 position=position,
-            )
+            ),
         )
 
     session.add(trace)
@@ -126,8 +127,7 @@ async def group_trace(
     trace_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> TraceRead:
-    """
-    Find or create a task for a trace by analyzing similar traces.
+    """Find or create a task for a trace by analyzing similar traces.
     
     This endpoint:
     1. Extracts instructions from the trace
@@ -143,26 +143,26 @@ async def group_trace(
     )
     result = await session.execute(query)
     trace = result.scalar_one_or_none()
-    
+
     if not trace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Trace with id {trace_id} not found",
         )
-    
+
     # Try to find or create task
     task = await find_or_create_task_for_trace(trace_id, session)
-    
+
     if task:
         trace.task_id = task.id
         await session.commit()
-        
+
         # Reload trace with eager-loaded input_items
         result = await session.execute(
             select(Trace)
             .options(selectinload(Trace.input_items))
-            .where(Trace.id == trace_id)
+            .where(Trace.id == trace_id),
         )
         trace = result.scalar_one()
-    
+
     return TraceRead.model_validate(trace)

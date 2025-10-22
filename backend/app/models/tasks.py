@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from app.models.base import Base, created_at_col, intpk, updated_at_col
-from sqlalchemy import ForeignKey, Index, JSON, String, Text
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -32,10 +33,10 @@ class Implementation(Base):
     reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     tool_choice: Mapped[str | dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True
+        JSONType, nullable=True,
     )
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True
+        JSONType, nullable=True,
     )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
 

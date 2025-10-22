@@ -1,11 +1,10 @@
-"""
-Example of using the restructured Traces API.
+"""Example of using the restructured Traces API.
 
 This demonstrates creating traces with different input item types.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -20,15 +19,15 @@ async def create_simple_trace():
                 {"type": "message", "role": "assistant", "content": "I'm doing well, thank you!"},
             ],
             "result": "I'm doing well, thank you!",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "prompt_tokens": 10,
             "completion_tokens": 8,
             "total_tokens": 18,
             "finish_reason": "stop",
             "project": "Example Project",
         }
-        
+
         response = await client.post("/traces", json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.json()}")
@@ -63,8 +62,8 @@ async def create_trace_with_tool_calls():
                 },
             ],
             "result": "The weather in NYC is sunny and 72°F with 45% humidity.",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "prompt_tokens": 25,
             "completion_tokens": 18,
             "total_tokens": 43,
@@ -84,11 +83,11 @@ async def create_trace_with_tool_calls():
                             "required": ["location"],
                         },
                     },
-                }
+                },
             ],
             "project": "Weather Assistant",
         }
-        
+
         response = await client.post("/traces", json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.json()}")
@@ -114,15 +113,15 @@ async def create_trace_with_media():
                 },
             ],
             "result": "I see a cat sitting on a windowsill.",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "prompt_tokens": 1050,  # Images use more tokens
             "completion_tokens": 12,
             "total_tokens": 1062,
             "finish_reason": "stop",
             "project": "Vision Analysis",
         }
-        
+
         response = await client.post("/traces", json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.json()}")
@@ -151,7 +150,7 @@ async def create_trace_with_mcp_tools():
                         "papers": [
                             {"title": "Paper 1", "authors": ["Author A"], "date": "2025-10-01"},
                             {"title": "Paper 2", "authors": ["Author B"], "date": "2025-09-15"},
-                        ]
+                        ],
                     },
                 },
                 {
@@ -161,15 +160,15 @@ async def create_trace_with_mcp_tools():
                 },
             ],
             "result": "Here are 2 recent AI papers: Paper 1 by Author A, and Paper 2 by Author B.",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "prompt_tokens": 30,
             "completion_tokens": 25,
             "total_tokens": 55,
             "finish_reason": "stop",
             "project": "Research Assistant",
         }
-        
+
         response = await client.post("/traces", json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.json()}")
@@ -196,8 +195,8 @@ async def create_trace_with_reasoning():
             ],
             "reasoning": "First, I identified the equation type. Then I applied the quadratic formula...",
             "result": "Here's the solution: ...",
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
+            "completed_at": datetime.now(UTC).isoformat(),
             "prompt_tokens": 50,
             "completion_tokens": 100,
             "reasoning_tokens": 2500,  # O1 models use reasoning tokens
@@ -208,7 +207,7 @@ async def create_trace_with_reasoning():
             "system_fingerprint": "fp_o1_preview_2025",
             "project": "Math Solver",
         }
-        
+
         response = await client.post("/traces", json=payload)
         print(f"Status: {response.status_code}")
         print(f"Response: {response.json()}")
@@ -220,22 +219,22 @@ async def main():
     print("1. Simple Trace")
     print("=" * 80)
     await create_simple_trace()
-    
+
     print("\n" + "=" * 80)
     print("2. Trace with Tool Calls")
     print("=" * 80)
     await create_trace_with_tool_calls()
-    
+
     print("\n" + "=" * 80)
     print("3. Trace with Media (Image)")
     print("=" * 80)
     await create_trace_with_media()
-    
+
     print("\n" + "=" * 80)
     print("4. Trace with MCP Tools")
     print("=" * 80)
     await create_trace_with_mcp_tools()
-    
+
     print("\n" + "=" * 80)
     print("5. Trace with Reasoning (O1/O3 models)")
     print("=" * 80)

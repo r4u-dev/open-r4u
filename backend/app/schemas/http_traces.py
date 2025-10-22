@@ -27,7 +27,7 @@ class HTTPTraceCreate(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     model_config = ConfigDict(extra="allow")
-    
+
     @field_validator("request", "response", mode="before")
     @classmethod
     def decode_hex_if_needed(cls, v):

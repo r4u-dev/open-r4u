@@ -1,6 +1,6 @@
 """API endpoints for Implementation management."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -19,7 +19,6 @@ async def list_implementations(
     session: AsyncSession = Depends(get_session),
 ) -> list[ImplementationRead]:
     """Return all implementations, optionally filtered by task_id."""
-
     query = select(Implementation)
     if task_id is not None:
         query = query.where(Implementation.task_id == task_id)
@@ -37,7 +36,6 @@ async def get_implementation(
     session: AsyncSession = Depends(get_session),
 ) -> ImplementationRead:
     """Get a specific implementation by ID."""
-
     query = select(Implementation).where(Implementation.id == implementation_id)
     result = await session.execute(query)
     implementation = result.scalar_one_or_none()
@@ -58,7 +56,6 @@ async def create_implementation(
     session: AsyncSession = Depends(get_session),
 ) -> ImplementationRead:
     """Create a new implementation version for a task."""
-
     # Verify task exists
     task_query = select(Task).where(Task.id == task_id)
     task_result = await session.execute(task_query)
@@ -116,7 +113,6 @@ async def update_implementation(
     session: AsyncSession = Depends(get_session),
 ) -> ImplementationRead:
     """Update an existing implementation."""
-
     query = select(Implementation).where(Implementation.id == implementation_id)
     result = await session.execute(query)
     implementation = result.scalar_one_or_none()
@@ -164,7 +160,6 @@ async def delete_implementation(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete an implementation."""
-
     query = select(Implementation).where(Implementation.id == implementation_id)
     result = await session.execute(query)
     implementation = result.scalar_one_or_none()
@@ -185,7 +180,6 @@ async def set_production_version(
     session: AsyncSession = Depends(get_session),
 ) -> ImplementationRead:
     """Set this implementation as the production version for its task."""
-
     query = select(Implementation).where(Implementation.id == implementation_id)
     result = await session.execute(query)
     implementation = result.scalar_one_or_none()

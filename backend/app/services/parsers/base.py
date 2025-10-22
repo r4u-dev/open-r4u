@@ -19,6 +19,7 @@ class ProviderParser(ABC):
             
         Returns:
             True if this parser can handle the URL, False otherwise
+
         """
 
     @abstractmethod
@@ -43,4 +44,5 @@ class ProviderParser(ABC):
             
         Returns:
             TraceCreate object ready for database insertion
+
         """

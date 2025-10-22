@@ -210,7 +210,7 @@ async def test_update_implementation(client: AsyncClient, test_session):
         "temperature": 0.8,
     }
     response = await client.put(
-        f"/implementations/{implementation.id}", json=update_payload
+        f"/implementations/{implementation.id}", json=update_payload,
     )
     assert response.status_code == 200
     data = response.json()
@@ -341,7 +341,7 @@ async def test_create_implementation_with_tools(client: AsyncClient, test_sessio
                         "properties": {"location": {"type": "string"}},
                     },
                 },
-            }
+            },
         ],
         "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
     }
@@ -406,7 +406,7 @@ async def test_multiple_versions_for_task(client: AsyncClient, test_session):
             "max_output_tokens": 1000,
         }
         response = await client.post(
-            f"/implementations?task_id={task.id}", json=payload
+            f"/implementations?task_id={task.id}", json=payload,
         )
         assert response.status_code == 201
 

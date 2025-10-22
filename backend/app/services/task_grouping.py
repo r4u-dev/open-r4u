@@ -1,5 +1,4 @@
-"""
-Task grouping service for automatically organizing traces into tasks.
+"""Task grouping service for automatically organizing traces into tasks.
 
 This module implements intelligent grouping of traces based on:
 1. Path similarity
@@ -7,21 +6,20 @@ This module implements intelligent grouping of traces based on:
 3. Template inference to handle parameterized instructions
 """
 
-from typing import List, Optional
 from collections import defaultdict
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.traces import Trace
-from app.models.tasks import Implementation, Task
 from app.enums import MessageRole
+from app.models.tasks import Implementation, Task
+from app.models.traces import Trace
 from app.services.template_inference import infer_template_from_strings
 
 
 class TaskGrouper:
-    """
-    Groups traces into tasks based on similarity of path and instructions.
+    """Groups traces into tasks based on similarity of path and instructions.
 
     Strategy:
     1. Group traces by path
@@ -37,21 +35,20 @@ class TaskGrouper:
         min_cluster_size: int = 2,
         max_sample_size: int = 100,
     ):
-        """
-        Args:
-            similarity_threshold: Minimum similarity score to group traces (0.0-1.0)
-            min_cluster_size: Minimum traces needed to create a task
-            max_sample_size: Maximum traces to use for template inference
+        """Args:
+        similarity_threshold: Minimum similarity score to group traces (0.0-1.0)
+        min_cluster_size: Minimum traces needed to create a task
+        max_sample_size: Maximum traces to use for template inference
+
         """
         self.similarity_threshold = similarity_threshold
         self.min_cluster_size = min_cluster_size
         self.max_sample_size = max_sample_size
 
     async def find_or_create_task_for_trace(
-        self, trace_id: int, session: AsyncSession
-    ) -> Optional[Task]:
-        """
-        Find an existing task for a trace or create a new one.
+        self, trace_id: int, session: AsyncSession,
+    ) -> Task | None:
+        """Find an existing task for a trace or create a new one.
 
         Args:
             trace_id: ID of the trace to group
@@ -59,6 +56,7 @@ class TaskGrouper:
 
         Returns:
             Task if grouped, None if no suitable task found
+
         """
         # Load the trace with its input items
         query = (
@@ -86,20 +84,20 @@ class TaskGrouper:
 
         # Try to create a new task by finding similar traces
         new_task = await self._create_task_from_similar_traces(
-            trace, instructions, session
+            trace, instructions, session,
         )
 
         return new_task
 
-    async def group_all_traces(self, session: AsyncSession) -> List[Task]:
-        """
-        Group all ungrouped traces into tasks.
+    async def group_all_traces(self, session: AsyncSession) -> list[Task]:
+        """Group all ungrouped traces into tasks.
 
         Args:
             session: Database session
 
         Returns:
             List of created tasks
+
         """
         # Get all traces without a task
         query = (
@@ -138,8 +136,7 @@ class TaskGrouper:
         return created_tasks
 
     def _extract_instructions(self, trace: Trace) -> str:
-        """
-        Extract instructions from a trace.
+        """Extract instructions from a trace.
 
         Priority:
         1. trace.instructions field
@@ -150,6 +147,7 @@ class TaskGrouper:
 
         Returns:
             Extracted instructions string
+
         """
         # First check if trace has explicit instructions
         if trace.instructions:
@@ -172,10 +170,9 @@ class TaskGrouper:
         return "\n".join(instruction_parts) if instruction_parts else ""
 
     async def _find_matching_task(
-        self, trace: Trace, instructions: str, session: AsyncSession
-    ) -> Optional[Task]:
-        """
-        Find an existing task that matches the trace's instructions.
+        self, trace: Trace, instructions: str, session: AsyncSession,
+    ) -> Task | None:
+        """Find an existing task that matches the trace's instructions.
 
         Args:
             trace: The trace to match
@@ -184,13 +181,15 @@ class TaskGrouper:
 
         Returns:
             Matching task or None
+
         """
         # Get all tasks for the same project and path
         query = (
             select(Task)
-            .options(selectinload(Task.implementation))
+            .options(selectinload(Task.production_version))
             .where(Task.project_id == trace.project_id)
-            .join(Implementation)
+            .where(Task.production_version_id.isnot(None))
+            .join(Implementation, Task.production_version_id == Implementation.id)
             .where(Implementation.model == trace.model)
         )
         result = await session.execute(query)
@@ -204,9 +203,9 @@ class TaskGrouper:
 
         for task in tasks:
             # Compare instructions using template matching
-            if task.implementation.prompt:
+            if task.production_version.prompt if task.production_version else None:
                 similarity = self._compute_instruction_similarity(
-                    instructions, task.implementation.prompt
+                    instructions, task.production_version.prompt if task.production_version else None,
                 )
 
                 if (
@@ -219,10 +218,9 @@ class TaskGrouper:
         return best_task
 
     async def _create_task_from_similar_traces(
-        self, trace: Trace, instructions: str, session: AsyncSession
-    ) -> Optional[Task]:
-        """
-        Create a new task by finding similar traces and inferring template.
+        self, trace: Trace, instructions: str, session: AsyncSession,
+    ) -> Task | None:
+        """Create a new task by finding similar traces and inferring template.
 
         Args:
             trace: The seed trace
@@ -231,6 +229,7 @@ class TaskGrouper:
 
         Returns:
             Created task or None
+
         """
         # Find similar traces
         similar_traces = await self._find_similar_traces(trace, instructions, session)
@@ -243,10 +242,9 @@ class TaskGrouper:
         return task
 
     async def _find_similar_traces(
-        self, seed_trace: Trace, seed_instructions: str, session: AsyncSession
-    ) -> List[Trace]:
-        """
-        Find traces similar to the seed trace.
+        self, seed_trace: Trace, seed_instructions: str, session: AsyncSession,
+    ) -> list[Trace]:
+        """Find traces similar to the seed trace.
 
         Args:
             seed_trace: The trace to compare against
@@ -255,6 +253,7 @@ class TaskGrouper:
 
         Returns:
             List of similar traces (including seed)
+
         """
         # Get traces with same path and model, without a task
         query = (
@@ -279,7 +278,7 @@ class TaskGrouper:
                 continue
 
             similarity = self._compute_instruction_similarity(
-                seed_instructions, trace_instructions
+                seed_instructions, trace_instructions,
             )
 
             if similarity >= self.similarity_threshold:
@@ -287,15 +286,15 @@ class TaskGrouper:
 
         return similar_traces
 
-    def _group_by_instructions(self, traces: List[Trace]) -> List[List[Trace]]:
-        """
-        Group traces by instruction similarity.
+    def _group_by_instructions(self, traces: list[Trace]) -> list[list[Trace]]:
+        """Group traces by instruction similarity.
 
         Args:
             traces: List of traces to group
 
         Returns:
             List of trace groups
+
         """
         if not traces:
             return []
@@ -321,7 +320,7 @@ class TaskGrouper:
                     continue
 
                 similarity = self._compute_instruction_similarity(
-                    seed_instructions, trace_instructions
+                    seed_instructions, trace_instructions,
                 )
 
                 if similarity >= self.similarity_threshold:
@@ -338,8 +337,7 @@ class TaskGrouper:
         return groups
 
     def _compute_instruction_similarity(self, instr1: str, instr2: str) -> float:
-        """
-        Compute similarity between two instruction strings.
+        """Compute similarity between two instruction strings.
 
         Uses token-based Jaccard similarity with length penalty.
 
@@ -349,6 +347,7 @@ class TaskGrouper:
 
         Returns:
             Similarity score (0.0-1.0)
+
         """
         # Tokenize and normalize
         tokens1 = set(self._tokenize(instr1.lower()))
@@ -371,7 +370,7 @@ class TaskGrouper:
         # Combined score (70% Jaccard, 30% length)
         return 0.7 * jaccard + 0.3 * length_sim
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words (alphanumeric sequences)."""
         tokens = []
         i = 0
@@ -387,10 +386,9 @@ class TaskGrouper:
         return tokens
 
     async def _create_task_for_group(
-        self, traces: List[Trace], session: AsyncSession
-    ) -> Optional[Task]:
-        """
-        Create a task from a group of similar traces.
+        self, traces: list[Trace], session: AsyncSession,
+    ) -> Task | None:
+        """Create a task from a group of similar traces.
 
         Args:
             traces: Group of similar traces
@@ -398,6 +396,7 @@ class TaskGrouper:
 
         Returns:
             Created task
+
         """
         if not traces:
             return None
@@ -431,7 +430,7 @@ class TaskGrouper:
         prompt_strings = [t.prompt for t in traces if t.prompt]
         if len(prompt_strings) >= 2:
             templated_prompt = infer_template_from_strings(
-                prompt_strings[: self.max_sample_size]
+                prompt_strings[: self.max_sample_size],
             )
         else:
             templated_prompt = prompt_strings[0] if prompt_strings else ""
@@ -441,8 +440,18 @@ class TaskGrouper:
             templated_instructions if templated_instructions else templated_prompt
         )
 
+        # Create the task first
+        task = Task(
+            project_id=reference_trace.project_id,
+            path=reference_trace.path,
+        )
+
+        session.add(task)
+        await session.flush()
+
         # Create the implementation
         implementation = Implementation(
+            task_id=task.id,
             prompt=final_prompt,
             model=reference_trace.model,
             tools=reference_trace.tools,
@@ -457,15 +466,8 @@ class TaskGrouper:
         session.add(implementation)
         await session.flush()
 
-        # Create the task
-        task = Task(
-            project_id=reference_trace.project_id,
-            path=reference_trace.path,
-            implementation_id=implementation.id,
-        )
-
-        session.add(task)
-        await session.flush()
+        # Set as production version
+        task.production_version_id = implementation.id
 
         # Assign traces to the task
         for trace in traces:
@@ -475,10 +477,9 @@ class TaskGrouper:
 
 
 async def find_or_create_task_for_trace(
-    trace_id: int, session: AsyncSession, similarity_threshold: float = 0.6
-) -> Optional[Task]:
-    """
-    Convenience function to find or create a task for a trace.
+    trace_id: int, session: AsyncSession, similarity_threshold: float = 0.6,
+) -> Task | None:
+    """Convenience function to find or create a task for a trace.
 
     Args:
         trace_id: ID of the trace
@@ -487,16 +488,16 @@ async def find_or_create_task_for_trace(
 
     Returns:
         Task if found/created, None otherwise
+
     """
     grouper = TaskGrouper(similarity_threshold=similarity_threshold)
     return await grouper.find_or_create_task_for_trace(trace_id, session)
 
 
 async def group_all_traces(
-    session: AsyncSession, similarity_threshold: float = 0.6, min_cluster_size: int = 2
-) -> List[Task]:
-    """
-    Convenience function to group all ungrouped traces.
+    session: AsyncSession, similarity_threshold: float = 0.6, min_cluster_size: int = 2,
+) -> list[Task]:
+    """Convenience function to group all ungrouped traces.
 
     Args:
         session: Database session
@@ -505,18 +506,18 @@ async def group_all_traces(
 
     Returns:
         List of created tasks
+
     """
     grouper = TaskGrouper(
-        similarity_threshold=similarity_threshold, min_cluster_size=min_cluster_size
+        similarity_threshold=similarity_threshold, min_cluster_size=min_cluster_size,
     )
     return await grouper.group_all_traces(session)
 
 
 async def try_match_existing_task(
-    trace_id: int, session: AsyncSession, similarity_threshold: float = 0.6
-) -> Optional[Task]:
-    """
-    Fast matching: Try to match a trace to an existing task without creating new ones.
+    trace_id: int, session: AsyncSession, similarity_threshold: float = 0.6,
+) -> Task | None:
+    """Fast matching: Try to match a trace to an existing task without creating new ones.
 
     This is used for auto-grouping on trace creation - it's fast because it only
     queries existing tasks and doesn't analyze other traces or create new tasks.
@@ -528,6 +529,7 @@ async def try_match_existing_task(
 
     Returns:
         Task if matched, None if no suitable task found
+
     """
     # Load trace with input items for instruction extraction
     query = (
