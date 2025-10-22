@@ -9,7 +9,9 @@ from app.schemas.traces import (
     FunctionDefinition,
     InputItem,
     MessageItem,
+    ToolCallItem,
     ToolDefinition,
+    ToolResultItem,
     TraceCreate,
 )
 from app.services.parsers.base import ProviderParser
@@ -42,18 +44,53 @@ class AnthropicParser(ProviderParser):
 
         for msg in messages:
             role_str = msg.get("role", "user")
-            try:
-                role = MessageRole(role_str)
-            except ValueError:
-                role = MessageRole.USER
+            content = msg.get("content")
 
-            input_items.append(
-                MessageItem(
-                    role=role,
-                    content=msg.get("content"),
-                    name=msg.get("name"),
-                ),
-            )
+            # Handle content as list (can contain tool_result blocks)
+            if isinstance(content, list):
+                for block in content:
+                    block_type = block.get("type")
+
+                    # Handle tool results
+                    if block_type == "tool_result":
+                        tool_use_id = block.get("tool_use_id")
+                        tool_result_content = block.get("content")
+                        # Tool name is not in the result, we'll use a placeholder
+                        if tool_use_id:
+                            input_items.append(
+                                ToolResultItem(
+                                    call_id=tool_use_id,
+                                    tool_name="unknown",  # Anthropic doesn't include name in result
+                                    result=tool_result_content,
+                                    is_error=block.get("is_error", False),
+                                ),
+                            )
+                    # Handle regular text content
+                    elif block_type == "text":
+                        try:
+                            role = MessageRole(role_str)
+                        except ValueError:
+                            role = MessageRole.USER
+
+                        input_items.append(
+                            MessageItem(
+                                role=role,
+                                content=block.get("text"),
+                            ),
+                        )
+            else:
+                # Handle content as string
+                try:
+                    role = MessageRole(role_str)
+                except ValueError:
+                    role = MessageRole.USER
+
+                input_items.append(
+                    MessageItem(
+                        role=role,
+                        content=content,
+                    ),
+                )
 
         # Extract system prompt if present
         system_prompt = request_body.get("system")
@@ -78,7 +115,30 @@ class AnthropicParser(ProviderParser):
             content = response_body.get("content", [])
             if content:
                 # Anthropic returns content as a list of content blocks
-                text_blocks = [block.get("text", "") for block in content if block.get("type") == "text"]
+                text_blocks = []
+
+                for block in content:
+                    block_type = block.get("type")
+
+                    # Handle text blocks
+                    if block_type == "text":
+                        text_blocks.append(block.get("text", ""))
+
+                    # Handle tool use blocks - create ToolCallItem
+                    elif block_type == "tool_use":
+                        tool_use_id = block.get("id")
+                        tool_name = block.get("name")
+                        tool_input = block.get("input", {})
+
+                        if tool_use_id and tool_name:
+                            input_items.append(
+                                ToolCallItem(
+                                    id=tool_use_id,
+                                    tool_name=tool_name,
+                                    arguments=tool_input,
+                                ),
+                            )
+
                 result = "\n".join(text_blocks) if text_blocks else None
 
             # Extract finish reason
@@ -126,7 +186,11 @@ class AnthropicParser(ProviderParser):
         max_tokens = request_body.get("max_tokens")
 
         # Extract project from metadata or use default
-        project = metadata.get("project", "Default Project") if metadata else "Default Project"
+        project = (
+            metadata.get("project", "Default Project")
+            if metadata
+            else "Default Project"
+        )
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 

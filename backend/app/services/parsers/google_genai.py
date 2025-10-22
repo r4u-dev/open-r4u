@@ -5,7 +5,13 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.enums import FinishReason, MessageRole
-from app.schemas.traces import InputItem, MessageItem, TraceCreate
+from app.schemas.traces import (
+    FunctionCallItem,
+    FunctionResultItem,
+    InputItem,
+    MessageItem,
+    TraceCreate,
+)
 from app.services.parsers.base import ProviderParser
 
 
@@ -15,7 +21,10 @@ class GoogleGenAIParser(ProviderParser):
     def can_parse(self, url: str) -> bool:
         """Check if URL is a Google GenAI endpoint."""
         parsed = urlparse(url)
-        return "googleapis.com" in parsed.netloc or "generativelanguage.googleapis.com" in parsed.netloc
+        return (
+            "googleapis.com" in parsed.netloc
+            or "generativelanguage.googleapis.com" in parsed.netloc
+        )
 
     def parse(
         self,
@@ -45,15 +54,50 @@ class GoogleGenAIParser(ProviderParser):
 
             # Extract parts (Google uses parts instead of content)
             parts = content.get("parts", [])
-            text_parts = [part.get("text", "") for part in parts if "text" in part]
-            content_text = "\n".join(text_parts) if text_parts else None
 
-            input_items.append(
-                MessageItem(
-                    role=role,
-                    content=content_text,
-                ),
-            )
+            for part in parts:
+                # Handle text parts
+                if "text" in part:
+                    input_items.append(
+                        MessageItem(
+                            role=role,
+                            content=part.get("text"),
+                        ),
+                    )
+
+                # Handle function calls
+                elif "functionCall" in part:
+                    func_call = part["functionCall"]
+                    func_name = func_call.get("name", "")
+                    func_args = func_call.get("args", {})
+
+                    # Generate a unique ID for the function call
+                    func_id = f"fc_{func_name}_{len(input_items)}"
+
+                    input_items.append(
+                        FunctionCallItem(
+                            id=func_id,
+                            name=func_name,
+                            arguments=func_args,
+                        ),
+                    )
+
+                # Handle function responses
+                elif "functionResponse" in part:
+                    func_response = part["functionResponse"]
+                    func_name = func_response.get("name", "")
+                    response_data = func_response.get("response", {})
+
+                    # Generate a unique ID for the function call
+                    func_id = f"fc_{func_name}_{len(input_items)}"
+
+                    input_items.append(
+                        FunctionResultItem(
+                            call_id=func_id,
+                            name=func_name,
+                            result=response_data,
+                        ),
+                    )
 
         # Extract system instruction if present
         system_instruction = request_body.get("systemInstruction")
@@ -82,7 +126,30 @@ class GoogleGenAIParser(ProviderParser):
                 candidate = candidates[0]
                 content = candidate.get("content", {})
                 parts = content.get("parts", [])
-                text_parts = [part.get("text", "") for part in parts if "text" in part]
+                text_parts = []
+
+                for part in parts:
+                    # Handle text parts
+                    if "text" in part:
+                        text_parts.append(part.get("text", ""))
+
+                    # Handle function calls in response
+                    elif "functionCall" in part:
+                        func_call = part["functionCall"]
+                        func_name = func_call.get("name", "")
+                        func_args = func_call.get("args", {})
+
+                        # Generate a unique ID for the function call
+                        func_id = f"fc_{func_name}_{len(input_items)}"
+
+                        input_items.append(
+                            FunctionCallItem(
+                                id=func_id,
+                                name=func_name,
+                                arguments=func_args,
+                            ),
+                        )
+
                 result = "\n".join(text_parts) if text_parts else None
 
                 # Extract finish reason
@@ -112,7 +179,11 @@ class GoogleGenAIParser(ProviderParser):
         temperature = generation_config.get("temperature")
 
         # Extract project from metadata or use default
-        project = metadata.get("project", "Default Project") if metadata else "Default Project"
+        project = (
+            metadata.get("project", "Default Project")
+            if metadata
+            else "Default Project"
+        )
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
