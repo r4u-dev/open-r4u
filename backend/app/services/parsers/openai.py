@@ -27,7 +27,7 @@ class OpenAIParser(ProviderParser):
 
     def _is_responses_api(self, request_body: dict[str, Any]) -> bool:
         """Check if this is the new Responses API format.
-        
+
         The Responses API uses 'input' instead of 'messages' and has a different structure.
         """
         return "input" in request_body and "messages" not in request_body
@@ -42,18 +42,28 @@ class OpenAIParser(ProviderParser):
         metadata: dict[str, Any] | None = None,
     ) -> TraceCreate:
         """Parse OpenAI API request/response.
-        
+
         Supports both Chat Completions API and the new Responses API.
         """
         # Check if this is the new Responses API
         if self._is_responses_api(request_body):
             return self._parse_responses_api(
-                request_body, response_body, started_at, completed_at, error, metadata,
+                request_body,
+                response_body,
+                started_at,
+                completed_at,
+                error,
+                metadata,
             )
 
         # Otherwise parse as Chat Completions API (default)
         return self._parse_chat_completions_api(
-            request_body, response_body, started_at, completed_at, error, metadata,
+            request_body,
+            response_body,
+            started_at,
+            completed_at,
+            error,
+            metadata,
         )
 
     def _parse_chat_completions_api(
@@ -142,7 +152,9 @@ class OpenAIParser(ProviderParser):
                 cached_tokens = usage["prompt_tokens_details"].get("cached_tokens")
 
             if "completion_tokens_details" in usage:
-                reasoning_tokens = usage["completion_tokens_details"].get("reasoning_tokens")
+                reasoning_tokens = usage["completion_tokens_details"].get(
+                    "reasoning_tokens",
+                )
 
             system_fingerprint = response_body.get("system_fingerprint")
 
@@ -171,7 +183,11 @@ class OpenAIParser(ProviderParser):
         response_format = request_body.get("response_format")
 
         # Extract project from metadata or use default
-        project = metadata.get("project", "Default Project") if metadata else "Default Project"
+        project = (
+            metadata.get("project", "Default Project")
+            if metadata
+            else "Default Project"
+        )
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
@@ -212,7 +228,7 @@ class OpenAIParser(ProviderParser):
         metadata: dict[str, Any] | None = None,
     ) -> TraceCreate:
         """Parse new OpenAI Responses API format.
-        
+
         The Responses API has a different structure:
         - Uses 'input' instead of 'messages'
         - Response has 'output' field
@@ -301,7 +317,9 @@ class OpenAIParser(ProviderParser):
             # Extract token usage (same structure as Chat Completions)
             usage = response_body.get("usage", {})
             prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
-            completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens")
+            completion_tokens = usage.get("completion_tokens") or usage.get(
+                "output_tokens",
+            )
             total_tokens = usage.get("total_tokens")
 
             # Additional token metrics
@@ -309,7 +327,9 @@ class OpenAIParser(ProviderParser):
                 cached_tokens = usage["prompt_tokens_details"].get("cached_tokens")
 
             if "completion_tokens_details" in usage:
-                reasoning_tokens = usage["completion_tokens_details"].get("reasoning_tokens")
+                reasoning_tokens = usage["completion_tokens_details"].get(
+                    "reasoning_tokens",
+                )
 
             system_fingerprint = response_body.get("system_fingerprint")
 
@@ -331,7 +351,11 @@ class OpenAIParser(ProviderParser):
         response_format = request_body.get("response_format")
 
         # Extract project from metadata or use default
-        project = metadata.get("project", "Default Project") if metadata else "Default Project"
+        project = (
+            metadata.get("project", "Default Project")
+            if metadata
+            else "Default Project"
+        )
         path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
