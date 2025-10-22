@@ -7,7 +7,7 @@ from typing import Callable, Optional, Type
 
 import aiohttp
 
-from r4u.client import AbstractTracer, HTTPTrace, get_r4u_client
+from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
 
 
@@ -158,7 +158,7 @@ def _is_streaming_request(kwargs: dict) -> bool:
     return True  # Always wrap responses to handle both streaming and non-streaming
 
 
-def _create_async_wrapper(original: Callable, tracer: Optional[AbstractTracer] = None):
+def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
     """Create wrapper for aiohttp session methods like _request."""
     @functools.wraps(original)
     async def wrapper(self, *args, **kwargs):
@@ -255,7 +255,7 @@ def _create_aiohttp_constructor_wrapper(original_init: Callable, session_class: 
 
 
 
-def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
+def trace_all(tracer: AbstractTracer) -> None:
     """
     Intercept aiohttp session creation to automatically trace all instances.
 
@@ -264,7 +264,7 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     This approach works even when libraries create their own aiohttp session instances.
 
     Args:
-        tracer: Tracer instance. If None, uses the default R4U client.
+        tracer: Tracer instance
 
     Example:
         >>> from r4u.tracing.http.aiohttp import trace_all
@@ -279,9 +279,6 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     # Check if already patched to avoid double-patching
     if hasattr(aiohttp.ClientSession, '_r4u_constructor_patched'):
         return
-
-    if tracer is None:
-        tracer = get_r4u_client()
 
     # Store original constructor
     aiohttp._original_client_session_init = aiohttp.ClientSession.__init__

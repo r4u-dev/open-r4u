@@ -8,7 +8,7 @@ from various HTTP libraries without requiring manual patching of individual inst
 from contextlib import suppress
 from typing import List, Optional
 
-from r4u.client import AbstractTracer
+from r4u.client import AbstractTracer, get_r4u_client
 from r4u.tracing.http.filters import URLFilter, get_global_filter, set_global_filter
 
 
@@ -48,6 +48,9 @@ def trace_all_http(
         >>> requests_session = requests.Session()
         >>> aiohttp_session = aiohttp.ClientSession()
     """
+
+    tracer = tracer or get_r4u_client()
+
     # Configure URL filter if patterns are provided
     if allow_urls is not None or deny_urls is not None:
         configure_url_filter(

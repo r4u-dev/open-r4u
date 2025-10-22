@@ -6,6 +6,7 @@ from typing import List
 from unittest.mock import Mock
 
 from r4u.client import HTTPTrace, AbstractTracer
+from r4u.tracing.http.filters import URLFilter, set_global_filter
 
 
 @pytest.fixture
@@ -92,6 +93,20 @@ class CapturingTracer(AbstractTracer):
 def capturing_tracer():
     """Create a capturing tracer instance."""
     return CapturingTracer()
+
+
+@pytest.fixture(autouse=True)
+def setup_test_filter():
+    """Set up URL filter for tests to allow test URLs."""
+    # Create a filter that allows test URLs
+    test_filter = URLFilter(
+        allow_urls=["https://api.example.com/*"],
+        extend_defaults=True
+    )
+    set_global_filter(test_filter)
+    yield
+    # Reset to default filter after test
+    set_global_filter(None)
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ from typing import Callable, Optional, Type
 
 import httpx
 
-from r4u.client import AbstractTracer, get_r4u_client, HTTPTrace
+from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
 
 
@@ -343,7 +343,7 @@ def _create_httpx_constructor_wrapper(
     return wrapper
 
 
-def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
+def trace_all(tracer: AbstractTracer) -> None:
     """
     Intercept httpx client creation to automatically trace all instances.
 
@@ -352,7 +352,7 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     This approach works even when libraries create their own httpx client instances.
 
     Args:
-        tracer: Optional tracer instance. If None, uses the default R4U client.
+        tracer: Tracer instance
 
     Example:
         >>> from r4u.tracing.http.httpx import trace_all
@@ -366,9 +366,6 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     # Check if already patched to avoid double-patching
     if hasattr(httpx.Client, "_r4u_constructor_patched"):
         return
-
-    if tracer is None:
-        tracer = get_r4u_client()
 
     # Store original constructors
     httpx._original_client_init = httpx.Client.__init__
