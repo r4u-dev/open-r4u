@@ -40,6 +40,7 @@ class ExecutionResultBase(BaseModel):
     input: list[InputItem] | None = None
     result_text: str | None = None
     result_json: dict[str, Any] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
     error: str | None = None
     finish_reason: FinishReason | None = None
     prompt_tokens: int | None = None

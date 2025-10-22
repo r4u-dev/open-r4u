@@ -153,6 +153,7 @@ async def execute(
         input=input_json,
         result_text=service_result.result_text,
         result_json=service_result.result_json,
+        tool_calls=service_result.tool_calls,
         error=service_result.error,
         finish_reason=service_result.finish_reason,
         prompt_tokens=service_result.prompt_tokens,

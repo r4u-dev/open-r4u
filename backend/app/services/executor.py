@@ -23,6 +23,7 @@ class ExecutionResult:
         prompt_rendered: str,
         result_text: str | None = None,
         result_json: dict[str, Any] | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
         error: str | None = None,
         finish_reason: FinishReason | None = None,
         prompt_tokens: int | None = None,
@@ -38,6 +39,7 @@ class ExecutionResult:
         self.prompt_rendered = prompt_rendered
         self.result_text = result_text
         self.result_json = result_json
+        self.tool_calls = tool_calls
         self.error = error
         self.finish_reason = finish_reason
         self.prompt_tokens = prompt_tokens
@@ -247,7 +249,11 @@ class LLMExecutor:
             # Map response_schema to OpenAI's response_format
             request_params["response_format"] = {
                 "type": "json_schema",
-                "json_schema": response_schema,
+                "json_schema": {
+                    "name": "response_schema",
+                    "strict": True,
+                    "schema": response_schema,
+                }
             }
 
         # Handle reasoning for o1/o3 models
@@ -263,6 +269,23 @@ class LLMExecutor:
             # Parse the response
             choice = response.choices[0]
             result_text = choice.message.content
+            
+            # Handle tool calls
+            tool_calls = None
+            if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
+                tool_calls = [
+                    {
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    } for tc in choice.message.tool_calls
+                ]
+                # If there are tool calls, result_text is usually None
+                if not result_text:
+                    result_text = f"Made {len(tool_calls)} tool call(s)"
 
             # Try to parse as JSON if response_schema was provided
             result_json = None
@@ -293,6 +316,7 @@ class LLMExecutor:
                 prompt_rendered=prompt_rendered,
                 result_text=result_text,
                 result_json=result_json,
+                tool_calls=tool_calls,
                 finish_reason=finish_reason,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,

@@ -32,6 +32,7 @@ def upgrade() -> None:
     sa.Column('input', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
     sa.Column('result_text', sa.Text(), nullable=True),
     sa.Column('result_json', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('tool_calls', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
     sa.Column('error', sa.Text(), nullable=True),
     sa.Column('finish_reason', sa.Enum('STOP', 'LENGTH', 'TOOL_CALLS', 'CONTENT_FILTER', 'FUNCTION_CALL', name='finishreason'), nullable=True),
     sa.Column('prompt_tokens', sa.Integer(), nullable=True),

@@ -56,6 +56,7 @@ class ExecutionResult(Base):
     # Results
     result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_json: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Execution metadata
