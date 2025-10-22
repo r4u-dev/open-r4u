@@ -10,45 +10,8 @@ from litellm import acompletion
 from app.config import Settings
 from app.enums import FinishReason, ItemType
 from app.models.tasks import Implementation
+from app.schemas.executions import ExecutionResultBase
 from app.schemas.traces import InputItem
-
-
-class ExecutionResult:
-    """Result from executing a task implementation."""
-
-    def __init__(
-        self,
-        started_at: datetime,
-        completed_at: datetime,
-        prompt_rendered: str,
-        result_text: str | None = None,
-        result_json: dict[str, Any] | None = None,
-        tool_calls: list[dict[str, Any]] | None = None,
-        error: str | None = None,
-        finish_reason: FinishReason | None = None,
-        prompt_tokens: int | None = None,
-        completion_tokens: int | None = None,
-        total_tokens: int | None = None,
-        cached_tokens: int | None = None,
-        reasoning_tokens: int | None = None,
-        system_fingerprint: str | None = None,
-        provider_response: dict[str, Any] | None = None,
-    ):
-        self.started_at = started_at
-        self.completed_at = completed_at
-        self.prompt_rendered = prompt_rendered
-        self.result_text = result_text
-        self.result_json = result_json
-        self.tool_calls = tool_calls
-        self.error = error
-        self.finish_reason = finish_reason
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-        self.total_tokens = total_tokens
-        self.cached_tokens = cached_tokens
-        self.reasoning_tokens = reasoning_tokens
-        self.system_fingerprint = system_fingerprint
-        self.provider_response = provider_response
 
 
 class LLMExecutor:
@@ -177,7 +140,7 @@ class LLMExecutor:
         implementation: Implementation,
         variables: dict[str, Any] | None = None,
         input: list[InputItem] | None = None,
-    ) -> ExecutionResult:
+    ) -> ExecutionResultBase:
         """Execute a task using LiteLLM.
 
         Args:
@@ -192,7 +155,7 @@ class LLMExecutor:
             prompt_rendered = self._render_prompt(implementation.prompt, variables)
         except ValueError as e:
             completed_at = datetime.now(timezone.utc)
-            return ExecutionResult(
+            return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
                 prompt_rendered=implementation.prompt,
@@ -209,7 +172,7 @@ class LLMExecutor:
                 messages.extend(converted)
             except Exception as e:
                 completed_at = datetime.now(timezone.utc)
-                return ExecutionResult(
+                return ExecutionResultBase(
                     started_at=started_at,
                     completed_at=completed_at,
                     prompt_rendered=prompt_rendered,
@@ -310,7 +273,7 @@ class LLMExecutor:
                 getattr(usage, "reasoning_tokens", None) if usage else None
             )
 
-            return ExecutionResult(
+            return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
                 prompt_rendered=prompt_rendered,
@@ -331,7 +294,7 @@ class LLMExecutor:
 
         except Exception as e:
             completed_at = datetime.now(timezone.utc)
-            return ExecutionResult(
+            return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
                 prompt_rendered=prompt_rendered,

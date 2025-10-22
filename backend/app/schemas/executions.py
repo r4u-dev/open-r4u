@@ -29,19 +29,20 @@ class ExecutionRequest(BaseModel):
 
 
 class ExecutionResultBase(BaseModel):
-    """Base schema for execution result."""
+    """Base schema for execution result with core execution data."""
 
-    task_id: int
-    implementation_id: int
+    # Core execution data
     started_at: datetime
     completed_at: datetime | None = None
     prompt_rendered: str
-    variables: dict[str, Any] | None = None
-    input: list[InputItem] | None = None
+    
+    # Results
     result_text: str | None = None
     result_json: dict[str, Any] | None = None
     tool_calls: list[dict[str, Any]] | None = None
     error: str | None = None
+    
+    # Execution metadata
     finish_reason: FinishReason | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
@@ -49,10 +50,20 @@ class ExecutionResultBase(BaseModel):
     cached_tokens: int | None = None
     reasoning_tokens: int | None = None
     system_fingerprint: str | None = None
+    provider_response: dict[str, Any] | None = None
 
 
-class ExecutionResultRead(ExecutionResultBase):
-    """Schema for execution result response."""
+class ExecutionResultCreate(ExecutionResultBase):
+    """Schema for creating execution results (includes task/implementation context)."""
+
+    task_id: int
+    implementation_id: int
+    variables: dict[str, Any] | None = None
+    input: list[InputItem] | None = None
+
+
+class ExecutionResultRead(ExecutionResultCreate):
+    """Schema for execution result response (includes database fields)."""
 
     id: int
     created_at: datetime

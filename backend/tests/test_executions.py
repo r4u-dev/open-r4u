@@ -12,7 +12,7 @@ from app.enums import FinishReason
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
-from app.services.executor import ExecutionResult as ServiceExecutionResult
+from app.schemas.executions import ExecutionResultBase as ServiceExecutionResult
 from app.services.executor import LLMExecutor
 
 
