@@ -84,7 +84,7 @@ async def execute(
         # Load task with implementation
         query = (
             select(Task)
-            .options(selectinload(Task.implementation))
+            .options(selectinload(Task.production_version))
             .where(Task.id == task_id)
         )
         result = await session.execute(query)
@@ -92,7 +92,9 @@ async def execute(
         if not task:
             raise NotFoundError(f"Task with id {task_id} not found")
 
-        implementation = task.implementation
+        implementation = task.production_version
+        if not implementation:
+            raise NotFoundError(f"Production version not found for task {task_id}")
 
         # If overrides provided, create temporary implementation
         if overrides and any(overrides.values()):
@@ -113,7 +115,7 @@ async def execute(
         # Load implementation with tasks to determine associated task
         query = (
             select(Implementation)
-            .options(selectinload(Implementation.tasks))
+            .options(selectinload(Implementation.task))
             .where(Implementation.id == implementation_id)
         )
         result = await session.execute(query)
@@ -122,12 +124,12 @@ async def execute(
             raise NotFoundError(
                 f"Implementation with id {implementation_id} not found"
             )
-        if not implementation.tasks:
+        if not implementation.task:
             raise BadRequestError(
-                f"No tasks found for implementation {implementation_id}"
+                f"No task found for implementation {implementation_id}"
             )
 
-        task = implementation.tasks[0]
+        task = implementation.task
         resolved_task_id = task.id
         resolved_impl_id = implementation.id
 
