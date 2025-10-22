@@ -12,12 +12,19 @@ JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 
 
 class Implementation(Base):
-    """Implementation model for storing LLM configuration and parameters."""
+    """Implementation model for storing LLM configuration and parameters (versions of a task)."""
 
     __tablename__ = "implementation"
-    __table_args__ = (Index("ix_implementation_model", "model"),)
+    __table_args__ = (
+        Index("ix_implementation_task_id", "task_id"),
+        Index("ix_implementation_model", "model"),
+    )
 
     id: Mapped[intpk]
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     version: Mapped[str] = mapped_column(String(50), nullable=False, default="0.1")
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     model: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -32,23 +39,23 @@ class Implementation(Base):
     )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
 
-    tasks: Mapped[list["Task"]] = relationship(  # type: ignore
+    task: Mapped["Task"] = relationship(
         "Task",
-        back_populates="implementation",
-        cascade="all, delete-orphan",
-    )
+        back_populates="implementations",
+        foreign_keys=[task_id],
+    )  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
 
 
 class Task(Base):
-    """Task model for grouping similar traces based on implementation."""
+    """Task model for grouping similar traces with multiple implementation versions."""
 
     __tablename__ = "task"
     __table_args__ = (
         Index("ix_task_project_id", "project_id"),
-        Index("ix_task_implementation_id", "implementation_id"),
+        Index("ix_task_production_version_id", "production_version_id"),
     )
 
     id: Mapped[intpk]
@@ -56,15 +63,23 @@ class Task(Base):
         ForeignKey("project.id", ondelete="CASCADE"),
         nullable=False,
     )
-    implementation_id: Mapped[int] = mapped_column(
-        ForeignKey("implementation.id", ondelete="CASCADE"),
-        nullable=False,
-    )
     path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    production_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("implementation.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")  # type: ignore
-    implementation: Mapped["Implementation"] = relationship(
-        "Implementation", back_populates="tasks"
+    implementations: Mapped[list["Implementation"]] = relationship(
+        "Implementation",
+        back_populates="task",
+        foreign_keys="Implementation.task_id",
+        cascade="all, delete-orphan",
+    )  # type: ignore
+    production_version: Mapped["Implementation | None"] = relationship(
+        "Implementation",
+        foreign_keys=[production_version_id],
+        post_update=True,
     )  # type: ignore
     traces: Mapped[list["Trace"]] = relationship(  # type: ignore
         "Trace",

@@ -71,8 +71,17 @@ async def create_task(
         session.add(project)
         await session.flush()
 
-    # Create implementation
+    # Create task first
+    task = Task(
+        project_id=project.id,
+        path=payload.path,
+    )
+    session.add(task)
+    await session.flush()
+
+    # Create implementation (version) linked to task
     implementation = Implementation(
+        task_id=task.id,
         version=payload.implementation.version,
         prompt=payload.implementation.prompt,
         model=payload.implementation.model,
@@ -103,12 +112,8 @@ async def create_task(
     session.add(implementation)
     await session.flush()
 
-    # Create task
-    task = Task(
-        project_id=project.id,
-        implementation_id=implementation.id,
-        path=payload.path,
-    )
+    # Set as production version
+    task.production_version_id = implementation.id
     session.add(task)
     await session.flush()
     await session.commit()

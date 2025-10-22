@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models.tasks import Implementation
+from app.models.tasks import Implementation, Task
 from app.schemas.tasks import ImplementationCreate, ImplementationRead
 
 router = APIRouter(prefix="/implementations", tags=["implementations"])
@@ -15,14 +15,14 @@ router = APIRouter(prefix="/implementations", tags=["implementations"])
 
 @router.get("", response_model=list[ImplementationRead])
 async def list_implementations(
-    model: str | None = None,
+    task_id: int | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[ImplementationRead]:
-    """Return all implementations, optionally filtered by model."""
+    """Return all implementations, optionally filtered by task_id."""
 
     query = select(Implementation)
-    if model is not None:
-        query = query.where(Implementation.model == model)
+    if task_id is not None:
+        query = query.where(Implementation.task_id == task_id)
     query = query.order_by(Implementation.created_at.desc())
 
     result = await session.execute(query)
@@ -53,12 +53,26 @@ async def get_implementation(
 
 @router.post("", response_model=ImplementationRead, status_code=status.HTTP_201_CREATED)
 async def create_implementation(
+    task_id: int,
     payload: ImplementationCreate,
     session: AsyncSession = Depends(get_session),
 ) -> ImplementationRead:
-    """Create a new implementation."""
+    """Create a new implementation version for a task."""
 
+    # Verify task exists
+    task_query = select(Task).where(Task.id == task_id)
+    task_result = await session.execute(task_query)
+    task = task_result.scalar_one_or_none()
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task with id {task_id} not found",
+        )
+
+    # Create implementation
     implementation = Implementation(
+        task_id=task_id,
         version=payload.version,
         prompt=payload.prompt,
         model=payload.model,
@@ -163,3 +177,33 @@ async def delete_implementation(
 
     await session.delete(implementation)
     await session.commit()
+
+
+@router.post("/{implementation_id}/set-production", response_model=ImplementationRead)
+async def set_production_version(
+    implementation_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> ImplementationRead:
+    """Set this implementation as the production version for its task."""
+
+    query = select(Implementation).where(Implementation.id == implementation_id)
+    result = await session.execute(query)
+    implementation = result.scalar_one_or_none()
+
+    if not implementation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Implementation with id {implementation_id} not found",
+        )
+
+    # Get the task
+    task_query = select(Task).where(Task.id == implementation.task_id)
+    task_result = await session.execute(task_query)
+    task = task_result.scalar_one()
+
+    # Set as production version
+    task.production_version_id = implementation.id
+    await session.commit()
+    await session.refresh(implementation)
+
+    return ImplementationRead.model_validate(implementation)

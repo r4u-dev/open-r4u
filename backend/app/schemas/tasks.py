@@ -8,6 +8,8 @@ from app.schemas.traces import Reasoning, ToolDefinition
 
 
 class ImplementationCreate(BaseModel):
+    """Schema for creating an implementation (version)."""
+
     version: str = "0.1"
     prompt: str
     model: str
@@ -20,7 +22,10 @@ class ImplementationCreate(BaseModel):
 
 
 class ImplementationRead(ImplementationCreate):
+    """Schema for reading an implementation."""
+
     id: int
+    task_id: int
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -34,7 +39,7 @@ class TaskCreate(TaskBase):
     """Schema for task creation payload."""
 
     project: str = "Default Project"  # Project name, defaults to "Default Project"
-    implementation: ImplementationCreate
+    implementation: ImplementationCreate  # Initial implementation version
 
 
 class TaskRead(TaskBase):
@@ -42,5 +47,5 @@ class TaskRead(TaskBase):
 
     id: int
     project_id: int
-    implementation: ImplementationRead
+    production_version_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
