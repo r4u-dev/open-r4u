@@ -40,6 +40,7 @@ async def _create_temp_implementation(
     
     # Create new implementation with overrides
     temp_impl = Implementation(
+        task_id=base_implementation.task_id,
         version=f"{base_implementation.version}-temp",
         prompt=base_implementation.prompt,
         model=overrides.get("model", base_implementation.model),
