@@ -17,8 +17,14 @@ The easiest way to get started is with automatic HTTP tracing. This will trace a
 ```python
 from r4u.tracing import trace_all
 
-# Enable automatic tracing for all HTTP libraries
+# Enable automatic tracing for all HTTP libraries with default AI provider patterns
 trace_all()
+
+# Or with custom patterns that extend the defaults
+trace_all(
+    allow_urls=["https://api.custom.com/*"],
+    deny_urls=["https://api.openai.com/v1/models"]
+)
 
 # Now any HTTP requests will be automatically traced
 import httpx
@@ -30,6 +36,54 @@ httpx_client = httpx.Client()
 requests_session = requests.Session()
 aiohttp_session = aiohttp.ClientSession()
 ```
+
+### URL Filtering
+
+By default, the SDK only traces requests to common AI provider APIs. You can configure which URLs to trace using allow and deny patterns:
+
+```python
+from r4u.tracing.http.auto import configure_url_filter, trace_all
+
+# Configure URL filtering
+configure_url_filter(
+    allow_patterns=[
+        "https://api.openai.com/*",      # OpenAI API
+        "https://api.anthropic.com/*",   # Anthropic API
+        "https://api.groq.com/*",        # Groq API
+    ],
+    deny_patterns=[
+        "https://api.openai.com/v1/models",  # Deny specific endpoints
+    ]
+)
+
+# Enable tracing
+trace_all()
+```
+
+**Default Allow Patterns:**
+- OpenAI: `https://api.openai.com/*`
+- Anthropic: `https://api.anthropic.com/*`, `https://docs.claude.com/*`
+- Groq: `https://api.groq.com/*`, `https://console.groq.com/*`
+- xAI (Grok): `https://api.x.ai/*`, `https://latenode.com/*`
+- Mistral AI: `https://api.mistral.ai/*`, `https://apidog.com/*`
+- Google: `https://generativelanguage.googleapis.com/*`, `https://aiplatform.googleapis.com/*`
+
+
+### Pattern Matching
+
+The filter supports wildcard patterns using `fnmatch` syntax:
+
+- `*` matches any characters except `/`
+- `**` matches any characters including `/`
+- Patterns are case-insensitive
+- Both full URLs and host-only patterns are supported
+
+Examples:
+- `https://api.openai.com/*` - matches all OpenAI API endpoints
+- `*.openai.com/*` - matches all OpenAI subdomains
+- `api.openai.com` - matches only the exact host
+
+
 
 ### OpenAI Integration
 
