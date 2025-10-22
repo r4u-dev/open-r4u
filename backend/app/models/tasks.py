@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, created_at_col, intpk, updated_at_col
+from app.models.executions import ExecutionResult
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -39,12 +40,19 @@ class Implementation(Base):
         JSONType, nullable=True,
     )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
+    temp: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     task: Mapped["Task"] = relationship(
         "Task",
         back_populates="implementations",
         foreign_keys=[task_id],
     )  # type: ignore
+
+    executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
+        "ExecutionResult",
+        back_populates="implementation",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
@@ -84,6 +92,11 @@ class Task(Base):
     )  # type: ignore
     traces: Mapped[list["Trace"]] = relationship(  # type: ignore
         "Trace",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
+        "ExecutionResult",
         back_populates="task",
         cascade="all, delete-orphan",
     )

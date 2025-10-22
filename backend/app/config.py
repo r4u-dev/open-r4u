@@ -10,6 +10,15 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@db:5432/postgres"
 
+    # LLM Provider API Keys and Configuration for LiteLLM
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    google_api_key: str | None = None
+    cohere_api_key: str | None = None
+    mistral_api_key: str | None = None
+    together_api_key: str | None = None
+    # Add more providers as needed
+
 
 @lru_cache
 def get_settings() -> Settings:
