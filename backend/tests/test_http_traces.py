@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_create_openai_http_trace(client: AsyncClient, test_session: AsyncSession):
+async def test_create_openai_http_trace(
+    client: AsyncClient, test_session: AsyncSession,
+):
     """Test creating a trace from OpenAI HTTP request/response."""
     # Sample OpenAI request
     request_data = {
@@ -96,7 +98,9 @@ async def test_create_openai_http_trace(client: AsyncClient, test_session: Async
 
 
 @pytest.mark.asyncio
-async def test_create_anthropic_http_trace(client: AsyncClient, test_session: AsyncSession):
+async def test_create_anthropic_http_trace(
+    client: AsyncClient, test_session: AsyncSession,
+):
     """Test creating a trace from Anthropic HTTP request/response."""
     # Sample Anthropic request
     request_data = {
@@ -177,7 +181,9 @@ async def test_create_anthropic_http_trace(client: AsyncClient, test_session: As
 
 
 @pytest.mark.asyncio
-async def test_create_openai_responses_api_trace(client: AsyncClient, test_session: AsyncSession):
+async def test_create_openai_responses_api_trace(
+    client: AsyncClient, test_session: AsyncSession,
+):
     """Test creating a trace from OpenAI Responses API format."""
     # Sample OpenAI Responses API request
     request_data = {
@@ -288,3 +294,65 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
 
     assert response.status_code == 400
     assert "No parser found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_http_trace_persisted_on_parse_failure(
+    client: AsyncClient, test_session: AsyncSession,
+):
+    """Test that HTTPTrace is persisted even when parsing fails."""
+    from sqlalchemy import select
+
+    from app.models.http_traces import HTTPTrace
+    from app.models.traces import Trace
+
+    # Create a payload that will fail to parse (unsupported provider)
+    request_data = {"test": "data"}
+    response_data = {"result": "data"}
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 200,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "unknown-provider.com",
+        },
+        "response": json.dumps(response_data).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://unknown-provider.com/v1/api",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    # Send the request - should fail with 400
+    response = await client.post("/http-traces", json=payload)
+    assert response.status_code == 400
+    assert "No parser found" in response.json()["detail"]
+
+    # Verify HTTPTrace was still saved to the database
+    http_trace_query = select(HTTPTrace).order_by(HTTPTrace.id.desc()).limit(1)
+    result = await test_session.execute(http_trace_query)
+    http_trace = result.scalar_one_or_none()
+
+    assert http_trace is not None
+    assert http_trace.status_code == 200
+    assert "unknown-provider.com" in http_trace.request_headers["host"]
+    assert json.loads(http_trace.request) == request_data
+    assert json.loads(http_trace.response) == response_data
+
+    # Verify no Trace was created (because parsing failed)
+    trace_query = select(Trace).where(Trace.http_trace_id == http_trace.id)
+    trace_result = await test_session.execute(trace_query)
+    trace = trace_result.scalar_one_or_none()
+
+    assert trace is None, "No Trace should be created when parsing fails"

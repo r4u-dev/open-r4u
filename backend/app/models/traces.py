@@ -45,6 +45,10 @@ class Trace(Base):
         ForeignKey("task.id", ondelete="SET NULL"),
         nullable=True,
     )
+    http_trace_id: Mapped[int | None] = mapped_column(
+        ForeignKey("http_trace.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -88,6 +92,9 @@ class Trace(Base):
 
     project: Mapped["Project"] = relationship("Project", back_populates="traces")  # type: ignore
     task: Mapped["Task | None"] = relationship("Task", back_populates="traces")  # type: ignore
+    http_trace: Mapped["HTTPTrace | None"] = relationship(
+        "HTTPTrace", back_populates="trace",
+    )  # type: ignore
     input_items: Mapped[list["TraceInputItem"]] = relationship(
         "TraceInputItem",
         back_populates="trace",

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_session
+from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
 from app.models.traces import Trace, TraceInputItem
 from app.schemas.http_traces import HTTPTraceCreate
@@ -21,22 +22,49 @@ async def create_http_trace(
     session: AsyncSession = Depends(get_session),
 ) -> TraceRead:
     """Create a trace from HTTP-level request/response capture.
-    
+
     This endpoint accepts raw HTTP request/response data and automatically
     parses it based on the provider (OpenAI, Anthropic, Google, etc.) to
     create a structured trace.
-    
+
     Args:
         payload: HTTP trace data including raw request/response
         session: Database session
-        
+
     Returns:
         Created trace with structured data
-        
+
     Raises:
         HTTPException: If unable to parse the trace or provider is unsupported
 
     """
+    # Convert request/response to strings if they are bytes
+    request_str = (
+        payload.request.decode("utf-8", errors="replace")
+        if isinstance(payload.request, bytes)
+        else payload.request
+    )
+    response_str = (
+        payload.response.decode("utf-8", errors="replace")
+        if isinstance(payload.response, bytes)
+        else payload.response
+    )
+
+    # Create and persist HTTPTrace first
+    http_trace = HTTPTrace(
+        started_at=payload.started_at,
+        completed_at=payload.completed_at,
+        status_code=payload.status_code,
+        error=payload.error,
+        request=request_str,
+        request_headers=payload.request_headers,
+        response=response_str,
+        response_headers=payload.response_headers,
+        http_metadata=payload.metadata,
+    )
+    session.add(http_trace)
+    await session.flush()
+
     # Initialize parser service
     parser_service = HTTPTraceParserService()
 
@@ -54,11 +82,15 @@ async def create_http_trace(
             metadata=payload.metadata,
         )
     except ValueError as e:
+        # HTTPTrace is already saved, just rollback the transaction for the trace
+        await session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to parse HTTP trace: {e!s}",
         )
     except Exception as e:
+        # HTTPTrace is already saved, just rollback the transaction for the trace
+        await session.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error parsing HTTP trace: {e!s}",
@@ -75,9 +107,10 @@ async def create_http_trace(
         session.add(project)
         await session.flush()
 
-    # Create trace
+    # Create trace and link to HTTPTrace
     trace = Trace(
         project_id=project.id,
+        http_trace_id=http_trace.id,
         model=trace_create.model,
         result=trace_create.result,
         error=trace_create.error,
@@ -96,7 +129,9 @@ async def create_http_trace(
         tool_choice=(
             trace_create.tool_choice
             if isinstance(trace_create.tool_choice, dict)
-            else {"type": trace_create.tool_choice} if trace_create.tool_choice else None
+            else {"type": trace_create.tool_choice}
+            if trace_create.tool_choice
+            else None
         ),
         prompt_tokens=trace_create.prompt_tokens,
         completion_tokens=trace_create.completion_tokens,
