@@ -19,6 +19,7 @@ class ImplementationCreate(BaseModel):
     tool_choice: str | dict[str, Any] | None = None
     response_schema: dict[str, Any] | None = None
     max_output_tokens: int
+    temp: bool = False
 
 
 class ImplementationRead(ImplementationCreate):
