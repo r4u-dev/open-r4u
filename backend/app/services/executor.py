@@ -11,7 +11,7 @@ from app.config import Settings
 from app.enums import FinishReason, ItemType
 from app.models.tasks import Implementation
 from app.schemas.executions import ExecutionResultBase
-from app.schemas.traces import InputItem
+from app.schemas.traces import InputItem, ToolCallItem
 
 
 class LLMExecutor:
@@ -233,19 +233,19 @@ class LLMExecutor:
             choice = response.choices[0]
             result_text = choice.message.content
             
-            # Handle tool calls
+            # Handle tool calls using proper schema
             tool_calls = None
             if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
-                tool_calls = [
-                    {
-                        "id": tc.id,
-                        "type": tc.type,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
-                        }
-                    } for tc in choice.message.tool_calls
-                ]
+                tool_calls = []
+                for tc in choice.message.tool_calls:
+                    # Convert to ToolCallItem schema
+                    tool_call_item = ToolCallItem(
+                        id=tc.id,
+                        tool_name=tc.function.name,
+                        arguments=tc.function.arguments if isinstance(tc.function.arguments, dict) else json.loads(tc.function.arguments)
+                    )
+                    tool_calls.append(tool_call_item.model_dump())
+                
                 # If there are tool calls, result_text is usually None
                 if not result_text:
                     result_text = f"Made {len(tool_calls)} tool call(s)"

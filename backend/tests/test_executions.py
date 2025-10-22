@@ -177,6 +177,70 @@ class TestExecutor:
             assert result.reasoning_tokens == 15
 
     @pytest.mark.asyncio
+    async def test_llm_executor_with_tool_calls(self, test_implementation):
+        """Test LLM execution with tool calls using proper schemas."""
+        # The fixture is already awaited by pytest
+        implementation = test_implementation
+        
+        # Mock settings
+        mock_settings = MagicMock()
+        mock_settings.openai_api_key = "test-key"
+        mock_settings.anthropic_api_key = None
+        mock_settings.google_api_key = None
+        mock_settings.cohere_api_key = None
+        mock_settings.mistral_api_key = None
+        mock_settings.together_api_key = None
+
+        # Mock tool call
+        mock_function = MagicMock()
+        mock_function.name = "get_weather"
+        mock_function.arguments = '{"location": "New York"}'
+
+        mock_tool_call = MagicMock()
+        mock_tool_call.id = "call_123"
+        mock_tool_call.type = "function"
+        mock_tool_call.function = mock_function
+
+        # Mock LiteLLM response with tool calls
+        mock_choice = MagicMock()
+        mock_choice.message.content = None  # No content when tool calls are made
+        mock_choice.message.tool_calls = [mock_tool_call]
+        mock_choice.finish_reason = "tool_calls"
+
+        mock_usage = MagicMock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 5
+        mock_usage.total_tokens = 15
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
+        mock_response.system_fingerprint = "test-fingerprint"
+        mock_response.model_dump.return_value = {"test": "response"}
+
+        # Mock LiteLLM acompletion
+        with patch("app.services.executor.acompletion") as mock_acompletion:
+            mock_acompletion.return_value = mock_response
+
+            executor = LLMExecutor(mock_settings)
+            result = await executor.execute(
+                implementation, variables={"text": "What's the weather?"}
+            )
+
+            # Verify tool calls are properly stored using schema
+            assert result.tool_calls is not None
+            assert len(result.tool_calls) == 1
+            
+            tool_call = result.tool_calls[0]
+            assert tool_call["id"] == "call_123"
+            assert tool_call["tool_name"] == "get_weather"
+            assert tool_call["arguments"] == {"location": "New York"}
+            assert tool_call["type"] == "tool_call"
+            
+            assert result.finish_reason == FinishReason.TOOL_CALLS
+            assert result.result_text == "Made 1 tool call(s)"
+
+    @pytest.mark.asyncio
     async def test_execute_task_with_overrides_creates_temp_implementation(
         self, client: AsyncClient, test_session: AsyncSession, test_implementation
     ):
@@ -334,6 +398,59 @@ class TestExecutionAPI:
             assert data["prompt_tokens"] == 10
             assert data["cached_tokens"] == 2
             assert data["reasoning_tokens"] == 3
+
+    @pytest.mark.asyncio
+    async def test_execute_implementation_with_tool_calls(
+        self, client: AsyncClient, test_implementation: Implementation
+    ):
+        """Test implementation execution with tool calls via API."""
+        # Mock the service result with tool calls
+        mock_result = ExecutionResult(
+            id=1,
+            task_id=1,
+            implementation_id=test_implementation.id,
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            prompt_rendered="What's the weather?",
+            result_text="Made 1 tool call(s)",
+            tool_calls=[
+                {
+                    "id": "call_123",
+                    "type": "tool_call",
+                    "tool_name": "get_weather",
+                    "arguments": {"location": "New York"}
+                }
+            ],
+            finish_reason=FinishReason.TOOL_CALLS,
+            prompt_tokens=10,
+            completion_tokens=5,
+            total_tokens=15,
+            cached_tokens=2,
+            reasoning_tokens=3,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+        with patch("app.api.v1.executions.svc.execute") as mock_execute:
+            mock_execute.return_value = mock_result
+
+            response = await client.post(
+                f"/executions/implementations/{test_implementation.id}/execute",
+                json={"variables": {"text": "What's the weather?"}},
+            )
+
+            assert response.status_code == 201
+            data = response.json()
+            assert data["implementation_id"] == test_implementation.id
+            assert data["result_text"] == "Made 1 tool call(s)"
+            assert data["tool_calls"] is not None
+            assert len(data["tool_calls"]) == 1
+            
+            tool_call = data["tool_calls"][0]
+            assert tool_call["id"] == "call_123"
+            assert tool_call["tool_name"] == "get_weather"
+            assert tool_call["arguments"] == {"location": "New York"}
+            assert tool_call["type"] == "tool_call"
 
 
     @pytest.mark.asyncio
