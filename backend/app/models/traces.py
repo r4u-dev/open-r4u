@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
@@ -19,6 +19,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums import FinishReason, ItemType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
+
+if TYPE_CHECKING:
+    from app.models.evaluation import Grade
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -95,6 +98,11 @@ class Trace(Base):
         order_by="TraceInputItem.position",
     )
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
+    grades: Mapped[list["Grade"]] = relationship(
+        "Grade",
+        foreign_keys="Grade.trace_id",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]

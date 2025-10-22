@@ -1,10 +1,13 @@
 """Execution models for task execution results."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from app.enums import FinishReason
 from app.models.base import Base, created_at_col, intpk, updated_at_col
+
+if TYPE_CHECKING:
+    from app.models.evaluation import Grade
 from sqlalchemy import (
     DateTime,
     Enum as SQLEnum,
@@ -78,6 +81,11 @@ class ExecutionResult(Base):
     # Relationships
     task: Mapped["Task"] = relationship("Task")  # type: ignore
     implementation: Mapped["Implementation"] = relationship("Implementation")  # type: ignore
+    grades: Mapped[list["Grade"]] = relationship(
+        "Grade",
+        foreign_keys="Grade.execution_result_id",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]

@@ -26,6 +26,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    graders: Mapped[list["Grader"]] = relationship(  # type: ignore
+        "Grader",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
