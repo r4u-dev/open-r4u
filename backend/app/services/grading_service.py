@@ -140,8 +140,9 @@ class GradingService:
         await session.delete(grader)
         await session.commit()
 
-    def _prepare_target_context(
+    async def _prepare_target_context(
         self,
+        session: AsyncSession,
         trace: Trace | None = None,
         execution_result: ExecutionResult | None = None,
     ) -> str:
@@ -160,7 +161,9 @@ class GradingService:
                 context_parts.append(f"Prompt: {trace.prompt}")
             
             # Add input items if available
-            if hasattr(trace, 'input_items') and trace.input_items:
+            # Load the input_items relationship
+            await session.refresh(trace, ["input_items"])
+            if trace.input_items:
                 context_parts.append("\nInput History:")
                 for item in trace.input_items:
                     item_data = item.data
@@ -305,7 +308,7 @@ class GradingService:
                 raise NotFoundError(f"ExecutionResult with id {execution_result_id} not found")
         
         # Prepare context and render prompt
-        context = self._prepare_target_context(trace, execution_result)
+        context = await self._prepare_target_context(session, trace, execution_result)
         
         started_at = datetime.now(timezone.utc)
         

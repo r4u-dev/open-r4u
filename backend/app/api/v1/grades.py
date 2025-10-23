@@ -10,7 +10,7 @@ from app.schemas.evaluation import (
     GradeRead,
     GradeTargetRequest,
 )
-from app.services.grading_service import GradingService
+from app.services.grading_service import GradingService, NotFoundError, BadRequestError
 
 router = APIRouter(prefix="/grades", tags=["grades"])
 
@@ -45,12 +45,12 @@ async def create_grade(
         
         return GradeRead.model_validate(grade)
     
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
         )
-    except grading_service.BadRequestError as e:
+    except BadRequestError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
@@ -73,7 +73,7 @@ async def get_grade(
         grade = await grading_service.get_grade(session, grade_id)
         return GradeRead.model_validate(grade)
     
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
@@ -151,7 +151,7 @@ async def delete_grade(
     try:
         await grading_service.delete_grade(session, grade_id)
     
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,

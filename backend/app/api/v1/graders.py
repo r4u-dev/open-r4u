@@ -11,7 +11,7 @@ from app.schemas.evaluation import (
     GraderRead,
     GraderUpdate,
 )
-from app.services.grading_service import GradingService
+from app.services.grading_service import GradingService, NotFoundError
 
 router = APIRouter(prefix="/graders", tags=["graders"])
 
@@ -103,7 +103,7 @@ async def get_grader(
         grader_dict["grade_count"] = len(grades)
         return GraderRead(**grader_dict)
     
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
@@ -140,7 +140,7 @@ async def update_grader(
         grader_dict["grade_count"] = len(grades)
         return GraderRead(**grader_dict)
     
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
@@ -161,7 +161,7 @@ async def delete_grader(
     """Delete a grader and all associated grades."""
     try:
         await grading_service.delete_grader(session, grader_id)
-    except grading_service.NotFoundError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
