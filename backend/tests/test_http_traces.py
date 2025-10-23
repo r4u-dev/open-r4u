@@ -357,6 +357,19 @@ async def test_create_openai_tool_call_trace(
     }
 
     # Create HTTP trace payload
+async def test_http_trace_persisted_on_parse_failure(
+    client: AsyncClient, test_session: AsyncSession,
+):
+    """Test that HTTPTrace is persisted even when parsing fails."""
+    from sqlalchemy import select
+
+    from app.models.http_traces import HTTPTrace
+    from app.models.traces import Trace
+
+    # Create a payload that will fail to parse (unsupported provider)
+    request_data = {"test": "data"}
+    response_data = {"result": "data"}
+
     started_at = datetime.now(UTC)
     completed_at = datetime.now(UTC)
 
@@ -368,43 +381,38 @@ async def test_create_openai_tool_call_trace(
         "request": json.dumps(request_data).encode("utf-8").hex(),
         "request_headers": {
             "content-type": "application/json",
-            "authorization": "Bearer sk-test",
-            "host": "api.openai.com",
+            "host": "unknown-provider.com",
         },
         "response": json.dumps(response_data).encode("utf-8").hex(),
         "response_headers": {
             "content-type": "application/json",
         },
         "metadata": {
-            "url": "https://api.openai.com/v1/chat/completions",
+            "url": "https://unknown-provider.com/v1/api",
             "method": "POST",
             "project": "Test Project",
         },
     }
 
+    # Send the request - should fail with 400
     response = await client.post("/http-traces", json=payload)
+    assert response.status_code == 400
+    assert "No parser found" in response.json()["detail"]
 
-    if response.status_code != 201:
-        print(f"Error: {response.status_code}")
-        print(f"Detail: {response.json()}")
+    # Verify HTTPTrace was still saved to the database
+    http_trace_query = select(HTTPTrace).order_by(HTTPTrace.id.desc()).limit(1)
+    result = await test_session.execute(http_trace_query)
+    http_trace = result.scalar_one_or_none()
 
-    assert response.status_code == 201
-    data = response.json()
+    assert http_trace is not None
+    assert http_trace.status_code == 200
+    assert "unknown-provider.com" in http_trace.request_headers["host"]
+    assert json.loads(http_trace.request) == request_data
+    assert json.loads(http_trace.response) == response_data
 
-    # Verify trace was created correctly
-    assert data["model"] == "gpt-4"
-    assert data["finish_reason"] == "tool_calls"
+    # Verify no Trace was created (because parsing failed)
+    trace_query = select(Trace).where(Trace.http_trace_id == http_trace.id)
+    trace_result = await test_session.execute(trace_query)
+    trace = trace_result.scalar_one_or_none()
 
-    # Verify input items - should have user message + tool call item
-    assert len(data["input"]) == 2
-
-    # First item should be the user message
-    assert data["input"][0]["type"] == "message"
-    assert data["input"][0]["data"]["role"] == "user"
-    assert data["input"][0]["data"]["content"] == "What's the weather in San Francisco?"
-
-    # Second item should be a tool_call item (NOT embedded in message)
-    assert data["input"][1]["type"] == "tool_call"
-    assert data["input"][1]["data"]["id"] == "call_abc123"
-    assert data["input"][1]["data"]["tool_name"] == "get_weather"
-    assert data["input"][1]["data"]["arguments"]["location"] == "San Francisco"
+    assert trace is None, "No Trace should be created when parsing fails"

@@ -26,9 +26,9 @@ class HTTPTraceParserService:
 
     def parse_http_trace(
         self,
-        request: bytes,
+        request: bytes | str,
         request_headers: dict[str, str],
-        response: bytes,
+        response: bytes | str,
         response_headers: dict[str, str],
         started_at: datetime,
         completed_at: datetime,
@@ -37,25 +37,36 @@ class HTTPTraceParserService:
         metadata: dict[str, Any] | None = None,
     ) -> TraceCreate:
         """Parse HTTP trace into a TraceCreate object.
-        
+
         Args:
-            request: Raw request bytes
+            request: Raw request as bytes or string
             request_headers: Request headers
-            response: Raw response bytes
+            response: Raw response as bytes or string
             response_headers: Response headers
             started_at: When the request started
             completed_at: When the request completed
             status_code: HTTP status code
             error: Error message if any
             metadata: Additional metadata
-            
+
         Returns:
             TraceCreate object ready for database insertion
-            
+
         Raises:
             ValueError: If unable to parse the trace or determine the provider
 
         """
+        # Convert bytes to strings if needed
+        request_str = (
+            request.decode("utf-8", errors="replace")
+            if isinstance(request, bytes)
+            else request
+        )
+        response_str = (
+            response.decode("utf-8", errors="replace")
+            if isinstance(response, bytes)
+            else response
+        )
         # Extract URL from request headers or reconstruct from request
         # For now, we'll try to get it from metadata or request path
         url = metadata.get("url", "") if metadata else ""
@@ -64,7 +75,6 @@ class HTTPTraceParserService:
         if not url:
             # Try to extract from request line (first line of HTTP request)
             try:
-                request_str = request.decode("utf-8")
                 lines = request_str.split("\n")
                 if lines:
                     # Parse "POST /path HTTP/1.1" format
@@ -72,7 +82,10 @@ class HTTPTraceParserService:
                     if len(parts) >= 2:
                         path = parts[1]
                         # Try to construct URL from Host header
-                        host = request_headers.get("host", request_headers.get("Host", ""))
+                        host = request_headers.get(
+                            "host",
+                            request_headers.get("Host", ""),
+                        )
                         if host:
                             url = f"https://{host}{path}"
             except Exception:
@@ -90,14 +103,14 @@ class HTTPTraceParserService:
 
         # Parse request and response bodies
         try:
-            request_body = json.loads(request.decode("utf-8"))
+            request_body = json.loads(request_str)
         except Exception as e:
             raise ValueError(f"Failed to parse request body: {e}")
 
         response_body = {}
-        if not error and response:
+        if not error and response_str:
             try:
-                response_body = json.loads(response.decode("utf-8"))
+                response_body = json.loads(response_str)
             except Exception:
                 # If response parsing fails, it's not necessarily an error
                 # (could be streaming or non-JSON response)
