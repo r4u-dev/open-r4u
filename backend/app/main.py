@@ -1,7 +1,16 @@
+import logging
+
 import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1 import api_router
+from app.config import get_settings
+
+settings = get_settings()
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.log_level == "DEBUG" else logging.INFO,
+)
 
 app = FastAPI(title="Open R4U Backend")
 app.include_router(api_router)

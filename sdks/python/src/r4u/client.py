@@ -20,6 +20,9 @@ class HTTPTrace(BaseModel):
     # Request identification
     url: str = Field(..., description="The request URL")
     method: str = Field(..., description="The HTTP method (GET, POST, etc.)")
+    path: Optional[str] = Field(
+        None, description="The call path where the request was made"
+    )
 
     # Timing
     started_at: datetime = Field(..., description="When the request started")

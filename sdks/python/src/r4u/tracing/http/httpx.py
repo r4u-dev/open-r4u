@@ -9,6 +9,7 @@ import httpx
 
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
+from r4u.utils import extract_call_path
 
 
 class StreamingResponseWrapper:
@@ -153,6 +154,7 @@ class StreamingResponseWrapper:
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
             method=self._trace_ctx.get("method", ""),
+            path=self._trace_ctx.get("path"),
             started_at=self._trace_ctx["started_at"],
             completed_at=self._trace_ctx["completed_at"],
             status_code=self._trace_ctx.get("status_code", 0),
@@ -178,12 +180,17 @@ def _build_trace_context(request: httpx.Request) -> dict:
     """Build initial trace context from httpx request."""
     started_at = datetime.now(timezone.utc)
     headers_dict = dict(request.headers)
+
+    # Extract call path
+    call_path, _ = extract_call_path()
+
     return {
         "method": request.method.upper(),
         "url": str(request.url),
         "started_at": started_at,
         "request_bytes": request.content or b"",
         "request_headers": headers_dict,
+        "path": call_path,
     }
 
 
@@ -198,6 +205,7 @@ def _finalize_trace(
     return HTTPTrace(
         url=trace_ctx.get("url", ""),
         method=trace_ctx.get("method", ""),
+        path=trace_ctx.get("path"),
         started_at=trace_ctx["started_at"],
         completed_at=completed_at,
         status_code=status_code,

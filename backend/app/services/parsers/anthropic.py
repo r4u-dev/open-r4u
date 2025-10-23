@@ -33,6 +33,7 @@ class AnthropicParser(ProviderParser):
         completed_at: datetime,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse Anthropic API request/response."""
         # Extract model
@@ -191,7 +192,6 @@ class AnthropicParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
         return TraceCreate(
@@ -202,7 +202,7 @@ class AnthropicParser(ProviderParser):
             started_at=started_at,
             completed_at=completed_at,
             input=input_items,
-            path=path,
+            path=call_path,
             task_id=task_id,
             tools=tools,
             instructions=system_prompt,

@@ -17,6 +17,7 @@ class HTTPTrace(BaseModel):
     # Request identification
     url: str = Field(..., description="The request URL")
     method: str = Field(..., description="The HTTP method (GET, POST, etc.)")
+    path: Optional[str] = Field(None, description="The call path where the request was made")
 
     # Timing
     started_at: datetime = Field(..., description="When the request started")
@@ -41,25 +42,37 @@ class HTTPTrace(BaseModel):
 ## Key Features
 
 ### 1. **Provider Agnostic**
+
 - No hardcoded provider detection logic
 - Provider is passed explicitly when setting up tracing
 - Works with any HTTP client (httpx, requests, aiohttp)
 
 ### 2. **Simplified Schema**
+
 - Removed unnecessary fields like `endpoint`, `operation_type`
 - Focus on essential HTTP data: timing, status, headers, payloads
 - Direct fields for URL and method for easy access
+- Automatic call path tracking to identify where requests originate
 - Metadata field for additional context
 
 ### 3. **Raw Data Capture**
+
 - Captures complete request/response bytes
 - Preserves original headers
 - No data transformation or parsing
 
 ### 4. **Streaming Support**
+
 - Handles both regular and streaming requests
 - Collects complete response content during streaming
 - Accurate timing includes full streaming duration
+
+### 5. **Call Path Tracking**
+
+- Automatically extracts the call path for each request
+- Shows the chain of functions that led to the API call (e.g., "module.py::main->query_llm->create")
+- Helps with debugging and understanding execution flow
+- Available in the `path` field of each trace
 
 ## Usage Examples
 
@@ -71,7 +84,7 @@ from r4u.tracing.http.httpx import trace_async_client
 # Trace an httpx client
 async with httpx.AsyncClient() as client:
     trace_async_client(client, "my-provider")
-    
+
     # All requests are automatically traced
     response = await client.get("https://api.example.com/data")
 ```
@@ -88,7 +101,7 @@ class MyTracer(AbstractTracer):
         print(f"Request: {trace.method} {trace.url}")
         print(f"Status: {trace.status_code}")
         print(f"Duration: {(trace.completed_at - trace.started_at).total_seconds() * 1000:.2f}ms")
-        
+
         # Access raw data
         if trace.request:
             print(f"Request body: {trace.request.decode()}")
@@ -115,6 +128,7 @@ async for chunk in response.aiter_bytes():
 The old `RawRequestInfo` schema has been replaced with `HTTPTrace`. Key changes:
 
 ### Removed Fields
+
 - `endpoint` - No longer needed, provider is explicit
 - `operation_type` - Removed complexity
 - `request_size`, `response_size` - Can be calculated from bytes
@@ -122,6 +136,7 @@ The old `RawRequestInfo` schema has been replaced with `HTTPTrace`. Key changes:
 - `error_type` - Simplified to just error message
 
 ### New Structure
+
 - `request` instead of `request_payload`
 - `response` instead of `response_payload`
 - `request_headers` instead of `headers`
@@ -154,7 +169,7 @@ def trace_request(self, trace: HTTPTrace) -> None:
 The tracing is implemented at the HTTP client level:
 
 - **httpx**: Patches `client.send()` method
-- **requests**: Patches `session.send()` method  
+- **requests**: Patches `session.send()` method
 - **aiohttp**: Patches `session._request()` method
 
 ### Streaming Detection

@@ -16,6 +16,9 @@ class HTTPTraceCreate(BaseModel):
     # Status
     status_code: int = Field(..., description="HTTP status code")
     error: str | None = Field(None, description="Error message if any")
+    path: str | None = Field(
+        None, description="The call path where the request was made",
+    )
 
     # Raw data (accepts bytes or strings, stored as strings)
     request: bytes | str = Field(

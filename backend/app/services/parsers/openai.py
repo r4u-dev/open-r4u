@@ -40,6 +40,7 @@ class OpenAIParser(ProviderParser):
         completed_at: datetime,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse OpenAI API request/response.
 
@@ -54,6 +55,7 @@ class OpenAIParser(ProviderParser):
                 completed_at,
                 error,
                 metadata,
+                call_path,
             )
 
         # Otherwise parse as Chat Completions API (default)
@@ -64,6 +66,7 @@ class OpenAIParser(ProviderParser):
             completed_at,
             error,
             metadata,
+            call_path,
         )
 
     def _parse_chat_completions_api(
@@ -74,6 +77,7 @@ class OpenAIParser(ProviderParser):
         completed_at: datetime,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse Chat Completions API format."""
         # Extract model
@@ -213,7 +217,6 @@ class OpenAIParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
         return TraceCreate(
@@ -224,7 +227,7 @@ class OpenAIParser(ProviderParser):
             started_at=started_at,
             completed_at=completed_at,
             input=input_items,
-            path=path,
+            path=call_path,
             task_id=task_id,
             tools=tools,
             instructions=instructions,
@@ -251,6 +254,7 @@ class OpenAIParser(ProviderParser):
         completed_at: datetime,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse new OpenAI Responses API format.
 
@@ -380,7 +384,6 @@ class OpenAIParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        path = metadata.get("path") if metadata else None
         task_id = metadata.get("task_id") if metadata else None
 
         return TraceCreate(
@@ -391,7 +394,7 @@ class OpenAIParser(ProviderParser):
             started_at=started_at,
             completed_at=completed_at,
             input=input_items,
-            path=path,
+            path=call_path,
             task_id=task_id,
             tools=tools,
             instructions=instructions,

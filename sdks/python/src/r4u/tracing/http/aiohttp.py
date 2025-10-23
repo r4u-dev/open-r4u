@@ -1,26 +1,33 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import functools
 import types
-from typing import Callable, Optional, Type
+from collections.abc import Callable
+from datetime import datetime, timezone
 
 import aiohttp
 
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
+from r4u.utils import extract_call_path
 
 
 class StreamingResponseWrapper:
     """Wrapper for aiohttp.ClientResponse that tracks streaming completion and collects content."""
 
-    def __init__(self, response: aiohttp.ClientResponse, trace_ctx: dict, tracer: Optional[AbstractTracer] = None):
+    def __init__(
+        self,
+        response: aiohttp.ClientResponse,
+        trace_ctx: dict,
+        tracer: AbstractTracer | None = None,
+    ):
         self._response = response
         self._trace_ctx = trace_ctx
         self._content_collected = b""
         self._is_streaming_complete = False
         self._error = None
         self._tracer = tracer
+
     # Delegate all attributes to the original response
     def __getattr__(self, name):
         return getattr(self._response, name)
@@ -54,7 +61,7 @@ class StreamingResponseWrapper:
         """Iterate over response content line by line."""
         try:
             async for line in self._response.content.iter_line():
-                self._content_collected += line + b'\n'
+                self._content_collected += line + b"\n"
                 yield line
         except Exception as e:
             self._error = str(e)
@@ -78,7 +85,7 @@ class StreamingResponseWrapper:
         """Read response content as text."""
         try:
             content = await self._response.text()
-            self._content_collected = content.encode('utf-8')
+            self._content_collected = content.encode("utf-8")
             return content
         except Exception as e:
             self._error = str(e)
@@ -129,6 +136,7 @@ class StreamingResponseWrapper:
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
             method=self._trace_ctx.get("method", ""),
+            path=self._trace_ctx.get("path"),
             started_at=self._trace_ctx["started_at"],
             completed_at=self._trace_ctx["completed_at"],
             status_code=self._trace_ctx.get("status_code", 0),
@@ -160,29 +168,34 @@ def _is_streaming_request(kwargs: dict) -> bool:
 
 def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
     """Create wrapper for aiohttp session methods like _request."""
+
     @functools.wraps(original)
     async def wrapper(self, *args, **kwargs):
         # Extract method and url from args/kwargs for aiohttp session methods
-        method = args[0] if len(args) > 0 else kwargs.get('method', 'GET')
-        url = args[1] if len(args) > 1 else kwargs.get('url')
+        method = args[0] if len(args) > 0 else kwargs.get("method", "GET")
+        url = args[1] if len(args) > 1 else kwargs.get("url")
 
         # Check if we should trace this URL
         if not should_trace_url(str(url)):
             return await original(*args, **kwargs)
 
         started_at = datetime.now(timezone.utc)
-        request_payload = kwargs.get('data') or kwargs.get('json') or b""
+        request_payload = kwargs.get("data") or kwargs.get("json") or b""
         if isinstance(request_payload, str):
-            request_payload = request_payload.encode('utf-8')
+            request_payload = request_payload.encode("utf-8")
         elif not isinstance(request_payload, bytes):
             request_payload = b""
+
+        # Extract call path
+        call_path, _ = extract_call_path()
 
         trace_ctx = {
             "method": str(method).upper(),
             "url": str(url),
             "started_at": started_at,
             "request_bytes": request_payload,
-            "request_headers": dict(kwargs.get('headers', {})),
+            "request_headers": dict(kwargs.get("headers", {})),
+            "path": call_path,
         }
 
         response = None
@@ -200,6 +213,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
             trace = HTTPTrace(
                 url=trace_ctx.get("url", ""),
                 method=trace_ctx.get("method", ""),
+                path=trace_ctx.get("path"),
                 started_at=trace_ctx["started_at"],
                 completed_at=completed_at,
                 status_code=0,
@@ -218,14 +232,16 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
 
     return wrapper
 
-def trace_async_client(session: aiohttp.ClientSession, tracer: Optional[AbstractTracer] = None) -> None:
-    """
-    Trace an aiohttp ClientSession.
+
+def trace_async_client(
+    session: aiohttp.ClientSession, tracer: AbstractTracer | None = None,
+) -> None:
+    """Trace an aiohttp ClientSession.
 
     This wraps the _request method which is the core method used by all HTTP methods.
     """
     # Check if already patched to avoid double-patching
-    if hasattr(session._request, '_r4u_patched'):
+    if hasattr(session._request, "_r4u_patched"):
         return
 
     wrapper = _create_async_wrapper(session._request, tracer)
@@ -233,10 +249,11 @@ def trace_async_client(session: aiohttp.ClientSession, tracer: Optional[Abstract
     session._request = types.MethodType(wrapper, session)
 
 
-
-
-def _create_aiohttp_constructor_wrapper(original_init: Callable, session_class: Type, tracer: Optional[AbstractTracer]):
+def _create_aiohttp_constructor_wrapper(
+    original_init: Callable, session_class: type, tracer: AbstractTracer | None,
+):
     """Create a wrapper for aiohttp session constructors."""
+
     @functools.wraps(original_init)
     def wrapper(self, *args, **kwargs):
         # Call original constructor
@@ -245,7 +262,9 @@ def _create_aiohttp_constructor_wrapper(original_init: Callable, session_class: 
         # Apply tracing
         try:
             if isinstance(self, session_class):
-                if hasattr(self, '_request') and not hasattr(self._request, '_r4u_patched'):
+                if hasattr(self, "_request") and not hasattr(
+                    self._request, "_r4u_patched",
+                ):
                     trace_async_client(self, tracer)
         except Exception as e:
             # Don't fail session creation if tracing fails
@@ -254,10 +273,8 @@ def _create_aiohttp_constructor_wrapper(original_init: Callable, session_class: 
     return wrapper
 
 
-
 def trace_all(tracer: AbstractTracer) -> None:
-    """
-    Intercept aiohttp session creation to automatically trace all instances.
+    """Intercept aiohttp session creation to automatically trace all instances.
 
     This function intercepts the aiohttp.ClientSession constructor to automatically
     apply tracing to all instances that will be created.
@@ -275,9 +292,10 @@ def trace_all(tracer: AbstractTracer) -> None:
         >>> session = aiohttp.ClientSession()  # Automatically traced
         >>> async with session.get('https://api.example.com/data') as response:
         ...     data = await response.json()
+
     """
     # Check if already patched to avoid double-patching
-    if hasattr(aiohttp.ClientSession, '_r4u_constructor_patched'):
+    if hasattr(aiohttp.ClientSession, "_r4u_constructor_patched"):
         return
 
     # Store original constructor
@@ -285,7 +303,7 @@ def trace_all(tracer: AbstractTracer) -> None:
 
     # Create constructor wrapper
     aiohttp.ClientSession.__init__ = _create_aiohttp_constructor_wrapper(
-        aiohttp.ClientSession.__init__, aiohttp.ClientSession, tracer
+        aiohttp.ClientSession.__init__, aiohttp.ClientSession, tracer,
     )
 
     # Mark as patched
@@ -293,19 +311,18 @@ def trace_all(tracer: AbstractTracer) -> None:
 
 
 def untrace_all() -> None:
-    """
-    Remove constructor interception from aiohttp.ClientSession class.
+    """Remove constructor interception from aiohttp.ClientSession class.
 
     This restores the original aiohttp.ClientSession constructor.
     """
-    if not hasattr(aiohttp.ClientSession, '_r4u_constructor_patched'):
+    if not hasattr(aiohttp.ClientSession, "_r4u_constructor_patched"):
         return
 
     # Restore original constructor
-    if hasattr(aiohttp, '_original_client_session_init'):
+    if hasattr(aiohttp, "_original_client_session_init"):
         aiohttp.ClientSession.__init__ = aiohttp._original_client_session_init
-        delattr(aiohttp, '_original_client_session_init')
+        delattr(aiohttp, "_original_client_session_init")
 
     # Remove patch marker
-    if hasattr(aiohttp.ClientSession, '_r4u_constructor_patched'):
-        delattr(aiohttp.ClientSession, '_r4u_constructor_patched')
+    if hasattr(aiohttp.ClientSession, "_r4u_constructor_patched"):
+        delattr(aiohttp.ClientSession, "_r4u_constructor_patched")
