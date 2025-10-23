@@ -7,7 +7,8 @@ from typing import Callable, Optional, Type
 
 import requests
 
-from r4u.client import AbstractTracer, HTTPTrace, get_r4u_client
+from r4u.client import AbstractTracer, HTTPTrace
+from r4u.tracing.http.filters import should_trace_url
 
 
 class StreamingResponseWrapper:
@@ -195,6 +196,10 @@ def _create_send_wrapper(original: Callable, tracer: Optional[AbstractTracer] = 
     """Create wrapper for requests.Session.send method."""
     @functools.wraps(original)
     def wrapper(self, request, **kwargs):
+        # Check if we should trace this URL
+        if not should_trace_url(request.url):
+            return original(request, **kwargs)
+
         trace_ctx = _build_trace_context(request)
 
         response = None
@@ -280,7 +285,7 @@ def _create_requests_constructor_wrapper(original_init: Callable, session_class:
 
 
 
-def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
+def trace_all(tracer: AbstractTracer) -> None:
     """
     Intercept requests session creation to automatically trace all instances.
 
@@ -289,7 +294,7 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     This approach works even when libraries create their own requests session instances.
 
     Args:
-        tracer: Optional tracer instance. If None, uses the default R4U client.
+        tracer: Tracer instance
 
     Example:
         >>> from r4u.tracing.http.requests import trace_all
@@ -303,9 +308,6 @@ def trace_all(tracer: Optional[AbstractTracer] = None) -> None:
     # Check if already patched to avoid double-patching
     if hasattr(requests.Session, '_r4u_constructor_patched'):
         return
-
-    if tracer is None:
-        tracer = get_r4u_client()
 
     # Store original constructor
     requests._original_session_init = requests.Session.__init__

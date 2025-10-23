@@ -33,6 +33,12 @@ The HTTP tracing system consists of three main components:
                                                       │
                                                       ▼
                                              ┌─────────────────┐
+                                             │  HTTPTrace DB   │
+                                             │    (persisted)  │
+                                             └────────┬────────┘
+                                                      │
+                                                      ▼
+                                             ┌─────────────────┐
                                              │ Parser Service  │
                                              │ - OpenAI        │
                                              │ - Anthropic     │
@@ -42,42 +48,46 @@ The HTTP tracing system consists of three main components:
                                                       ▼
                                              ┌─────────────────┐
                                              │  Trace Storage  │
-                                             │   (Database)    │
+                                             │  (linked to     │
+                                             │   HTTPTrace)    │
                                              └─────────────────┘
 ```
 
 ## Supported Providers
 
 ### 1. OpenAI
+
 - **URL Pattern**: `api.openai.com`
-- **API Formats**: 
-  - Chat Completions API (traditional)
-  - Responses API (new) ✨
+- **API Formats**:
+    - Chat Completions API (traditional)
+    - Responses API (new) ✨
 - **Extracted Fields**:
-  - Model, messages/input, tools, temperature
-  - Token usage (prompt, completion, cached, reasoning)
-  - Finish reason, system fingerprint
-  - Response format/schema
+    - Model, messages/input, tools, temperature
+    - Token usage (prompt, completion, cached, reasoning)
+    - Finish reason, system fingerprint
+    - Response format/schema
 - **Note**: Automatically detects and supports both Chat Completions and Responses API formats
 - **See**: [OpenAI Responses API Support](OPENAI_RESPONSES_API.md) for details
 
 ### 2. Anthropic (Claude)
+
 - **URL Pattern**: `api.anthropic.com`
 - **API Format**: Anthropic Messages API
 - **Extracted Fields**:
-  - Model, messages, system prompt, tools
-  - Token usage (input, output)
-  - Stop reason (mapped to finish reason)
-  - Temperature
+    - Model, messages, system prompt, tools
+    - Token usage (input, output)
+    - Stop reason (mapped to finish reason)
+    - Temperature
 
 ### 3. Google Generative AI
+
 - **URL Pattern**: `generativelanguage.googleapis.com`
 - **API Format**: Google GenAI API
 - **Extracted Fields**:
-  - Model, contents, system instruction
-  - Token usage (prompt, candidates, total)
-  - Finish reason (mapped)
-  - Generation config (temperature)
+    - Model, contents, system instruction
+    - Token usage (prompt, candidates, total)
+    - Finish reason (mapped)
+    - Generation config (temperature)
 
 ## API Endpoint
 
@@ -85,36 +95,52 @@ The HTTP tracing system consists of three main components:
 
 Create a trace from raw HTTP request/response data.
 
+This endpoint:
+
+1. Persists the raw HTTPTrace to the database
+2. Parses the HTTP data based on the provider
+3. Creates a structured Trace linked to the HTTPTrace
+
 **Request Body**:
+
 ```json
 {
-  "started_at": "2024-01-01T12:00:00Z",
-  "completed_at": "2024-01-01T12:00:01Z",
-  "status_code": 200,
-  "error": null,
-  "request": "<hex-encoded request body>",
-  "request_headers": {
-    "content-type": "application/json",
-    "host": "api.openai.com"
-  },
-  "response": "<hex-encoded response body>",
-  "response_headers": {
-    "content-type": "application/json"
-  },
-  "metadata": {
-    "url": "https://api.openai.com/v1/chat/completions",
-    "method": "POST",
-    "project": "My Project",
-    "path": "my.module.function"
-  }
+    "started_at": "2024-01-01T12:00:00Z",
+    "completed_at": "2024-01-01T12:00:01Z",
+    "status_code": 200,
+    "error": null,
+    "request": "{\"model\": \"gpt-4\", \"messages\": [...]}",
+    "request_headers": {
+        "content-type": "application/json",
+        "host": "api.openai.com"
+    },
+    "response": "{\"id\": \"chatcmpl-123\", \"choices\": [...]}",
+    "response_headers": {
+        "content-type": "application/json"
+    },
+    "metadata": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "project": "My Project",
+        "path": "my.module.function"
+    }
 }
 ```
+
+**Note**: Request and response should be sent as strings (not bytes or hex-encoded).
 
 **Response**: Standard `TraceRead` object with structured data
 
 **Error Codes**:
+
 - `400`: Unable to parse the trace (unsupported provider or invalid format)
 - `500`: Internal server error
+
+**Data Persistence**:
+
+- HTTPTrace is always persisted, even if parsing fails
+- If parsing succeeds, a Trace is created with a foreign key to the HTTPTrace
+- If parsing fails, the HTTPTrace remains in the database without an associated Trace
 
 ## SDK Usage
 
@@ -199,16 +225,20 @@ def __init__(self):
 1. HTTP library makes a request to LLM API
 2. Patched HTTP library captures raw request/response
 3. SDK sends HTTPTrace to backend `/http-traces` endpoint
-4. Backend determines provider from URL
-5. Appropriate parser extracts structured data
-6. Trace is stored in database
+4. Backend persists HTTPTrace to database (always stored)
+5. Backend determines provider from URL
+6. Appropriate parser extracts structured data
+7. Structured Trace is created and linked to HTTPTrace via foreign key
+8. Both HTTPTrace and Trace are stored in database
 
 ### Error Handling
 
-- If provider is unsupported: Returns 400 with error message
-- If parsing fails: Returns 400 with parsing error details
-- If request/response is not valid JSON: Returns 400
+- If provider is unsupported: HTTPTrace is saved, returns 400 with error message
+- If parsing fails: HTTPTrace is saved, returns 400 with parsing error details
+- If request/response is not valid JSON: HTTPTrace is saved, returns 400
 - Network errors: Logged on SDK side, doesn't fail user's request
+
+**Note**: HTTPTrace is always persisted to the database, even when parsing fails. This ensures raw data is never lost and can be inspected or reprocessed later.
 
 ### Performance
 
@@ -225,6 +255,29 @@ cd backend
 pytest tests/test_http_traces.py -v
 ```
 
+## Database Schema
+
+### HTTPTrace Table
+
+Stores raw HTTP request/response data:
+
+- `id`: Primary key
+- `started_at`, `completed_at`: Timing information
+- `status_code`: HTTP status code
+- `error`: Error message (if any)
+- `request`, `response`: Raw request/response as strings
+- `request_headers`, `response_headers`: Headers as JSONB
+- `metadata`: Additional metadata as JSONB
+
+### Trace Table
+
+Stores parsed, structured trace data:
+
+- `http_trace_id`: Foreign key to HTTPTrace (nullable)
+- All existing trace fields (model, tokens, etc.)
+
+**Relationship**: Each Trace has an optional reference to an HTTPTrace. Each HTTPTrace can have at most one Trace.
+
 ## Future Enhancements
 
 1. **Streaming Support**: Handle streaming responses
@@ -232,3 +285,4 @@ pytest tests/test_http_traces.py -v
 3. **Compression**: Compress large request/response bodies
 4. **Batching**: Batch multiple traces in single request
 5. **Schema Validation**: Validate provider-specific schemas
+6. **Reprocessing**: UI to reprocess failed HTTPTraces with updated parsers

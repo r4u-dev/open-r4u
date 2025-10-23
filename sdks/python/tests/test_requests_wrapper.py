@@ -534,18 +534,6 @@ class TestTraceAll:
         # Should not raise any errors
         untrace_all()
 
-    def test_trace_all_uses_default_tracer_when_none(self):
-        """Test trace_all uses default tracer when None provided."""
-        with patch("r4u.tracing.http.requests.get_r4u_client") as mock_get_client:
-            mock_tracer = Mock()
-            mock_get_client.return_value = mock_tracer
-
-            trace_all(None)
-
-            mock_get_client.assert_called_once()
-
-            # Cleanup
-            untrace_all()
 
 
 class TestEndToEndRequestsTracing:
