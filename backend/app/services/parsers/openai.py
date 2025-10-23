@@ -6,12 +6,12 @@ from urllib.parse import urlparse
 
 from app.enums import FinishReason, MessageRole
 from app.schemas.traces import (
-    FunctionCall,
     InputItem,
     MessageItem,
     Reasoning,
-    ToolCall,
+    ToolCallItem,
     ToolDefinition,
+    ToolResultItem,
     TraceCreate,
 )
 from app.services.parsers.base import ProviderParser
@@ -85,34 +85,32 @@ class OpenAIParser(ProviderParser):
 
         for msg in messages:
             role_str = msg.get("role", "user")
+
+            # Handle tool result messages - create ToolResultItem
+            if role_str == "tool":
+                tool_call_id = msg.get("tool_call_id")
+                name = msg.get("name")
+                content = msg.get("content")
+                if tool_call_id and name:
+                    input_items.append(
+                        ToolResultItem(
+                            call_id=tool_call_id,
+                            tool_name=name,
+                            result=content,
+                        ),
+                    )
+                continue
+
             try:
                 role = MessageRole(role_str)
             except ValueError:
                 role = MessageRole.USER
 
-            # Handle tool calls in assistant messages
-            tool_calls_data = msg.get("tool_calls")
-            tool_calls = None
-            if tool_calls_data:
-                tool_calls = [
-                    ToolCall(
-                        id=tc.get("id", ""),
-                        type=tc.get("type", "function"),
-                        function=FunctionCall(
-                            name=tc.get("function", {}).get("name", ""),
-                            arguments=tc.get("function", {}).get("arguments", ""),
-                        ),
-                    )
-                    for tc in tool_calls_data
-                ]
-
+            # Regular message without tool calls
             input_items.append(
                 MessageItem(
                     role=role,
                     content=msg.get("content"),
-                    name=msg.get("name"),
-                    tool_call_id=msg.get("tool_call_id"),
-                    tool_calls=tool_calls,
                 ),
             )
 
@@ -132,6 +130,33 @@ class OpenAIParser(ProviderParser):
                 choice = choices[0]
                 message = choice.get("message", {})
                 result = message.get("content")
+
+                # Handle tool calls from assistant response
+                tool_calls_data = message.get("tool_calls")
+                if tool_calls_data:
+                    for tc in tool_calls_data:
+                        function_data = tc.get("function", {})
+                        arguments_str = function_data.get("arguments", "")
+
+                        # Parse arguments if they're a JSON string
+                        import json
+
+                        try:
+                            arguments = (
+                                json.loads(arguments_str)
+                                if isinstance(arguments_str, str)
+                                else arguments_str
+                            )
+                        except (json.JSONDecodeError, TypeError):
+                            arguments = {"raw": arguments_str}
+
+                        input_items.append(
+                            ToolCallItem(
+                                id=tc.get("id", ""),
+                                tool_name=function_data.get("name", ""),
+                                arguments=arguments,
+                            ),
+                        )
 
                 # Extract finish reason
                 finish_reason_str = choice.get("finish_reason")
@@ -258,7 +283,6 @@ class OpenAIParser(ProviderParser):
                             MessageItem(
                                 role=role,
                                 content=item.get("content"),
-                                name=item.get("name"),
                             ),
                         )
                     else:

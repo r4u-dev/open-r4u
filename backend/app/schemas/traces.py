@@ -62,9 +62,6 @@ class MessageItem(BaseModel):
     type: Literal[ItemType.MESSAGE] = ItemType.MESSAGE
     role: MessageRole
     content: Any | None = None
-    name: str | None = None
-    tool_call_id: str | None = None
-    tool_calls: list[ToolCall] | None = None
     model_config = ConfigDict(extra="allow")
 
 
@@ -156,29 +153,6 @@ InputItem = (
 )
 
 
-# Legacy Message Schemas for backward compatibility during transition
-class MessageBase(BaseModel):
-    """Base schema for messages (legacy)."""
-
-    role: MessageRole
-    content: Any | None = None
-    name: str | None = None
-    tool_call_id: str | None = None
-    tool_calls: list[ToolCall] | None = None
-    model_config = ConfigDict(extra="allow")
-
-
-class MessageCreate(MessageBase):
-    """Schema for creating a message (legacy)."""
-
-
-class MessageRead(MessageBase):
-    """Schema for reading a message (legacy)."""
-
-    id: int
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
-
 # Input Item Read Schema
 class InputItemRead(BaseModel):
     """Schema for reading an input item."""
@@ -206,7 +180,9 @@ class TraceBase(BaseModel):
     instructions: str | None = None
     prompt: str | None = None
     temperature: float | None = None
-    tool_choice: str | dict[str, Any] | None = None  # "auto", "none", "required", or specific tool
+    tool_choice: str | dict[str, Any] | None = (
+        None  # "auto", "none", "required", or specific tool
+    )
 
     # Token usage
     prompt_tokens: int | None = None
@@ -222,7 +198,9 @@ class TraceBase(BaseModel):
     system_fingerprint: str | None = None
 
     # Reasoning attributes
-    reasoning: Reasoning | None = None  # Reasoning configuration/output for models that support it
+    reasoning: Reasoning | None = (
+        None  # Reasoning configuration/output for models that support it
+    )
 
     # Schema and metadata
     response_schema: dict[str, Any] | None = None
@@ -249,6 +227,10 @@ class TraceRead(TraceBase):
 
     id: int
     project_id: int
-    input: list[InputItemRead] = Field(default_factory=list, validation_alias="input_items", serialization_alias="input")
+    input: list[InputItemRead] = Field(
+        default_factory=list,
+        validation_alias="input_items",
+        serialization_alias="input",
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

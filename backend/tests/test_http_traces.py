@@ -297,6 +297,117 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
 
 
 @pytest.mark.asyncio
+async def test_create_openai_tool_call_trace(
+    client: AsyncClient, test_session: AsyncSession,
+):
+    """Test creating a trace from OpenAI with tool calls."""
+    # Sample OpenAI request with tools
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "What's the weather in San Francisco?"},
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"location": {"type": "string"}},
+                    },
+                },
+            },
+        ],
+        "temperature": 0.7,
+    }
+
+    # Sample OpenAI response with tool call
+    response_data = {
+        "id": "chatcmpl-123",
+        "object": "chat.completion",
+        "created": 1677652288,
+        "model": "gpt-4-0613",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_abc123",
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"location": "San Francisco"}',
+                            },
+                        },
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            },
+        ],
+        "usage": {
+            "prompt_tokens": 50,
+            "completion_tokens": 20,
+            "total_tokens": 70,
+        },
+    }
+
+    # Create HTTP trace payload
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 200,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "authorization": "Bearer sk-test",
+            "host": "api.openai.com",
+        },
+        "response": json.dumps(response_data).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/http-traces", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+
+    # Verify trace was created correctly
+    assert data["model"] == "gpt-4"
+    assert data["result"] is None  # No content for tool calls
+    assert data["temperature"] == 0.7
+    assert data["prompt_tokens"] == 50
+    assert data["completion_tokens"] == 20
+    assert data["total_tokens"] == 70
+    assert data["finish_reason"] == "tool_calls"
+
+    # Verify input items were created
+    assert len(data["input"]) == 2
+    assert data["input"][0]["type"] == "message"
+    assert data["input"][0]["data"]["role"] == "user"
+    assert data["input"][1]["type"] == "tool_call"
+
+    # Verify tool calls were created
+    assert data["input"][1]["data"]["tool_name"] == "get_weather"
+    assert data["input"][1]["data"]["arguments"] == {"location": "San Francisco"}
+
+
+@pytest.mark.asyncio
 async def test_http_trace_persisted_on_parse_failure(
     client: AsyncClient, test_session: AsyncSession,
 ):
