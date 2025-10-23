@@ -1,0 +1,139 @@
+import { AlertCircle, CheckCircle, ChevronUp, ChevronDown } from "lucide-react";
+import { Trace } from "@/lib/types/trace";
+
+type SortField = 'status' | 'task' | 'type' | 'model' | 'latency' | 'cost' | 'timestamp';
+type SortDirection = 'asc' | 'desc';
+
+interface TraceTableProps {
+  traces: Trace[];
+  selectedTraceId: string | null;
+  onSelectTrace: (id: string) => void;
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSort?: (field: SortField) => void;
+}
+
+export function TraceTable({ traces, selectedTraceId, onSelectTrace, sortField, sortDirection, onSort }: TraceTableProps) {
+  const handleSort = (field: SortField) => {
+    onSort?.(field);
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="h-3 w-3 ml-1" />
+    ) : (
+      <ChevronDown className="h-3 w-3 ml-1" />
+    );
+  };
+  return (
+    <div className="w-full">
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-border bg-muted/90 sticky top-0 h-10">
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-12 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('status')}
+            >
+              <div className="flex items-center">
+                Status
+                {getSortIcon('status')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-foreground cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('task')}
+            >
+              <div className="flex items-center">
+                Task
+                {getSortIcon('task')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-foreground w-20 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('latency')}
+            >
+              <div className="flex items-center">
+                Latency
+                {getSortIcon('latency')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-foreground w-16 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('cost')}
+            >
+              <div className="flex items-center">
+                Cost
+                {getSortIcon('cost')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-16 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('type')}
+            >
+              <div className="flex items-center">
+                Type
+                {getSortIcon('type')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('model')}
+            >
+              <div className="flex items-center">
+                Model
+                {getSortIcon('model')}
+              </div>
+            </th>
+            <th 
+              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-41 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => handleSort('timestamp')}
+            >
+              <div className="flex items-center">
+                Timestamp
+                {getSortIcon('timestamp')}
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {traces.map((trace) => (
+            <tr
+              key={trace.id}
+              onClick={() => onSelectTrace(trace.id)}
+              className={`border-b border-border cursor-pointer transition-colors ${
+                selectedTraceId === trace.id ? "bg-accent" : "hover:bg-muted/50"
+              }`}
+            >
+              <td className="px-3 py-2">
+                {trace.status === "success" ? (
+                  <CheckCircle className="h-4 w-4 text-success" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                )}
+              </td>
+              <td className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}>
+                {trace.taskVersion || "-"}
+              </td>
+              <td className={`px-3 py-2 text-right ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}>
+                {trace.latency}ms
+              </td>
+              <td className={`px-3 py-2 text-right ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}>
+                ${trace.cost.toFixed(4)}
+              </td>
+              <td className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
+                {trace.type}
+              </td>
+              <td className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
+                {trace.model}
+              </td>
+              <td className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
+                {new Date(trace.timestamp).toLocaleString()}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
