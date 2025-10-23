@@ -1,7 +1,8 @@
 """Tests for evaluation models (Grader and Grade)."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from sqlalchemy import select
 
 from app.enums import ScoreType
@@ -31,11 +32,11 @@ async def test_create_grader(test_session):
         max_output_tokens=500,
         is_active=True,
     )
-    
+
     test_session.add(grader)
     await test_session.commit()
     await test_session.refresh(grader)
-    
+
     assert grader.id is not None
     assert grader.project_id == project.id
     assert grader.name == "accuracy"
@@ -71,17 +72,17 @@ async def test_create_grader_with_reasoning_and_schema(test_session):
             "properties": {
                 "score": {"type": "boolean"},
                 "reasoning": {"type": "string"},
-                "confidence": {"type": "number"}
-            }
+                "confidence": {"type": "number"},
+            },
         },
         max_output_tokens=300,
         is_active=True,
     )
-    
+
     test_session.add(grader)
     await test_session.commit()
     await test_session.refresh(grader)
-    
+
     assert grader.score_type == ScoreType.BOOLEAN
     assert grader.reasoning == {"effort": "medium"}
     assert grader.response_schema["type"] == "object"
@@ -103,18 +104,18 @@ async def test_grader_project_relationship(test_session):
         model="gpt-4",
         max_output_tokens=500,
     )
-    
+
     test_session.add(grader)
     await test_session.commit()
     await test_session.refresh(grader)
-    
+
     # Test relationship
     assert grader.project.id == project.id
     assert grader.project.name == "Test Project"
-    
+
     # Test back reference
     project_graders = await test_session.execute(
-        select(Grader).where(Grader.project_id == project.id)
+        select(Grader).where(Grader.project_id == project.id),
     )
     graders = project_graders.scalars().all()
     assert len(graders) == 1
@@ -145,8 +146,8 @@ async def test_create_grade_for_trace(test_session):
         project_id=project.id,
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -158,17 +159,17 @@ async def test_create_grade_for_trace(test_session):
         score_float=0.85,
         reasoning="The response is mostly accurate",
         confidence=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
         prompt_tokens=100,
         completion_tokens=50,
         total_tokens=150,
     )
-    
+
     test_session.add(grade)
     await test_session.commit()
     await test_session.refresh(grade)
-    
+
     assert grade.id is not None
     assert grade.grader_id == grader.id
     assert grade.trace_id == trace.id
@@ -220,8 +221,8 @@ async def test_create_grade_for_execution_result(test_session):
     execution_result = ExecutionResult(
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered",
         result_text="Test execution result",
     )
@@ -235,14 +236,14 @@ async def test_create_grade_for_execution_result(test_session):
         score_boolean=False,
         reasoning="Content is not toxic",
         confidence=0.95,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
-    
+
     test_session.add(grade)
     await test_session.commit()
     await test_session.refresh(grade)
-    
+
     assert grade.id is not None
     assert grade.grader_id == grader.id
     assert grade.trace_id is None
@@ -278,8 +279,8 @@ async def test_grade_relationships(test_session):
         project_id=project.id,
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -289,13 +290,13 @@ async def test_grade_relationships(test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.75,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade)
     await test_session.commit()
     await test_session.refresh(grade)
-    
+
     # Test relationships
     assert grade.grader.id == grader.id
     assert grade.grader.name == "accuracy"
@@ -326,8 +327,8 @@ async def test_grade_with_error(test_session):
         project_id=project.id,
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -335,15 +336,15 @@ async def test_grade_with_error(test_session):
     grade = Grade(
         grader_id=grader.id,
         trace_id=trace.id,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
         error="LLM API timeout",
     )
-    
+
     test_session.add(grade)
     await test_session.commit()
     await test_session.refresh(grade)
-    
+
     assert grade.error == "LLM API timeout"
     assert grade.score_float is None
     assert grade.score_boolean is None
@@ -372,8 +373,8 @@ async def test_grade_with_grader_response(test_session):
         project_id=project.id,
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -383,8 +384,10 @@ async def test_grade_with_grader_response(test_session):
         "object": "chat.completion",
         "created": 1677652288,
         "model": "gpt-4",
-        "choices": [{"message": {"content": '{"score": 0.8, "reasoning": "Good response"}'}}],
-        "usage": {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70}
+        "choices": [
+            {"message": {"content": '{"score": 0.8, "reasoning": "Good response"}'}},
+        ],
+        "usage": {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70},
     }
 
     grade = Grade(
@@ -393,17 +396,17 @@ async def test_grade_with_grader_response(test_session):
         score_float=0.8,
         reasoning="Good response",
         grader_response=grader_response,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
         prompt_tokens=50,
         completion_tokens=20,
         total_tokens=70,
     )
-    
+
     test_session.add(grade)
     await test_session.commit()
     await test_session.refresh(grade)
-    
+
     assert grade.grader_response["id"] == "chatcmpl-123"
     assert grade.grader_response["model"] == "gpt-4"
     assert grade.prompt_tokens == 50
@@ -433,8 +436,8 @@ async def test_grader_cascade_delete(test_session):
         project_id=project.id,
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -443,8 +446,8 @@ async def test_grader_cascade_delete(test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade)
     await test_session.commit()
@@ -477,7 +480,7 @@ async def test_grade_polymorphic_constraint(test_session):
     )
     test_session.add(grader)
     await test_session.commit()  # Commit the grader so it persists across rollbacks
-    
+
     # Store the IDs as they might be expired after rollback
     grader_id = grader.id
     project_id = project.id
@@ -487,8 +490,8 @@ async def test_grade_polymorphic_constraint(test_session):
         grader_id=grader_id,
         trace_id=1,
         execution_result_id=1,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade_both)
 
@@ -500,8 +503,8 @@ async def test_grade_polymorphic_constraint(test_session):
     # Test grade with neither trace_id nor execution_result_id (should fail)
     grade_neither = Grade(
         grader_id=grader_id,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade_neither)
 
@@ -513,11 +516,10 @@ async def test_grade_polymorphic_constraint(test_session):
     # Test grade with only trace_id (should succeed)
     trace = Trace(
         project_id=project_id,
-        task_id=None,  # task_id can be null
         model="gpt-4",
         result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -526,10 +528,10 @@ async def test_grade_polymorphic_constraint(test_session):
         grader_id=grader_id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade_valid)
-    
+
     await test_session.commit()  # Should succeed
     assert grade_valid.id is not None

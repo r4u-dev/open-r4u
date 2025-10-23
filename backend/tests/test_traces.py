@@ -14,7 +14,9 @@ class TestTraceEndpoints:
     """Test trace CRUD operations."""
 
     async def test_create_trace_with_default_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test creating a trace with default project."""
         payload = {
@@ -46,7 +48,9 @@ class TestTraceEndpoints:
         assert project.name == "Default Project"
 
     async def test_create_trace_with_custom_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test creating a trace with a custom project."""
         payload = {
@@ -258,7 +262,9 @@ class TestTraceEndpoints:
         assert data["input"] == []
 
     async def test_create_trace_reuses_existing_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test that creating traces with same project name reuses the project."""
         # Create first trace with project
@@ -413,10 +419,12 @@ class TestTraceEndpoints:
         assert data["prompt_tokens"] is None
         assert data["completion_tokens"] is None
 
-    async def test_create_trace_with_task_id(
-        self, client: AsyncClient, test_session: AsyncSession,
+    async def test_create_trace_with_implementation_id(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
-        """Test creating a trace with an associated task_id."""
+        """Test creating a trace with an associated implementation_id."""
         from app.models.tasks import Implementation, Task
 
         # First, create a project
@@ -444,7 +452,7 @@ class TestTraceEndpoints:
         task.production_version_id = implementation.id
         await test_session.commit()
 
-        # Create a trace with the task_id
+        # Create a trace with the implementation_id
         payload = {
             "model": "gpt-4",
             "input": [
@@ -458,25 +466,25 @@ class TestTraceEndpoints:
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Test Project",
-            "task_id": task.id,
+            "implementation_id": implementation.id,
         }
 
         response = await client.post("/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
-        assert data["task_id"] == task.id
+        assert data["implementation_id"] == implementation.id
         assert data["model"] == "gpt-4"
 
-        # Verify the trace is linked to the task in the database
+        # Verify the trace is linked to the implementation in the database
         result = await test_session.execute(
             select(Trace).where(Trace.id == data["id"]),
         )
         trace = result.scalar_one()
-        assert trace.task_id == task.id
+        assert trace.implementation_id == implementation.id
 
-    async def test_create_trace_without_task_id(self, client: AsyncClient):
-        """Test creating a trace without a task_id (should be None)."""
+    async def test_create_trace_without_implementation_id(self, client: AsyncClient):
+        """Test creating a trace without an implementation_id (should be None)."""
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Test"}],
@@ -489,7 +497,7 @@ class TestTraceEndpoints:
         assert response.status_code == 201
 
         data = response.json()
-        assert data["task_id"] is None
+        assert data["implementation_id"] is None
 
     async def test_create_trace_with_mixed_input_types(self, client: AsyncClient):
         """Test creating a trace with different input item types."""

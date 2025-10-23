@@ -174,7 +174,7 @@ class TraceBase(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     tools: list[ToolDefinition] | None = None
-    task_id: int | None = None
+    implementation_id: int | None = None
 
     # Request parameters
     instructions: str | None = None
@@ -205,6 +205,9 @@ class TraceBase(BaseModel):
     # Schema and metadata
     response_schema: dict[str, Any] | None = None
     trace_metadata: dict[str, Any] | None = None
+
+    # Prompt placeholder variables (for matching with implementation templates)
+    prompt_variables: dict[str, Any] | None = None
 
 
 class TraceCreate(TraceBase):

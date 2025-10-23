@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
@@ -19,8 +19,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums import FinishReason, ItemType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
-
 from app.models.evaluation import Grade
+
+if TYPE_CHECKING:
+    from app.models.http_traces import HTTPTrace
+    from app.models.projects import Project
+    from app.models.tasks import Implementation
+
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -34,7 +39,7 @@ class Trace(Base):
         Index("ix_trace_started_at", "started_at"),
         Index("ix_trace_model", "model"),
         Index("ix_trace_project_id", "project_id"),
-        Index("ix_trace_task_id", "task_id"),
+        Index("ix_trace_implementation_id", "implementation_id"),
         Index("ix_trace_finish_reason", "finish_reason"),
     )
 
@@ -43,8 +48,8 @@ class Trace(Base):
         ForeignKey("project.id", ondelete="CASCADE"),
         nullable=False,
     )
-    task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("task.id", ondelete="SET NULL"),
+    implementation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("implementation.id", ondelete="SET NULL"),
         nullable=True,
     )
     http_trace_id: Mapped[int | None] = mapped_column(
@@ -92,10 +97,20 @@ class Trace(Base):
         nullable=True,
     )
 
+    # Prompt placeholder variables (for matching with implementation templates)
+    prompt_variables: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONType,
+        nullable=True,
+    )
+
     project: Mapped["Project"] = relationship("Project", back_populates="traces")  # type: ignore
-    task: Mapped["Task | None"] = relationship("Task", back_populates="traces")  # type: ignore
+    implementation: Mapped["Implementation | None"] = relationship(
+        "Implementation",
+        back_populates="traces",
+    )  # type: ignore
     http_trace: Mapped["HTTPTrace | None"] = relationship(
-        "HTTPTrace", back_populates="trace",
+        "HTTPTrace",
+        back_populates="trace",
     )  # type: ignore
     input_items: Mapped[list["TraceInputItem"]] = relationship(
         "TraceInputItem",
