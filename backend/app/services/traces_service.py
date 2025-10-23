@@ -10,13 +10,27 @@ from sqlalchemy.orm import selectinload
 from app.models.projects import Project
 from app.models.traces import Trace, TraceInputItem
 from app.schemas.traces import TraceCreate
-from app.services.implementation_matcher import find_matching_implementation
+from app.services.implementation_matcher import (
+    extract_system_prompt_from_trace,
+    find_matching_implementation,
+)
+from app.services.task_grouping import TaskGrouper
 
 logger = logging.getLogger(__name__)
 
 
 class TracesService:
     """Service for trace operations."""
+
+    def __init__(self, min_cluster_size: int = 3):
+        """Initialize traces service.
+
+        Args:
+            min_cluster_size: Minimum number of similar traces needed to auto-create
+                            a task/implementation group (default: 3)
+
+        """
+        self.min_cluster_size = min_cluster_size
 
     async def create_trace(
         self,
@@ -162,6 +176,14 @@ class TracesService:
             else:
                 logger.debug(f"No implementation match found for trace {trace.id}")
 
+                # Try to create a new implementation from similar traces
+                await self._try_create_implementation_from_similar_traces(
+                    trace=trace,
+                    trace_data=trace_data,
+                    project_id=project_id,
+                    session=session,
+                )
+
         except Exception as e:
             # Log but don't fail trace creation if matching fails
             logger.warning(
@@ -248,3 +270,105 @@ class TracesService:
             return None
 
         return reasoning.model_dump(mode="json", exclude_unset=True)
+
+    async def _try_create_implementation_from_similar_traces(
+        self,
+        trace: Trace,
+        trace_data: TraceCreate,
+        project_id: int,
+        session: AsyncSession,
+    ) -> None:
+        """Try to create a new task/implementation by grouping similar traces.
+
+        This is called when no existing implementation matches. It:
+        1. Finds all traces with the same path
+        2. If enough similar traces exist, creates groups
+        3. For each group, creates a task and implementation with inferred template
+
+        Args:
+            trace: The unmatched trace
+            trace_data: Original trace creation data
+            project_id: Project ID
+            session: Database session
+
+        """
+        try:
+            # Only proceed if trace has a system prompt
+            # Note: traces with path=null will be grouped with other path=null traces
+            # Extract system prompt
+            input_items = [item.model_dump(mode="json") for item in trace_data.input]
+            system_prompt = extract_system_prompt_from_trace(input_items)
+
+            if not system_prompt:
+                logger.debug(
+                    f"Trace {trace.id} has no system prompt, skipping auto-grouping",
+                )
+                return
+
+            # Count traces with same path that don't have implementation
+            from sqlalchemy import func
+
+            count_query = (
+                select(func.count(Trace.id))
+                .where(Trace.project_id == project_id)
+                .where(Trace.model == trace.model)
+                .where(Trace.implementation_id.is_(None))
+            )
+            # Handle path comparison (including null paths)
+            if trace.path is not None:
+                count_query = count_query.where(Trace.path == trace.path)
+            else:
+                count_query = count_query.where(Trace.path.is_(None))
+            result = await session.execute(count_query)
+            unmatched_count = result.scalar()
+
+            if unmatched_count < self.min_cluster_size:
+                logger.debug(
+                    f"Only {unmatched_count} unmatched traces for path '{trace.path}', "
+                    f"need {self.min_cluster_size} to auto-create implementation",
+                )
+                return
+
+            logger.info(
+                f"Found {unmatched_count} unmatched traces for path '{trace.path}', "
+                f"attempting to create task/implementation groups",
+            )
+
+            # Use TaskGrouper to create task and implementations
+            grouper = TaskGrouper(min_cluster_size=self.min_cluster_size)
+
+            # Reload trace with input items for grouper
+            reload_query = (
+                select(Trace)
+                .where(Trace.id == trace.id)
+                .options(selectinload(Trace.input_items))
+            )
+            reload_result = await session.execute(reload_query)
+            trace_with_items = reload_result.scalar_one()
+
+            # Try to find or create task
+            task = await grouper.find_or_create_task_for_trace(
+                trace_with_items.id,
+                session,
+            )
+
+            if task:
+                # Commit the changes (task creation and trace assignments)
+                await session.commit()
+
+                logger.info(
+                    f"Created task {task.id} with implementation for trace {trace.id}",
+                )
+                # Refresh trace to get the new implementation_id
+                await session.refresh(trace)
+            else:
+                logger.debug(
+                    f"Could not create task/implementation group for trace {trace.id}",
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to auto-create implementation from similar traces "
+                f"for trace {trace.id}: {e}",
+                exc_info=True,
+            )

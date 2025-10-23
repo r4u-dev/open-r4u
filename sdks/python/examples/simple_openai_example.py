@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # STEP 1: Import R4U tracing FIRST
-from r4u.tracing.http.httpx import trace_all, untrace_all
+from r4u.tracing.http.auto import trace_all, untrace_all
 
 # STEP 2: Enable tracing BEFORE importing OpenAI
 # This is crucial because OpenAI creates its httpx client when imported
