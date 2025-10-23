@@ -117,7 +117,7 @@ async def create_http_trace(
         started_at=trace_create.started_at,
         completed_at=trace_create.completed_at,
         path=trace_create.path,
-        task_id=trace_create.task_id,
+        implementation_id=trace_create.implementation_id,
         tools=(
             [tool.model_dump(mode="json", by_alias=True) for tool in trace_create.tools]
             if trace_create.tools

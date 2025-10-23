@@ -1,3 +1,5 @@
+"""API endpoints for traces."""
+
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,10 +11,7 @@ from app.database import get_session
 from app.models.projects import Project
 from app.models.traces import Trace, TraceInputItem
 from app.schemas.traces import TraceCreate, TraceRead
-from app.services.task_grouping import (
-    find_or_create_task_for_trace,
-    try_match_existing_task,
-)
+from app.services.implementation_matcher import find_matching_implementation
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 
@@ -22,7 +21,11 @@ async def list_traces(
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
     """Return all traces with their associated input items."""
-    query = select(Trace).options(selectinload(Trace.input_items)).order_by(Trace.started_at.desc())
+    query = (
+        select(Trace)
+        .options(selectinload(Trace.input_items))
+        .order_by(Trace.started_at.desc())
+    )
     result = await session.execute(query)
     traces: Sequence[Trace] = result.scalars().unique().all()
 
@@ -54,7 +57,7 @@ async def create_trace(
         started_at=payload.started_at,
         completed_at=payload.completed_at,
         path=payload.path,
-        task_id=payload.task_id,
+        implementation_id=payload.implementation_id,
         tools=(
             [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
             if payload.tools
@@ -66,7 +69,9 @@ async def create_trace(
         tool_choice=(
             payload.tool_choice
             if isinstance(payload.tool_choice, dict)
-            else {"type": payload.tool_choice} if payload.tool_choice else None
+            else {"type": payload.tool_choice}
+            if payload.tool_choice
+            else None
         ),
         prompt_tokens=payload.prompt_tokens,
         completion_tokens=payload.completion_tokens,
@@ -99,16 +104,25 @@ async def create_trace(
     await session.flush()
     await session.commit()
 
-    # Auto-match to existing task (fast - only queries existing tasks)
-    # Don't create new tasks here to keep creation fast
-    if not trace.task_id:
+    # Auto-match to existing implementation based on system prompt
+    if not trace.implementation_id:
         try:
-            matching_task = await try_match_existing_task(trace.id, session)
-            if matching_task:
-                trace.task_id = matching_task.id
+            # Convert input items to list of dicts for matching
+            input_items = [item.model_dump(mode="json") for item in payload.input]
+
+            matching = await find_matching_implementation(
+                input_items=input_items,
+                model=payload.model,
+                project_id=project.id,
+                session=session,
+            )
+
+            if matching:
+                trace.implementation_id = matching["implementation_id"]
+                trace.prompt_variables = matching["variables"]
                 await session.commit()
         except Exception as e:
-            # Log but don't fail trace creation if grouping fails
+            # Log but don't fail trace creation if matching fails
             print(f"Failed to auto-match trace {trace.id}: {e}")
 
     query = (
@@ -127,13 +141,10 @@ async def group_trace(
     trace_id: int,
     session: AsyncSession = Depends(get_session),
 ) -> TraceRead:
-    """Find or create a task for a trace by analyzing similar traces.
-    
-    This endpoint:
-    1. Extracts instructions from the trace
-    2. Compares with existing tasks
-    3. If no match, finds similar traces and creates a new task
-    4. Assigns the trace to the task
+    """Find or create an implementation for a trace by analyzing similar traces.
+
+    TODO: This endpoint needs to be updated for implementation-based grouping.
+    Currently disabled.
     """
     # Check if trace exists
     query = (
@@ -150,19 +161,16 @@ async def group_trace(
             detail=f"Trace with id {trace_id} not found",
         )
 
-    # Try to find or create task
-    task = await find_or_create_task_for_trace(trace_id, session)
-
-    if task:
-        trace.task_id = task.id
-        await session.commit()
-
-        # Reload trace with eager-loaded input_items
-        result = await session.execute(
-            select(Trace)
-            .options(selectinload(Trace.input_items))
-            .where(Trace.id == trace_id),
-        )
-        trace = result.scalar_one()
+    # TODO: Update grouping logic for implementations
+    # task = await find_or_create_task_for_trace(trace_id, session)
+    # if task:
+    #     trace.implementation_id = task.id
+    #     await session.commit()
+    #     result = await session.execute(
+    #         select(Trace)
+    #         .options(selectinload(Trace.input_items))
+    #         .where(Trace.id == trace_id),
+    #     )
+    #     trace = result.scalar_one()
 
     return TraceRead.model_validate(trace)

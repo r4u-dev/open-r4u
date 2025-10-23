@@ -34,10 +34,12 @@ class Implementation(Base):
     reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     tool_choice: Mapped[str | dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True,
+        JSONType,
+        nullable=True,
     )
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True,
+        JSONType,
+        nullable=True,
     )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
     temp: Mapped[bool] = mapped_column(nullable=False, default=False)
@@ -47,6 +49,10 @@ class Implementation(Base):
         back_populates="implementations",
         foreign_keys=[task_id],
     )  # type: ignore
+    traces: Mapped[list["Trace"]] = relationship(  # type: ignore
+        "Trace",
+        back_populates="implementation",
+    )
 
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
@@ -90,11 +96,6 @@ class Task(Base):
         foreign_keys=[production_version_id],
         post_update=True,
     )  # type: ignore
-    traces: Mapped[list["Trace"]] = relationship(  # type: ignore
-        "Trace",
-        back_populates="task",
-        cascade="all, delete-orphan",
-    )
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
         back_populates="task",
