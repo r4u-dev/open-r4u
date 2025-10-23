@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ScoreType
+from app.enums import GradeType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 # Use JSONB for PostgreSQL, JSON for other databases
@@ -46,8 +46,8 @@ class Grader(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    score_type: Mapped[ScoreType] = mapped_column(
-        SQLEnum(ScoreType, name="score_type"),
+    grade_type: Mapped[GradeType] = mapped_column(
+        SQLEnum(GradeType, name="grade_type"),
         nullable=False,
     )
 
@@ -55,8 +55,6 @@ class Grader(Base):
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
     reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
-    tool_choice: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
         JSONType, nullable=True
     )
@@ -137,8 +135,8 @@ class Grade(Base):
 
     # Relationships
     grader: Mapped["Grader"] = relationship("Grader", back_populates="grades")
-    trace: Mapped["Trace | None"] = relationship("Trace")  # type: ignore
-    execution_result: Mapped["ExecutionResult | None"] = relationship("ExecutionResult")  # type: ignore
+    trace: Mapped["Trace | None"] = relationship("Trace", back_populates="grades")  # type: ignore
+    execution_result: Mapped["ExecutionResult | None"] = relationship("ExecutionResult", back_populates="grades")  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
