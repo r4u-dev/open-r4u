@@ -1,17 +1,14 @@
 """API endpoints for HTTP-level trace ingestion."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_session
 from app.models.http_traces import HTTPTrace
-from app.models.projects import Project
-from app.models.traces import Trace, TraceInputItem
 from app.schemas.http_traces import HTTPTraceCreate
 from app.schemas.traces import TraceRead
 from app.services.http_trace_parser import HTTPTraceParserService
+from app.services.traces_service import TracesService
 
 router = APIRouter(prefix="/http-traces", tags=["http-traces"])
 
@@ -96,82 +93,12 @@ async def create_http_trace(
             detail=f"Internal error parsing HTTP trace: {e!s}",
         )
 
-    # Get or create project
-    project_query = select(Project).where(Project.name == trace_create.project)
-    project_result = await session.execute(project_query)
-    project = project_result.scalar_one_or_none()
-
-    if not project:
-        # Auto-create project if it doesn't exist
-        project = Project(name=trace_create.project)
-        session.add(project)
-        await session.flush()
-
-    # Create trace and link to HTTPTrace
-    trace = Trace(
-        project_id=project.id,
+    # Create trace using service (handles project creation, matching, etc.)
+    traces_service = TracesService()
+    trace = await traces_service.create_trace(
+        trace_create,
+        session,
         http_trace_id=http_trace.id,
-        model=trace_create.model,
-        result=trace_create.result,
-        error=trace_create.error,
-        started_at=trace_create.started_at,
-        completed_at=trace_create.completed_at,
-        path=trace_create.path,
-        implementation_id=trace_create.implementation_id,
-        tools=(
-            [tool.model_dump(mode="json", by_alias=True) for tool in trace_create.tools]
-            if trace_create.tools
-            else None
-        ),
-        instructions=trace_create.instructions,
-        prompt=trace_create.prompt,
-        temperature=trace_create.temperature,
-        tool_choice=(
-            trace_create.tool_choice
-            if isinstance(trace_create.tool_choice, dict)
-            else {"type": trace_create.tool_choice}
-            if trace_create.tool_choice
-            else None
-        ),
-        prompt_tokens=trace_create.prompt_tokens,
-        completion_tokens=trace_create.completion_tokens,
-        total_tokens=trace_create.total_tokens,
-        cached_tokens=trace_create.cached_tokens,
-        reasoning_tokens=trace_create.reasoning_tokens,
-        finish_reason=trace_create.finish_reason,
-        system_fingerprint=trace_create.system_fingerprint,
-        reasoning=(
-            trace_create.reasoning.model_dump(mode="json", exclude_unset=True)
-            if trace_create.reasoning
-            else None
-        ),
-        response_schema=trace_create.response_schema,
-        trace_metadata=trace_create.trace_metadata,
     )
 
-    # Add input items
-    for position, item in enumerate(trace_create.input):
-        # Convert each input item to a dict for storage
-        item_data = item.model_dump(mode="json", exclude={"type"})
-        trace.input_items.append(
-            TraceInputItem(
-                type=item.type,
-                data=item_data,
-                position=position,
-            ),
-        )
-
-    session.add(trace)
-    await session.flush()
-    await session.commit()
-
-    # Fetch the created trace with relationships
-    query = (
-        select(Trace)
-        .options(selectinload(Trace.input_items))
-        .where(Trace.id == trace.id)
-    )
-    result = await session.execute(query)
-    created_trace = result.scalar_one()
-
-    return TraceRead.model_validate(created_trace)
+    return TraceRead.model_validate(trace)
