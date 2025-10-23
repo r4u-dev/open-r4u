@@ -16,6 +16,7 @@ from app.config import Settings
 from app.models.executions import ExecutionResult
 from app.models.tasks import Implementation, Task
 from app.services.executor import LLMExecutor
+from app.services.pricing_service import PricingService
 from app.schemas.traces import InputItem
 
 
@@ -138,6 +139,17 @@ async def execute(
     executor = LLMExecutor(settings)
     service_result = await executor.execute(implementation, variables, input)
 
+    # Calculate cost using pricing service
+    pricing_service = PricingService()
+    cost = None
+    if service_result.prompt_tokens is not None and service_result.completion_tokens is not None:
+        cost = pricing_service.calculate_cost(
+            model=implementation.model,
+            prompt_tokens=service_result.prompt_tokens,
+            completion_tokens=service_result.completion_tokens,
+            cached_tokens=service_result.cached_tokens,
+        )
+
     # Convert input items to JSON-serializable format
     input_json = None
     if input:
@@ -162,6 +174,7 @@ async def execute(
         total_tokens=service_result.total_tokens,
         cached_tokens=service_result.cached_tokens,
         reasoning_tokens=service_result.reasoning_tokens,
+        cost=cost,
         system_fingerprint=service_result.system_fingerprint,
         provider_response=service_result.provider_response,
     )

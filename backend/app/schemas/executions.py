@@ -49,6 +49,7 @@ class ExecutionResultBase(BaseModel):
     total_tokens: int | None = None
     cached_tokens: int | None = None
     reasoning_tokens: int | None = None
+    cost: float | None = None
     system_fingerprint: str | None = None
     provider_response: dict[str, Any] | None = None
 
@@ -87,6 +88,7 @@ class ExecutionResultListItem(BaseModel):
     total_tokens: int | None = None
     cached_tokens: int | None = None
     reasoning_tokens: int | None = None
+    cost: float | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

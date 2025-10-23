@@ -1,0 +1,145 @@
+# Model pricing catalog
+# Prices are per-million tokens in USD unless specified.
+# Note: Verify provider pricing pages for the latest updates.
+
+providers:
+  openai:
+    display_name: OpenAI
+    models:
+      gpt-5:
+        input_usd_per_million: 1.25
+        cached_input_usd_per_million: 0.125
+        output_usd_per_million: 10.00
+      gpt-5-mini:
+        input_usd_per_million: 0.25
+        cached_input_usd_per_million: 0.025
+        output_usd_per_million: 2.00
+      gpt-5-nano:
+        input_usd_per_million: 0.05
+        cached_input_usd_per_million: 0.005
+        output_usd_per_million: 0.40
+      gpt-5-pro:
+        input_usd_per_million: 15.00
+        cached_input_usd_per_million: null
+        output_usd_per_million: 120.00
+      "gpt-4.1":
+        input_usd_per_million: 2.00
+        cached_input_usd_per_million: 0.50
+        output_usd_per_million: 8.00
+      "gpt-4.1-mini":
+        input_usd_per_million: 0.40
+        cached_input_usd_per_million: 0.10
+        output_usd_per_million: 1.60
+      "gpt-4.1-nano":
+        input_usd_per_million: 0.10
+        cached_input_usd_per_million: 0.025
+        output_usd_per_million: 0.40
+      gpt-4o:
+        input_usd_per_million: 2.50
+        cached_input_usd_per_million: 1.25
+        output_usd_per_million: 10.00
+      gpt-4o-mini:
+        input_usd_per_million: 0.15
+        cached_input_usd_per_million: 0.075
+        output_usd_per_million: 0.60
+      o3:
+        input_usd_per_million: 2.00
+        cached_input_usd_per_million: 0.50
+        output_usd_per_million: 8.00
+
+  anthropic:
+    display_name: Anthropic (Claude)
+    models:
+      "claude-opus-4.1":
+        input_usd_per_million: 15.00
+        cached_input_usd_per_million: 1.50
+        output_usd_per_million: 75.00
+      claude-opus-4:
+        input_usd_per_million: 15.00
+        cached_input_usd_per_million: 1.50
+        output_usd_per_million: 75.00
+      "claude-sonnet-4.5":
+        input_usd_per_million: 3.00
+        cached_input_usd_per_million: 0.30
+        output_usd_per_million: 15.00
+      claude-sonnet-4:
+        input_usd_per_million: 3.00
+        cached_input_usd_per_million: 0.30
+        output_usd_per_million: 15.00
+      "claude-sonnet-3.7":
+        input_usd_per_million: 3.00
+        cached_input_usd_per_million: 0.30
+        output_usd_per_million: 15.00
+      "claude-haiku-3.5":
+        input_usd_per_million: 0.80
+        cached_input_usd_per_million: 0.08
+        output_usd_per_million: 4.00
+      claude-opus-3:
+        input_usd_per_million: 15.00
+        cached_input_usd_per_million: 1.50
+        output_usd_per_million: 75.00
+      claude-haiku-3:
+        input_usd_per_million: 0.25
+        cached_input_usd_per_million: 0.03
+        output_usd_per_million: 1.25
+
+  grok:
+    display_name: xAI (Grok)
+    models:
+      grok-code-fast-1:
+        input_usd_per_million: 0.20
+        cached_input_usd_per_million: 0.02
+        output_usd_per_million: 1.50
+      grok-4-fast-reasoning:
+        input_usd_per_million: 0.20
+        cached_input_usd_per_million: 0.05
+        output_usd_per_million: 0.50
+      grok-4-fast-non-reasoning:
+        input_usd_per_million: 0.20
+        cached_input_usd_per_million: 0.05
+        output_usd_per_million: 0.50
+      grok-4-0709:
+        input_usd_per_million: 3.00
+        cached_input_usd_per_million: 0.75
+        output_usd_per_million: 15.00
+      grok-3-mini:
+        input_usd_per_million: 0.30
+        cached_input_usd_per_million: 0.075
+        output_usd_per_million: 0.50
+      grok-3:
+        input_usd_per_million: 3.00
+        cached_input_usd_per_million: 0.75
+        output_usd_per_million: 15.00
+  
+  google:
+    display_name: Google (Gemini)
+    models:
+      gemini-2.5-pro:
+        # If input context exceeds this threshold, all tokens (input, cached input, output)
+        # are charged at the long-context rates below.
+        long_context_threshold_tokens: 200000
+        input_usd_per_million:
+          default: 1.25         # <= 200k input tokens
+          long_context: 2.50    # > 200k input tokens
+        cached_input_usd_per_million:
+          default: 0.125        # <= 200k cached input tokens
+          long_context: 0.250   # > 200k cached input tokens
+        output_usd_per_million:
+          default: 10.00        # <= 200k input context
+          long_context: 15.00   # > 200k input context
+      gemini-2.5-flash:
+        input_usd_per_million: 0.30
+        cached_input_usd_per_million: 0.030
+        output_usd_per_million: 2.50
+      gemini-2.5-flash-lite:
+        input_usd_per_million: 0.1
+        cached_input_usd_per_million: 0.010
+        output_usd_per_million: 0.4
+      gemini-2.0-flash:
+        input_usd_per_million: 0.15
+        cached_input_usd_per_million: null
+        output_usd_per_million: 0.60
+      gemini-2.0-flash-lite:
+        input_usd_per_million: 0.075
+        cached_input_usd_per_million: null
+        output_usd_per_million: 0.30
