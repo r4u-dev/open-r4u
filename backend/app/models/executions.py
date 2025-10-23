@@ -70,6 +70,7 @@ class ExecutionResult(Base):
     total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost: Mapped[float | None] = mapped_column(nullable=True)
     system_fingerprint: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Raw provider response for debugging
