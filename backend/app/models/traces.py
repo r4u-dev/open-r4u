@@ -20,6 +20,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.enums import FinishReason, ItemType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
+from app.models.evaluation import Grade
+
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 
@@ -102,6 +104,12 @@ class Trace(Base):
         order_by="TraceInputItem.position",
     )
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
+    grades: Mapped[list["Grade"]] = relationship(
+        "Grade",
+        foreign_keys="Grade.trace_id",
+        back_populates="trace",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
