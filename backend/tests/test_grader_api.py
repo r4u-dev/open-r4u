@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.projects import Project
 from app.models.traces import Trace
@@ -24,7 +24,7 @@ async def test_create_grader(client: AsyncClient, test_session):
         "name": "accuracy",
         "description": "Evaluates response accuracy",
         "prompt": "Rate the accuracy of this response: {{context}}",
-        "grade_type": "float",
+        "score_type": "float",
         "model": "gpt-4",
         "temperature": 0.0,
         "max_output_tokens": 500,
@@ -38,7 +38,7 @@ async def test_create_grader(client: AsyncClient, test_session):
     assert data["name"] == "accuracy"
     assert data["description"] == "Evaluates response accuracy"
     assert data["prompt"] == "Rate the accuracy of this response: {{context}}"
-    assert data["grade_type"] == "float"
+    assert data["score_type"] == "float"
     assert data["model"] == "gpt-4"
     assert data["temperature"] == 0.0
     assert data["max_output_tokens"] == 500
@@ -56,7 +56,7 @@ async def test_create_grader(client: AsyncClient, test_session):
     
     assert grader.name == "accuracy"
     assert grader.description == "Evaluates response accuracy"
-    assert grader.grade_type == GradeType.FLOAT
+    assert grader.score_type == ScoreType.FLOAT
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_create_grader_with_reasoning_and_schema(client: AsyncClient, test
         "name": "toxicity",
         "description": "Evaluates content toxicity",
         "prompt": "Check if this content is toxic: {{context}}",
-        "grade_type": "boolean",
+        "score_type": "boolean",
         "model": "gpt-4",
         "temperature": 0.0,
         "reasoning": {"effort": "medium"},
@@ -90,7 +90,7 @@ async def test_create_grader_with_reasoning_and_schema(client: AsyncClient, test
     assert response.status_code == 201
     
     data = response.json()
-    assert data["grade_type"] == "boolean"
+    assert data["score_type"] == "boolean"
     assert data["reasoning"] == {"effort": "medium"}
     assert data["response_schema"]["type"] == "object"
 
@@ -104,7 +104,7 @@ async def test_create_grader_missing_required_fields(client: AsyncClient, test_s
 
     payload = {
         "name": "accuracy",
-        # Missing required fields: prompt, grade_type, model, max_output_tokens
+        # Missing required fields: prompt, score_type, model, max_output_tokens
     }
 
     response = await client.post(f"/graders/projects/{project.id}/graders", json=payload)
@@ -124,7 +124,7 @@ async def test_list_graders(client: AsyncClient, test_session):
         name="accuracy",
         description="Evaluates accuracy",
         prompt="Test prompt 1",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -135,7 +135,7 @@ async def test_list_graders(client: AsyncClient, test_session):
         name="toxicity",
         description="Evaluates toxicity",
         prompt="Test prompt 2",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -169,7 +169,7 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -236,7 +236,7 @@ async def test_get_grader(client: AsyncClient, test_session):
         name="accuracy",
         description="Evaluates accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -251,7 +251,7 @@ async def test_get_grader(client: AsyncClient, test_session):
     assert data["name"] == "accuracy"
     assert data["description"] == "Evaluates accuracy"
     assert data["prompt"] == "Test prompt"
-    assert data["grade_type"] == "float"
+    assert data["score_type"] == "float"
     assert data["model"] == "gpt-4"
     assert data["max_output_tokens"] == 500
     assert data["project_id"] == project.id
@@ -279,7 +279,7 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -345,7 +345,7 @@ async def test_update_grader(client: AsyncClient, test_session):
         name="accuracy",
         description="Original description",
         prompt="Original prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         temperature=0.0,
         max_output_tokens=500,
@@ -371,7 +371,7 @@ async def test_update_grader(client: AsyncClient, test_session):
     assert data["is_active"] is False
     # These should remain unchanged
     assert data["prompt"] == "Original prompt"
-    assert data["grade_type"] == "float"
+    assert data["score_type"] == "float"
     assert data["model"] == "gpt-4"
     assert data["max_output_tokens"] == 500
 
@@ -388,7 +388,7 @@ async def test_update_grader_partial(client: AsyncClient, test_session):
         name="accuracy",
         description="Original description",
         prompt="Original prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         temperature=0.0,
         max_output_tokens=500,
@@ -438,7 +438,7 @@ async def test_delete_grader(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -476,7 +476,7 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
