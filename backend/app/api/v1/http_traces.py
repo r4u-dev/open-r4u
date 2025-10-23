@@ -1,5 +1,7 @@
 """API endpoints for HTTP-level trace ingestion."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +11,8 @@ from app.schemas.http_traces import HTTPTraceCreate
 from app.schemas.traces import TraceRead
 from app.services.http_trace_parser import HTTPTraceParserService
 from app.services.traces_service import TracesService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/http-traces", tags=["http-traces"])
 
@@ -46,6 +50,7 @@ async def create_http_trace(
         if isinstance(payload.response, bytes)
         else payload.response
     )
+    logger.debug(payload.model_dump_json())
 
     # Create and persist HTTPTrace first
     http_trace = HTTPTrace(
@@ -77,6 +82,7 @@ async def create_http_trace(
             status_code=payload.status_code,
             error=payload.error,
             metadata=payload.metadata,
+            call_path=payload.path,
         )
     except ValueError as e:
         # HTTPTrace is already saved, just rollback the transaction for the trace

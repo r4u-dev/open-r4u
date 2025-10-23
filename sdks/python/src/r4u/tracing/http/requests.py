@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import functools
 import types
-from typing import Callable, Optional, Type
+from collections.abc import Callable
+from datetime import datetime, timezone
 
 import requests
 
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
+from r4u.utils import extract_call_path
 
 
 class StreamingResponseWrapper:
     """Wrapper for requests.Response that tracks streaming completion and collects content."""
 
-    def __init__(self, response: requests.Response, trace_ctx: dict, tracer: Optional[AbstractTracer] = None):
+    def __init__(
+        self,
+        response: requests.Response,
+        trace_ctx: dict,
+        tracer: AbstractTracer | None = None,
+    ):
         self._response = response
         self._trace_ctx = trace_ctx
         self._content_collected = b""
@@ -27,12 +33,14 @@ class StreamingResponseWrapper:
         return getattr(self._response, name)
 
     # Override streaming methods to track content
-    def iter_content(self, chunk_size: Optional[int] = None, decode_unicode: bool = False):
+    def iter_content(
+        self, chunk_size: int | None = None, decode_unicode: bool = False,
+    ):
         """Iterate over response content in chunks."""
         try:
             for chunk in self._response.iter_content(chunk_size, decode_unicode):
                 if isinstance(chunk, str):
-                    self._content_collected += chunk.encode('utf-8')
+                    self._content_collected += chunk.encode("utf-8")
                 else:
                     self._content_collected += chunk
                 yield chunk
@@ -42,14 +50,21 @@ class StreamingResponseWrapper:
         finally:
             self._complete_streaming()
 
-    def iter_lines(self, chunk_size: Optional[int] = None, decode_unicode: bool = None, delimiter: Optional[str] = None):
+    def iter_lines(
+        self,
+        chunk_size: int | None = None,
+        decode_unicode: bool = None,
+        delimiter: str | None = None,
+    ):
         """Iterate over response content line by line."""
         try:
-            for line in self._response.iter_lines(chunk_size, decode_unicode, delimiter):
+            for line in self._response.iter_lines(
+                chunk_size, decode_unicode, delimiter,
+            ):
                 if isinstance(line, str):
-                    self._content_collected += line.encode('utf-8') + b'\n'
+                    self._content_collected += line.encode("utf-8") + b"\n"
                 else:
-                    self._content_collected += line + b'\n'
+                    self._content_collected += line + b"\n"
                 yield line
         except Exception as e:
             self._error = str(e)
@@ -80,7 +95,7 @@ class StreamingResponseWrapper:
             # If text is accessed directly, read it and complete streaming
             try:
                 text = self._response.text
-                self._content_collected = text.encode('utf-8')
+                self._content_collected = text.encode("utf-8")
                 self._complete_streaming()
                 return text
             except Exception as e:
@@ -134,6 +149,7 @@ class StreamingResponseWrapper:
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
             method=self._trace_ctx.get("method", ""),
+            path=self._trace_ctx.get("path"),
             started_at=self._trace_ctx["started_at"],
             completed_at=self._trace_ctx["completed_at"],
             status_code=self._trace_ctx.get("status_code", 0),
@@ -152,7 +168,7 @@ class StreamingResponseWrapper:
 
 def _is_streaming_request(kwargs: dict) -> bool:
     """Check if the request is configured for streaming using requests' stream parameter."""
-    return kwargs.get('stream', False)
+    return kwargs.get("stream", False)
 
 
 def _build_trace_context(request: requests.PreparedRequest) -> dict:
@@ -162,16 +178,22 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
     if isinstance(request_payload, str):
         request_payload = request_payload.encode("utf-8")
 
+    # Extract call path
+    call_path, _ = extract_call_path()
+
     return {
         "method": request.method.upper(),
         "url": request.url,
         "started_at": started_at,
         "request_bytes": request_payload,
         "request_headers": dict(request.headers),
+        "path": call_path,
     }
 
 
-def _finalize_trace(trace_ctx: dict, response: requests.Response, error: str = None) -> HTTPTrace:
+def _finalize_trace(
+    trace_ctx: dict, response: requests.Response, error: str = None,
+) -> HTTPTrace:
     """Create final HTTPTrace from context and response."""
     completed_at = datetime.now(timezone.utc)
     status_code = response.status_code if response else 0
@@ -181,6 +203,7 @@ def _finalize_trace(trace_ctx: dict, response: requests.Response, error: str = N
     return HTTPTrace(
         url=trace_ctx.get("url", ""),
         method=trace_ctx.get("method", ""),
+        path=trace_ctx.get("path"),
         started_at=trace_ctx["started_at"],
         completed_at=completed_at,
         status_code=status_code,
@@ -192,8 +215,9 @@ def _finalize_trace(trace_ctx: dict, response: requests.Response, error: str = N
     )
 
 
-def _create_send_wrapper(original: Callable, tracer: Optional[AbstractTracer] = None):
+def _create_send_wrapper(original: Callable, tracer: AbstractTracer | None = None):
     """Create wrapper for requests.Session.send method."""
+
     @functools.wraps(original)
     def wrapper(self, request, **kwargs):
         # Check if we should trace this URL
@@ -211,15 +235,14 @@ def _create_send_wrapper(original: Callable, tracer: Optional[AbstractTracer] = 
             if _is_streaming_request(kwargs):
                 # Wrap the response to track streaming completion
                 return StreamingResponseWrapper(response, trace_ctx, tracer)
-            else:
-                # For non-streaming responses, trace immediately
-                trace = _finalize_trace(trace_ctx, response, error)
-                try:
-                    tracer.log(trace)
-                except Exception as trace_error:
-                    # Log error but don't fail the request
-                    print(f"Failed to create HTTP trace: {trace_error}")
-                return response
+            # For non-streaming responses, trace immediately
+            trace = _finalize_trace(trace_ctx, response, error)
+            try:
+                tracer.log(trace)
+            except Exception as trace_error:
+                # Log error but don't fail the request
+                print(f"Failed to create HTTP trace: {trace_error}")
+            return response
 
         except Exception as e:
             error = str(e)
@@ -234,9 +257,10 @@ def _create_send_wrapper(original: Callable, tracer: Optional[AbstractTracer] = 
     return wrapper
 
 
-def trace_session(session: requests.Session, tracer: Optional[AbstractTracer] = None) -> None:
-    """
-    Trace a requests.Session.
+def trace_session(
+    session: requests.Session, tracer: AbstractTracer | None = None,
+) -> None:
+    """Trace a requests.Session.
 
     This wraps the send method which is the core method used by all HTTP methods
     (get, post, put, delete, etc.).
@@ -253,9 +277,10 @@ def trace_session(session: requests.Session, tracer: Optional[AbstractTracer] = 
         >>> trace_session(session)
         >>>
         >>> response = session.get('https://api.example.com/data')
+
     """
     # Check if already patched to avoid double-patching
-    if hasattr(session.send, '_r4u_patched'):
+    if hasattr(session.send, "_r4u_patched"):
         return
 
     wrapper = _create_send_wrapper(session.send, tracer)
@@ -263,10 +288,11 @@ def trace_session(session: requests.Session, tracer: Optional[AbstractTracer] = 
     session.send = types.MethodType(wrapper, session)
 
 
-
-
-def _create_requests_constructor_wrapper(original_init: Callable, session_class: Type, tracer: Optional[AbstractTracer]):
+def _create_requests_constructor_wrapper(
+    original_init: Callable, session_class: type, tracer: AbstractTracer | None,
+):
     """Create a wrapper for requests session constructors."""
+
     @functools.wraps(original_init)
     def wrapper(self, *args, **kwargs):
         # Call original constructor
@@ -275,7 +301,7 @@ def _create_requests_constructor_wrapper(original_init: Callable, session_class:
         # Apply tracing
         try:
             if isinstance(self, session_class):
-                if hasattr(self, 'send') and not hasattr(self.send, '_r4u_patched'):
+                if hasattr(self, "send") and not hasattr(self.send, "_r4u_patched"):
                     trace_session(self, tracer)
         except Exception as e:
             # Don't fail session creation if tracing fails
@@ -284,10 +310,8 @@ def _create_requests_constructor_wrapper(original_init: Callable, session_class:
     return wrapper
 
 
-
 def trace_all(tracer: AbstractTracer) -> None:
-    """
-    Intercept requests session creation to automatically trace all instances.
+    """Intercept requests session creation to automatically trace all instances.
 
     This function intercepts the requests.Session constructor to automatically
     apply tracing to all instances that will be created.
@@ -304,9 +328,10 @@ def trace_all(tracer: AbstractTracer) -> None:
         >>> import requests
         >>> session = requests.Session()  # Automatically traced
         >>> response = session.get('https://api.example.com/data')
+
     """
     # Check if already patched to avoid double-patching
-    if hasattr(requests.Session, '_r4u_constructor_patched'):
+    if hasattr(requests.Session, "_r4u_constructor_patched"):
         return
 
     # Store original constructor
@@ -314,7 +339,7 @@ def trace_all(tracer: AbstractTracer) -> None:
 
     # Create constructor wrapper
     requests.Session.__init__ = _create_requests_constructor_wrapper(
-        requests.Session.__init__, requests.Session, tracer
+        requests.Session.__init__, requests.Session, tracer,
     )
 
     # Mark as patched
@@ -322,19 +347,18 @@ def trace_all(tracer: AbstractTracer) -> None:
 
 
 def untrace_all() -> None:
-    """
-    Remove constructor interception from requests.Session class.
+    """Remove constructor interception from requests.Session class.
 
     This restores the original requests.Session constructor.
     """
-    if not hasattr(requests.Session, '_r4u_constructor_patched'):
+    if not hasattr(requests.Session, "_r4u_constructor_patched"):
         return
 
     # Restore original constructor
-    if hasattr(requests, '_original_session_init'):
+    if hasattr(requests, "_original_session_init"):
         requests.Session.__init__ = requests._original_session_init
-        delattr(requests, '_original_session_init')
+        delattr(requests, "_original_session_init")
 
     # Remove patch marker
-    if hasattr(requests.Session, '_r4u_constructor_patched'):
-        delattr(requests.Session, '_r4u_constructor_patched')
+    if hasattr(requests.Session, "_r4u_constructor_patched"):
+        delattr(requests.Session, "_r4u_constructor_patched")

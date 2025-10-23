@@ -13,10 +13,10 @@ class ProviderParser(ABC):
     @abstractmethod
     def can_parse(self, url: str) -> bool:
         """Check if this parser can handle the given URL.
-        
+
         Args:
             url: The API endpoint URL from the request
-            
+
         Returns:
             True if this parser can handle the URL, False otherwise
 
@@ -31,9 +31,10 @@ class ProviderParser(ABC):
         completed_at: datetime,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse HTTP request/response into a TraceCreate object.
-        
+
         Args:
             request_body: Parsed JSON request body
             response_body: Parsed JSON response body
@@ -41,7 +42,8 @@ class ProviderParser(ABC):
             completed_at: When the request completed
             error: Error message if any
             metadata: Additional metadata
-            
+            call_path: The call path where the request was made
+
         Returns:
             TraceCreate object ready for database insertion
 

@@ -35,6 +35,7 @@ class HTTPTraceParserService:
         status_code: int,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        call_path: str | None = None,
     ) -> TraceCreate:
         """Parse HTTP trace into a TraceCreate object.
 
@@ -48,6 +49,7 @@ class HTTPTraceParserService:
             status_code: HTTP status code
             error: Error message if any
             metadata: Additional metadata
+            call_path: The call path where the request was made
 
         Returns:
             TraceCreate object ready for database insertion
@@ -124,4 +126,5 @@ class HTTPTraceParserService:
             completed_at=completed_at,
             error=error,
             metadata=metadata,
+            call_path=call_path,
         )

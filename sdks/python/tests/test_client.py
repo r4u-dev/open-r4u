@@ -1,13 +1,13 @@
 """Tests for R4U client and HTTPTrace model."""
 
+import time
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
-import time
 
 from r4u.client import (
-    HTTPTrace,
     AbstractTracer,
     ConsoleTracer,
+    HTTPTrace,
     R4UClient,
     get_r4u_client,
 )
@@ -42,6 +42,28 @@ class TestHTTPTraceModel:
         assert trace.response == b'{"result": "success"}'
         assert trace.error is None
         assert trace.metadata == {}
+
+    def test_http_trace_with_path(self):
+        """Test creating HTTPTrace with path field."""
+        started = datetime.now(timezone.utc)
+        completed = datetime.now(timezone.utc)
+
+        trace = HTTPTrace(
+            url="https://api.example.com/test",
+            method="POST",
+            path="module.py::main->query_llm->create",
+            started_at=started,
+            completed_at=completed,
+            status_code=200,
+            request=b'{"test": "data"}',
+            request_headers={"Content-Type": "application/json"},
+            response=b'{"result": "success"}',
+            response_headers={"Content-Type": "application/json"},
+        )
+
+        assert trace.path == "module.py::main->query_llm->create"
+        assert trace.url == "https://api.example.com/test"
+        assert trace.method == "POST"
 
     def test_http_trace_with_error(self):
         """Test creating HTTPTrace with an error."""
@@ -384,11 +406,11 @@ class TestGetR4UClient:
         get_r4u_client()
 
         mock_r4u_client_class.assert_called_once_with(
-            api_url="http://custom:9000", timeout=30.0
+            api_url="http://custom:9000", timeout=30.0,
         )
 
     @patch.dict(
-        "os.environ", {"R4U_API_URL": "http://custom:9000", "R4U_TIMEOUT": "60.0"}
+        "os.environ", {"R4U_API_URL": "http://custom:9000", "R4U_TIMEOUT": "60.0"},
     )
     @patch("r4u.client.R4UClient")
     def test_get_r4u_client_uses_custom_timeout(self, mock_r4u_client_class):
@@ -401,5 +423,5 @@ class TestGetR4UClient:
         get_r4u_client()
 
         mock_r4u_client_class.assert_called_once_with(
-            api_url="http://custom:9000", timeout=60.0
+            api_url="http://custom:9000", timeout=60.0,
         )
