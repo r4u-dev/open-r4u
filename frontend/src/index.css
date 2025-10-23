@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AI Agentic System Platform Design System
+   Professional tech dashboard with performance-focused design
+   All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Base colors - Clean tech palette */
+    --background: 240 6% 97%;
+    --foreground: 215 16% 12%;
+
+    /* Card system - Elevated surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 215 16% 12%;
+
+    /* Popover system */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 16% 12%;
+
+    /* Primary - Indigo for main actions */
+    --primary: 231 48% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 231 48% 40%;
+
+    /* Secondary - Subtle gray backgrounds */
+    --secondary: 210 17% 96%;
+    --secondary-foreground: 215 16% 12%;
+
+    /* Muted - Supporting elements */
+    --muted: 210 17% 95%;
+    --muted-foreground: 215 10% 46%;
+
+    /* Accent - Indigo highlight color */
+    --accent: 231 17% 95%;
+    --accent-foreground: 215 16% 12%;
+
+    /* Status colors - Performance indicators with teal success */
+    --success: 178 84% 32%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 178 84% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 38 92% 95%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-muted: 0 84% 95%;
+
+    /* Interactive elements */
+    --border: 214 13% 90%;
+    --input: 214 13% 90%;
+    --ring: 231 48% 48%;
+
+    /* Layout */
+    --radius: 0.75rem;
+
+    /* Gradients - Professional depth with indigo */
+    --gradient-primary: linear-gradient(135deg, hsl(231 48% 48%), hsl(231 48% 40%));
+    --gradient-success: linear-gradient(135deg, hsl(178 84% 32%), hsl(178 84% 24%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 17% 98%));
+
+    /* Shadows - Depth system */
+    --shadow-sm: 0 1px 2px 0 hsl(215 16% 12% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(215 16% 12% / 0.1), 0 2px 4px -1px hsl(215 16% 12% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(215 16% 12% / 0.1), 0 4px 6px -2px hsl(215 16% 12% / 0.05);
+    --shadow-glow: 0 0 20px hsl(231 48% 48% / 0.15);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* AI Panel animations */
+    --ai-panel-slide: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --ai-panel-fade: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Base colors - Dark theme */
+    --background: 215 16% 12%;
+    --foreground: 210 17% 95%;
+
+    /* Card system - Dark elevated surfaces */
+    --card: 215 16% 15%;
+    --card-foreground: 210 17% 95%;
+
+    /* Popover system */
+    --popover: 215 16% 15%;
+    --popover-foreground: 210 17% 95%;
+
+    /* Primary - Indigo for main actions */
+    --primary: 231 48% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 231 48% 40%;
+
+    /* Secondary - Dark subtle backgrounds */
+    --secondary: 215 16% 18%;
+    --secondary-foreground: 210 17% 95%;
+
+    /* Muted - Dark supporting elements */
+    --muted: 215 16% 16%;
+    --muted-foreground: 215 10% 60%;
+
+    /* Accent - Dark indigo highlight color */
+    --accent: 231 16% 18%;
+    --accent-foreground: 210 17% 95%;
+
+    /* Status colors - Dark theme performance indicators with teal */
+    --success: 178 84% 32%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 178 84% 15%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 38 92% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-muted: 0 84% 15%;
+
+    /* Interactive elements */
+    --border: 215 16% 18%;
+    --input: 215 16% 18%;
+    --ring: 231 48% 48%;
+
+    /* Gradients - Dark theme depth with indigo */
+    --gradient-primary: linear-gradient(135deg, hsl(231 48% 48%), hsl(231 48% 40%));
+    --gradient-success: linear-gradient(135deg, hsl(178 84% 32%), hsl(178 84% 24%));
+    --gradient-card: linear-gradient(145deg, hsl(215 16% 15%), hsl(215 16% 12%));
+
+    /* Shadows - Dark theme depth system */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -2px hsl(0 0% 0% / 0.2);
+    --shadow-glow: 0 0 20px hsl(231 48% 48% / 0.3);
+
+    /* Sidebar colors */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Accessibility utilities */
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  
+  .sr-only-focusable:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
+/* AI Assistant Panel Animations */
+@layer components {
+  .ai-panel-enter {
+    transform: translateX(100%);
+  }
+  
+  .ai-panel-enter-active {
+    transform: translateX(0);
+    transition: var(--ai-panel-slide);
+  }
+  
+  .ai-panel-exit {
+    transform: translateX(0);
+  }
+  
+  .ai-panel-exit-active {
+    transform: translateX(100%);
+    transition: var(--ai-panel-slide);
+  }
+  
+  /* Mobile full-screen animation */
+  .ai-panel-mobile-enter {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  
+  .ai-panel-mobile-enter-active {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  }
+  
+  /* Backdrop animations */
+  .ai-panel-backdrop-enter {
+    opacity: 0;
+  }
+  
+  .ai-panel-backdrop-enter-active {
+    opacity: 1;
+    transition: var(--ai-panel-fade);
+  }
+}
