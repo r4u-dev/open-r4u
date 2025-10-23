@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, timezone
 from sqlalchemy import select
 
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
@@ -25,7 +25,7 @@ async def test_create_grader(test_session):
         name="accuracy",
         description="Evaluates response accuracy",
         prompt="Rate the accuracy of this response: {{context}}",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         temperature=0.0,
         max_output_tokens=500,
@@ -41,7 +41,7 @@ async def test_create_grader(test_session):
     assert grader.name == "accuracy"
     assert grader.description == "Evaluates response accuracy"
     assert grader.prompt == "Rate the accuracy of this response: {{context}}"
-    assert grader.grade_type == GradeType.FLOAT
+    assert grader.score_type == ScoreType.FLOAT
     assert grader.model == "gpt-4"
     assert grader.temperature == 0.0
     assert grader.max_output_tokens == 500
@@ -62,7 +62,7 @@ async def test_create_grader_with_reasoning_and_schema(test_session):
         name="toxicity",
         description="Evaluates content toxicity",
         prompt="Check if this content is toxic: {{context}}",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         temperature=0.0,
         reasoning={"effort": "medium"},
@@ -82,7 +82,7 @@ async def test_create_grader_with_reasoning_and_schema(test_session):
     await test_session.commit()
     await test_session.refresh(grader)
     
-    assert grader.grade_type == GradeType.BOOLEAN
+    assert grader.score_type == ScoreType.BOOLEAN
     assert grader.reasoning == {"effort": "medium"}
     assert grader.response_schema["type"] == "object"
     assert grader.response_schema["properties"]["score"]["type"] == "boolean"
@@ -99,7 +99,7 @@ async def test_grader_project_relationship(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -133,7 +133,7 @@ async def test_create_grade_for_trace(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -209,7 +209,7 @@ async def test_create_grade_for_execution_result(test_session):
         project_id=project.id,
         name="toxicity",
         prompt="Test prompt",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -266,7 +266,7 @@ async def test_grade_relationships(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -315,7 +315,7 @@ async def test_grade_with_error(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -361,7 +361,7 @@ async def test_grade_with_grader_response(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -422,7 +422,7 @@ async def test_grader_cascade_delete(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -471,7 +471,7 @@ async def test_grade_polymorphic_constraint(test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )

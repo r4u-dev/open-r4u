@@ -40,7 +40,7 @@ async def create_grader(
             name=payload.name,
             description=payload.description,
             prompt=payload.prompt,
-            grade_type=payload.grade_type,
+            score_type=payload.score_type,
             model=payload.model,
             temperature=payload.temperature,
             reasoning=payload.reasoning,

@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 # Use JSONB for PostgreSQL, JSON for other databases
@@ -46,8 +46,8 @@ class Grader(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    grade_type: Mapped[GradeType] = mapped_column(
-        SQLEnum(GradeType, name="grade_type"),
+    score_type: Mapped[ScoreType] = mapped_column(
+        SQLEnum(ScoreType, name="score_type"),
         nullable=False,
     )
 

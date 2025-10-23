@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import select
 
 from app.config import Settings
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
@@ -44,7 +44,7 @@ async def test_create_grader(grading_service, test_session):
         name="accuracy",
         description="Evaluates accuracy",
         prompt="Rate accuracy: {{context}}",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
         temperature=0.0,
@@ -56,7 +56,7 @@ async def test_create_grader(grading_service, test_session):
     assert grader.name == "accuracy"
     assert grader.description == "Evaluates accuracy"
     assert grader.prompt == "Rate accuracy: {{context}}"
-    assert grader.grade_type == GradeType.FLOAT
+    assert grader.score_type == ScoreType.FLOAT
     assert grader.model == "gpt-4"
     assert grader.max_output_tokens == 500
     assert grader.temperature == 0.0
@@ -75,7 +75,7 @@ async def test_get_grader(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -105,7 +105,7 @@ async def test_list_graders(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt 1",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -115,7 +115,7 @@ async def test_list_graders(grading_service, test_session):
         project_id=project.id,
         name="toxicity",
         prompt="Test prompt 2",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -144,7 +144,7 @@ async def test_update_grader(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -175,7 +175,7 @@ async def test_delete_grader(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -250,7 +250,7 @@ async def test_render_grading_prompt(grading_service):
         project_id=1,
         name="accuracy",
         prompt="Evaluate the accuracy of this response:\n\n{{context}}\n\nProvide a score from 0.0 to 1.0.",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -270,7 +270,7 @@ async def test_render_grading_prompt_missing_context(grading_service):
         project_id=1,
         name="accuracy",
         prompt="Evaluate this response: {{missing_context}}",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -291,7 +291,7 @@ async def test_parse_grading_response_json_float(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=None,
         result_json=result_json,
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
     )
 
     assert score_float == 0.85
@@ -312,7 +312,7 @@ async def test_parse_grading_response_json_boolean(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=None,
         result_json=result_json,
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
     )
 
     assert score_float is None
@@ -329,7 +329,7 @@ async def test_parse_grading_response_text_json(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=result_text,
         result_json=None,
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
     )
 
     assert score_float == 0.75
@@ -346,7 +346,7 @@ async def test_parse_grading_response_text_boolean(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=result_text,
         result_json=None,
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
     )
 
     assert score_float is None
@@ -362,7 +362,7 @@ async def test_parse_grading_response_text_boolean_false(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=result_text,
         result_json=None,
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
     )
 
     assert score_float is None
@@ -378,7 +378,7 @@ async def test_parse_grading_response_text_pass_fail(grading_service):
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
         result_text=result_text,
         result_json=None,
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
     )
 
     assert score_float is None
@@ -399,7 +399,7 @@ async def test_execute_grading_trace_success(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Rate accuracy: {{context}}",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -480,7 +480,7 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
         project_id=project.id,
         name="toxicity",
         prompt="Check toxicity: {{context}}",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -541,7 +541,7 @@ async def test_execute_grading_inactive_grader(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
         is_active=False,  # Inactive grader
@@ -577,7 +577,7 @@ async def test_execute_grading_no_target(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -601,7 +601,7 @@ async def test_execute_grading_both_targets(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -627,7 +627,7 @@ async def test_execute_grading_trace_not_found(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -652,7 +652,7 @@ async def test_execute_grading_executor_error(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -707,7 +707,7 @@ async def test_list_grades_for_trace(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -782,7 +782,7 @@ async def test_list_grades_for_execution(grading_service, test_session):
         project_id=project.id,
         name="toxicity",
         prompt="Test prompt",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -825,7 +825,7 @@ async def test_list_grades_for_grader(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -867,7 +867,7 @@ async def test_delete_grade(grading_service, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )

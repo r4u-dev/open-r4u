@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 from sqlalchemy import select
 
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
@@ -27,7 +27,7 @@ async def test_create_grade_for_trace(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Rate accuracy: {{context}}",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -108,7 +108,7 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
         project_id=project.id,
         name="toxicity",
         prompt="Check toxicity: {{context}}",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -168,7 +168,7 @@ async def test_create_grade_no_target(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -195,7 +195,7 @@ async def test_create_grade_both_targets(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -237,7 +237,7 @@ async def test_create_grade_trace_not_found(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -264,7 +264,7 @@ async def test_create_grade_execution_result_not_found(client: AsyncClient, test
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -291,7 +291,7 @@ async def test_create_grade_inactive_grader(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
         is_active=False,  # Inactive grader
@@ -329,7 +329,7 @@ async def test_create_grade_executor_error(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -381,7 +381,7 @@ async def test_get_grade(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -451,7 +451,7 @@ async def test_list_grades_for_trace(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -525,7 +525,7 @@ async def test_list_grades_for_execution_result(client: AsyncClient, test_sessio
         project_id=project.id,
         name="toxicity",
         prompt="Test prompt",
-        grade_type=GradeType.BOOLEAN,
+        score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
     )
@@ -573,7 +573,7 @@ async def test_list_grades_for_grader(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -630,7 +630,7 @@ async def test_delete_grade(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )
@@ -688,7 +688,7 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
         project_id=project.id,
         name="accuracy",
         prompt="Test prompt",
-        grade_type=GradeType.FLOAT,
+        score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
     )

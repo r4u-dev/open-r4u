@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.enums import GradeType
+from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.traces import Trace
@@ -51,7 +51,7 @@ class GradingService:
         project_id: int,
         name: str,
         prompt: str,
-        grade_type: GradeType,
+        score_type: ScoreType,
         model: str,
         max_output_tokens: int,
         description: str | None = None,
@@ -66,7 +66,7 @@ class GradingService:
             name=name,
             description=description,
             prompt=prompt,
-            grade_type=grade_type,
+            score_type=score_type,
             model=model,
             temperature=temperature,
             reasoning=reasoning,
@@ -214,7 +214,7 @@ class GradingService:
         self,
         result_text: str | None,
         result_json: dict[str, Any] | None,
-        grade_type: GradeType,
+        score_type: ScoreType,
     ) -> tuple[float | None, bool | None, str | None, float | None]:
         """Parse grading response to extract score, reasoning, and confidence.
         
@@ -228,9 +228,9 @@ class GradingService:
         
         # If we have structured JSON response
         if result_json:
-            if grade_type == GradeType.FLOAT:
+            if score_type == ScoreType.FLOAT:
                 score_float = result_json.get("score")
-            elif grade_type == GradeType.BOOLEAN:
+            elif score_type == ScoreType.BOOLEAN:
                 score_boolean = result_json.get("score")
             
             reasoning = result_json.get("reasoning")
@@ -241,9 +241,9 @@ class GradingService:
             try:
                 # Try to parse as JSON
                 parsed = json.loads(result_text)
-                if grade_type == GradeType.FLOAT:
+                if score_type == ScoreType.FLOAT:
                     score_float = parsed.get("score")
-                elif grade_type == GradeType.BOOLEAN:
+                elif score_type == ScoreType.BOOLEAN:
                     score_boolean = parsed.get("score")
                 
                 reasoning = parsed.get("reasoning")
@@ -253,7 +253,7 @@ class GradingService:
                 reasoning = result_text
                 
                 # Simple score extraction from text
-                if grade_type == GradeType.BOOLEAN:
+                if score_type == ScoreType.BOOLEAN:
                     text_lower = result_text.lower()
                     if "true" in text_lower or "pass" in text_lower or "yes" in text_lower:
                         score_boolean = True
@@ -360,7 +360,7 @@ class GradingService:
             score_float, score_boolean, reasoning_text, confidence = self._parse_grading_response(
                 execution_result_base.result_text,
                 execution_result_base.result_json,
-                grader.grade_type,
+                grader.score_type,
             )
         
         # Create grade record

@@ -27,7 +27,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('prompt', sa.Text(), nullable=False),
-    sa.Column('grade_type', sa.Enum('FLOAT', 'BOOLEAN', name='grade_type'), nullable=False),
+    sa.Column('score_type', sa.Enum('FLOAT', 'BOOLEAN', name='score_type'), nullable=False),
     sa.Column('model', sa.String(length=255), nullable=False),
     sa.Column('temperature', sa.Float(), nullable=True),
     sa.Column('reasoning', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),

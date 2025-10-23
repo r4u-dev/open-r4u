@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.enums import GradeType
+from app.enums import ScoreType
 
 
 # Grader Schemas
@@ -15,7 +15,7 @@ class GraderBase(BaseModel):
     name: str = Field(..., max_length=255, description="Name of the grader (e.g., 'accuracy', 'toxicity')")
     description: str | None = Field(None, description="Optional description of what this grader evaluates")
     prompt: str = Field(..., description="The LLM prompt used for evaluation")
-    grade_type: GradeType = Field(..., description="Type of grade this grader produces")
+    score_type: ScoreType = Field(..., description="Type of score this grader produces")
     
     # LLM configuration
     model: str = Field(..., max_length=255, description="LLM model to use for grading")
@@ -39,7 +39,7 @@ class GraderUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = None
     prompt: str | None = None
-    grade_type: GradeType | None = None
+    score_type: ScoreType | None = None
     model: str | None = Field(None, max_length=255)
     temperature: float | None = Field(None, ge=0.0, le=2.0)
     reasoning: dict[str, Any] | None = None
@@ -67,7 +67,7 @@ class GraderListItem(BaseModel):
     project_id: int
     name: str
     description: str | None
-    grade_type: GradeType
+    score_type: ScoreType
     is_active: bool
     created_at: datetime
     grade_count: int = Field(0, description="Number of grades produced by this grader")

@@ -46,8 +46,8 @@ class ReasoningEffort(str, Enum):
     HIGH = "high"
 
 
-class GradeType(str, Enum):
-    """Type of grade for grader evaluation."""
+class ScoreType(str, Enum):
+    """Type of score for grader evaluation."""
 
     FLOAT = "float"  # 0.0 - 1.0 numeric scores
     BOOLEAN = "boolean"  # true/false binary evaluation
