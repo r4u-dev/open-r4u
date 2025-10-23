@@ -80,7 +80,8 @@ class PricingService:
     def _strip_version_suffix(self, model_name: str) -> str:
         """Remove version suffix from model name (e.g., 'gpt-5-2024-10-01' -> 'gpt-5')."""
         # Pattern to match version suffixes like -2024-10-01, -v1, -beta, etc.
-        version_pattern = r'-\d{4}-\d{2}-\d{2}$|-\d+$|-[a-zA-Z]+$'
+        # Be more specific to avoid matching model version numbers like -5
+        version_pattern = r'-\d{4}-\d{2}-\d{2}$|-\d{4}-\d{2}$|-\d{4}$|-[a-zA-Z]+[\d.-]*$'
         return re.sub(version_pattern, '', model_name)
 
     def _get_model_pricing(self, provider: str, model_name: str) -> Optional[Dict[str, Any]]:
@@ -138,7 +139,7 @@ class PricingService:
                 cached_rate = pricing['cached_input_usd_per_million']['default']
         
         # Calculate costs
-        input_tokens = prompt_tokens - cached_tokens
+        input_tokens = max(0, prompt_tokens - cached_tokens)  # Ensure non-negative
         input_cost = (input_tokens * input_rate) / 1_000_000
         cached_cost = (cached_tokens * cached_rate) / 1_000_000
         output_cost = (completion_tokens * output_rate) / 1_000_000
@@ -197,7 +198,7 @@ class PricingService:
             cached_rate = pricing.get('cached_input_usd_per_million', 0)
             
             # Calculate costs
-            input_tokens = prompt_tokens - cached_tokens
+            input_tokens = max(0, prompt_tokens - cached_tokens)  # Ensure non-negative
             input_cost = (input_tokens * input_rate) / 1_000_000
             cached_cost = (cached_tokens * cached_rate) / 1_000_000
             output_cost = (completion_tokens * output_rate) / 1_000_000
