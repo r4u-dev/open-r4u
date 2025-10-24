@@ -234,14 +234,13 @@ class Evaluation(Base):
     test_case_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Metrics fields
+    # Metrics fields (stored)
     grader_scores: Mapped[dict[str, float]] = mapped_column(JSONType, nullable=False, default=dict)
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cost_efficiency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    time_efficiency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    final_evaluation_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
+    # Efficiency and final scores are calculated on-demand, not stored
 
     # Relationships
     implementation: Mapped["Implementation"] = relationship("Implementation", back_populates="evaluations")  # type: ignore
