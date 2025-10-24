@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.enums import FinishReason, ItemType, MessageRole, ReasoningEffort
+from app.services.pricing_service import PricingService
 
 
 # Reasoning Schema
@@ -208,6 +209,7 @@ class TraceBase(BaseModel):
 
     # Prompt placeholder variables (for matching with implementation templates)
     prompt_variables: dict[str, Any] | None = None
+    max_tokens: int | None = None
 
 
 class TraceCreate(TraceBase):
@@ -237,3 +239,15 @@ class TraceRead(TraceBase):
     )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @computed_field
+    @property
+    def cost(self) -> float | None:
+        """Compute cost from token usage if available."""
+        pricing_service = PricingService()
+        return pricing_service.calculate_cost(
+            model=self.model,
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=self.completion_tokens,
+            cached_tokens=self.cached_tokens,
+        )

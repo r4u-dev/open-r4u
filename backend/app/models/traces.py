@@ -71,6 +71,7 @@ class Trace(Base):
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
     tool_choice: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Token usage
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

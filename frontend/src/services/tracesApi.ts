@@ -10,11 +10,13 @@ export interface BackendTrace {
     path: string | null;
     started_at: string;
     completed_at: string | null;
+    cost: number | null;
     tools: any[] | null;
     implementation_id: number | null;
     instructions: string | null;
     prompt: string | null;
     temperature: number | null;
+    max_tokens: number | null;
     tool_choice: string | Record<string, any> | null;
     prompt_tokens: number | null;
     completion_tokens: number | null;
@@ -82,7 +84,7 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
     allMessages
         .filter((msg) => msg.role === "system")
         .forEach((msg) => {
-            if (msg.content) {
+            if (msg.content && msg.content.trim()) {
                 systemMessages.push(msg.content);
             }
         });
@@ -124,19 +126,37 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         provider = "mistral";
     }
 
-    // Build model settings
+    // Build model settings (parameters that control model behavior)
     const modelSettings: Record<string, string | number | boolean> = {};
     if (backendTrace.temperature !== null) {
         modelSettings.temperature = backendTrace.temperature;
     }
+    if (backendTrace.max_tokens !== null) {
+        modelSettings.max_tokens = backendTrace.max_tokens;
+    }
+    if (backendTrace.tool_choice !== null) {
+        modelSettings.tool_choice =
+            typeof backendTrace.tool_choice === "string"
+                ? backendTrace.tool_choice
+                : JSON.stringify(backendTrace.tool_choice);
+    }
+
+    // Build metrics (usage and performance data)
+    const metrics: Record<string, number> = {};
     if (backendTrace.prompt_tokens !== null) {
-        modelSettings.prompt_tokens = backendTrace.prompt_tokens;
+        metrics.prompt_tokens = backendTrace.prompt_tokens;
     }
     if (backendTrace.completion_tokens !== null) {
-        modelSettings.completion_tokens = backendTrace.completion_tokens;
+        metrics.completion_tokens = backendTrace.completion_tokens;
     }
     if (backendTrace.total_tokens !== null) {
-        modelSettings.total_tokens = backendTrace.total_tokens;
+        metrics.total_tokens = backendTrace.total_tokens;
+    }
+    if (backendTrace.cached_tokens !== null) {
+        metrics.cached_tokens = backendTrace.cached_tokens;
+    }
+    if (backendTrace.reasoning_tokens !== null) {
+        metrics.reasoning_tokens = backendTrace.reasoning_tokens;
     }
 
     return {
@@ -149,11 +169,12 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         provider,
         model: backendTrace.model,
         latency,
-        cost: 0, // Cost calculation not available yet
+        cost: backendTrace.cost,
         taskVersion: undefined, // Task name not available from backend
         prompt,
         inputMessages,
         modelSettings,
+        metrics,
         output: backendTrace.result || "",
         rawRequest: "", // Raw request not available from backend
         rawResponse: "", // Raw response not available from backend
