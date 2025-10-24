@@ -4,15 +4,15 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { Slider } from "@/components/ui/slider"
 
 interface WeightSelectorProps {
-  onWeightsChange?: (weights: { accuracy: number; costEfficiency: number; timeEfficiency: number }) => void
-  initialWeights?: { accuracy: number; costEfficiency: number; timeEfficiency: number }
+  onWeightsChange?: (weights: { quality: number; costEfficiency: number; timeEfficiency: number }) => void
+  initialWeights?: { quality: number; costEfficiency: number; timeEfficiency: number }
   disabled?: boolean
 }
 
 export function ScoreWeightsSelector({ onWeightsChange, initialWeights, disabled = false }: WeightSelectorProps) {
   const hasMountedRef = useRef(false)
   const [weights, setWeights] = useState({
-    accuracy: 0.5,
+    quality: 0.5,
     costEfficiency: 0.25,
     timeEfficiency: 0.25,
   })
@@ -33,12 +33,12 @@ export function ScoreWeightsSelector({ onWeightsChange, initialWeights, disabled
         const remainingWeight = 1 - clampedValue
 
         let compensatingKey: keyof typeof weights
-        if (key === "accuracy") {
+        if (key === "quality") {
           compensatingKey = "costEfficiency"
         } else if (key === "costEfficiency") {
           compensatingKey = "timeEfficiency"
         } else {
-          compensatingKey = "accuracy"
+          compensatingKey = "quality"
         }
 
         const newWeights = { ...prevWeights, [key]: clampedValue }
@@ -55,7 +55,7 @@ export function ScoreWeightsSelector({ onWeightsChange, initialWeights, disabled
         }
 
         const finalWeights = {
-          accuracy: Math.round(newWeights.accuracy * 1000) / 1000,
+          quality: Math.round(newWeights.quality * 1000) / 1000,
           costEfficiency: Math.round(newWeights.costEfficiency * 1000) / 1000,
           timeEfficiency: Math.round(newWeights.timeEfficiency * 1000) / 1000,
         }
@@ -75,13 +75,13 @@ export function ScoreWeightsSelector({ onWeightsChange, initialWeights, disabled
   useEffect(() => {
     if (!initialWeights) return
     const changed =
-      Math.abs(initialWeights.accuracy - weights.accuracy) > 1e-6 ||
+      Math.abs(initialWeights.quality - weights.quality) > 1e-6 ||
       Math.abs(initialWeights.costEfficiency - weights.costEfficiency) > 1e-6 ||
       Math.abs(initialWeights.timeEfficiency - weights.timeEfficiency) > 1e-6
     if (changed) {
       setWeights(initialWeights)
     }
-  }, [initialWeights, weights.accuracy, weights.costEfficiency, weights.timeEfficiency])
+  }, [initialWeights, weights.quality, weights.costEfficiency, weights.timeEfficiency])
 
   // Mark mounted to avoid parent updates during initial render
   useEffect(() => {
@@ -92,14 +92,14 @@ export function ScoreWeightsSelector({ onWeightsChange, initialWeights, disabled
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium">Accuracy</span>
+          <span className="text-xs font-medium">Quality</span>
           <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-            {formatPercentage(weights.accuracy)}
+            {formatPercentage(weights.quality)}
           </span>
         </div>
         <Slider
-          value={[weights.accuracy]}
-          onValueChange={([value]) => updateWeights("accuracy", value)}
+          value={[weights.quality]}
+          onValueChange={([value]) => updateWeights("quality", value)}
           max={1}
           min={0}
           step={0.01}
