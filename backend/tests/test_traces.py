@@ -1,10 +1,13 @@
 """Tests for trace API endpoints."""
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
 from app.models.traces import Trace
 
@@ -724,3 +727,92 @@ class TestTraceEndpoints:
         assert data["reasoning"]["summary"] == "auto"
         assert data["reasoning_tokens"] == 1500
         assert data["temperature"] == 1.0
+
+    async def test_get_trace_http_trace(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+    ):
+        """Test fetching HTTP trace data for a trace."""
+        # First create an HTTP trace
+        http_trace = HTTPTrace(
+            started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
+            status_code=200,
+            error=None,
+            request='{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}',
+            request_headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer sk-xxx",
+            },
+            response='{"id": "chatcmpl-123", "choices": [{"message": {"content": "Hi there!"}}]}',
+            response_headers={"Content-Type": "application/json"},
+            http_metadata={},
+        )
+        test_session.add(http_trace)
+        await test_session.flush()
+
+        # Create a trace with the HTTP trace
+        payload = {
+            "model": "gpt-4",
+            "input": [{"type": "message", "role": "user", "content": "Hello"}],
+            "result": "Hi there!",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+        trace_data = response.json()
+        trace_id = trace_data["id"]
+
+        # Update the trace to link it to the HTTP trace
+        result = await test_session.execute(select(Trace).where(Trace.id == trace_id))
+        trace = result.scalar_one()
+        trace.http_trace_id = http_trace.id
+        await test_session.commit()
+
+        # Fetch the HTTP trace via the endpoint
+        response = await client.get(f"/traces/{trace_id}/http-trace")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["id"] == http_trace.id
+        assert data["status_code"] == 200
+        assert (
+            data["request"]
+            == '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}'
+        )
+        assert (
+            data["response"]
+            == '{"id": "chatcmpl-123", "choices": [{"message": {"content": "Hi there!"}}]}'
+        )
+        assert data["request_headers"]["Content-Type"] == "application/json"
+        assert data["response_headers"]["Content-Type"] == "application/json"
+
+    async def test_get_trace_http_trace_not_found(self, client: AsyncClient):
+        """Test fetching HTTP trace for non-existent trace."""
+        response = await client.get("/traces/99999/http-trace")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    async def test_get_trace_http_trace_no_http_trace(
+        self,
+        client: AsyncClient,
+    ):
+        """Test fetching HTTP trace for trace without HTTP trace."""
+        # Create a trace without HTTP trace
+        payload = {
+            "model": "gpt-4",
+            "input": [{"type": "message", "role": "user", "content": "Hello"}],
+            "result": "Hi there!",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+        trace_id = response.json()["id"]
+
+        # Try to fetch HTTP trace
+        response = await client.get(f"/traces/{trace_id}/http-trace")
+        assert response.status_code == 404
+        assert "no associated http trace" in response.json()["detail"].lower()

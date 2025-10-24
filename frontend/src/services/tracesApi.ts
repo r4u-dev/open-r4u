@@ -1,5 +1,5 @@
 import { apiClient } from "./api";
-import { Trace } from "@/lib/types/trace";
+import { Trace, HTTPTrace } from "@/lib/types/trace";
 
 export interface BackendTrace {
     id: number;
@@ -162,6 +162,21 @@ export const tracesApi = {
             return traces.find((t) => t.id === id) || null;
         } catch (error) {
             console.error("Failed to fetch trace:", error);
+            return null;
+        }
+    },
+
+    /**
+     * Fetch HTTP trace data for a specific trace
+     */
+    async fetchHTTPTrace(traceId: string): Promise<HTTPTrace | null> {
+        try {
+            const response = await apiClient.get<HTTPTrace>(
+                `/traces/${traceId}/http-trace`,
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Failed to fetch HTTP trace:", error);
             return null;
         }
     },

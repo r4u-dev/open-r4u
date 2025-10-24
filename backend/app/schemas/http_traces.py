@@ -17,7 +17,8 @@ class HTTPTraceCreate(BaseModel):
     status_code: int = Field(..., description="HTTP status code")
     error: str | None = Field(None, description="Error message if any")
     path: str | None = Field(
-        None, description="The call path where the request was made",
+        None,
+        description="The call path where the request was made",
     )
 
     # Raw data (accepts bytes or strings, stored as strings)
@@ -61,3 +62,20 @@ class HTTPTraceCreate(BaseModel):
         elif isinstance(v, bytes):
             return v.decode("utf-8", errors="replace")
         return v
+
+
+class HTTPTraceRead(BaseModel):
+    """Schema for reading HTTP trace data."""
+
+    id: int
+    started_at: datetime
+    completed_at: datetime
+    status_code: int
+    error: str | None
+    request: str
+    request_headers: dict[str, str]
+    response: str
+    response_headers: dict[str, str]
+    http_metadata: dict[str, Any]
+
+    model_config = ConfigDict(from_attributes=True)
