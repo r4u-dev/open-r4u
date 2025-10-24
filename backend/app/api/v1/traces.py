@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,13 +17,20 @@ router = APIRouter(prefix="/traces", tags=["traces"])
 
 @router.get("", response_model=list[TraceRead])
 async def list_traces(
+    limit: int = Query(25, ge=1, le=100, description="Number of traces to return"),
+    offset: int = Query(0, ge=0, description="Number of traces to skip"),
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
-    """Return all traces with their associated input items."""
+    """Return paginated traces with their associated input items.
+
+    Supports infinite scrolling with limit and offset parameters.
+    """
     query = (
         select(Trace)
         .options(selectinload(Trace.input_items))
         .order_by(Trace.started_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     result = await session.execute(query)
     traces: Sequence[Trace] = result.scalars().unique().all()

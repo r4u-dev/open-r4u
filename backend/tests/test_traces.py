@@ -244,6 +244,97 @@ class TestTraceEndpoints:
         assert response.status_code == 200
         assert response.json() == []
 
+    async def test_list_traces_with_pagination(self, client: AsyncClient):
+        """Test listing traces with pagination parameters."""
+        # Create 50 traces
+        for i in range(50):
+            payload = {
+                "model": f"model-{i}",
+                "input": [
+                    {"type": "message", "role": "user", "content": f"Message {i}"},
+                ],
+                "result": f"Result {i}",
+                "started_at": f"2025-10-15T10:{i:02d}:00Z",
+                "completed_at": f"2025-10-15T10:{i:02d}:01Z",
+            }
+            await client.post("/traces", json=payload)
+
+        # Test default pagination (limit=25, offset=0)
+        response = await client.get("/traces")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 25
+        # Should get newest 25 traces (model-49 to model-25)
+        assert data[0]["model"] == "model-49"
+        assert data[24]["model"] == "model-25"
+
+        # Test with custom limit
+        response = await client.get("/traces?limit=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-49"
+        assert data[9]["model"] == "model-40"
+
+        # Test with offset
+        response = await client.get("/traces?limit=10&offset=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-39"
+        assert data[9]["model"] == "model-30"
+
+        # Test with larger offset
+        response = await client.get("/traces?limit=10&offset=40")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-9"
+        assert data[9]["model"] == "model-0"
+
+        # Test offset beyond available traces
+        response = await client.get("/traces?limit=10&offset=50")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 0
+
+    async def test_list_traces_pagination_limits(self, client: AsyncClient):
+        """Test pagination parameter validation."""
+        # Create a few traces
+        for i in range(5):
+            payload = {
+                "model": f"model-{i}",
+                "input": [
+                    {"type": "message", "role": "user", "content": f"Message {i}"},
+                ],
+                "result": f"Result {i}",
+                "started_at": f"2025-10-15T10:0{i}:00Z",
+            }
+            await client.post("/traces", json=payload)
+
+        # Test limit=1 (minimum)
+        response = await client.get("/traces?limit=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        # Test limit=100 (maximum)
+        response = await client.get("/traces?limit=100")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 5  # Only 5 traces available
+
+        # Test invalid limit (should fail validation)
+        response = await client.get("/traces?limit=0")
+        assert response.status_code == 422  # Validation error
+
+        response = await client.get("/traces?limit=101")
+        assert response.status_code == 422  # Validation error
+
+        # Test invalid offset (should fail validation)
+        response = await client.get("/traces?offset=-1")
+        assert response.status_code == 422  # Validation error
+
     async def test_create_trace_minimal(self, client: AsyncClient):
         """Test creating a trace with minimal required fields."""
         payload = {
