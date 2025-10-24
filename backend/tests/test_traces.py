@@ -1,10 +1,13 @@
 """Tests for trace API endpoints."""
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
 from app.models.traces import Trace
 
@@ -243,6 +246,97 @@ class TestTraceEndpoints:
         response = await client.get("/traces")
         assert response.status_code == 200
         assert response.json() == []
+
+    async def test_list_traces_with_pagination(self, client: AsyncClient):
+        """Test listing traces with pagination parameters."""
+        # Create 50 traces
+        for i in range(50):
+            payload = {
+                "model": f"model-{i}",
+                "input": [
+                    {"type": "message", "role": "user", "content": f"Message {i}"},
+                ],
+                "result": f"Result {i}",
+                "started_at": f"2025-10-15T10:{i:02d}:00Z",
+                "completed_at": f"2025-10-15T10:{i:02d}:01Z",
+            }
+            await client.post("/traces", json=payload)
+
+        # Test default pagination (limit=25, offset=0)
+        response = await client.get("/traces")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 25
+        # Should get newest 25 traces (model-49 to model-25)
+        assert data[0]["model"] == "model-49"
+        assert data[24]["model"] == "model-25"
+
+        # Test with custom limit
+        response = await client.get("/traces?limit=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-49"
+        assert data[9]["model"] == "model-40"
+
+        # Test with offset
+        response = await client.get("/traces?limit=10&offset=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-39"
+        assert data[9]["model"] == "model-30"
+
+        # Test with larger offset
+        response = await client.get("/traces?limit=10&offset=40")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 10
+        assert data[0]["model"] == "model-9"
+        assert data[9]["model"] == "model-0"
+
+        # Test offset beyond available traces
+        response = await client.get("/traces?limit=10&offset=50")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 0
+
+    async def test_list_traces_pagination_limits(self, client: AsyncClient):
+        """Test pagination parameter validation."""
+        # Create a few traces
+        for i in range(5):
+            payload = {
+                "model": f"model-{i}",
+                "input": [
+                    {"type": "message", "role": "user", "content": f"Message {i}"},
+                ],
+                "result": f"Result {i}",
+                "started_at": f"2025-10-15T10:0{i}:00Z",
+            }
+            await client.post("/traces", json=payload)
+
+        # Test limit=1 (minimum)
+        response = await client.get("/traces?limit=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        # Test limit=100 (maximum)
+        response = await client.get("/traces?limit=100")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 5  # Only 5 traces available
+
+        # Test invalid limit (should fail validation)
+        response = await client.get("/traces?limit=0")
+        assert response.status_code == 422  # Validation error
+
+        response = await client.get("/traces?limit=101")
+        assert response.status_code == 422  # Validation error
+
+        # Test invalid offset (should fail validation)
+        response = await client.get("/traces?offset=-1")
+        assert response.status_code == 422  # Validation error
 
     async def test_create_trace_minimal(self, client: AsyncClient):
         """Test creating a trace with minimal required fields."""
@@ -633,3 +727,191 @@ class TestTraceEndpoints:
         assert data["reasoning"]["summary"] == "auto"
         assert data["reasoning_tokens"] == 1500
         assert data["temperature"] == 1.0
+
+    async def test_get_trace_http_trace(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
+    ):
+        """Test fetching HTTP trace data for a trace."""
+        # First create an HTTP trace
+        http_trace = HTTPTrace(
+            started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
+            status_code=200,
+            error=None,
+            request='{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}',
+            request_headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer sk-xxx",
+            },
+            response='{"id": "chatcmpl-123", "choices": [{"message": {"content": "Hi there!"}}]}',
+            response_headers={"Content-Type": "application/json"},
+            http_metadata={},
+        )
+        test_session.add(http_trace)
+        await test_session.flush()
+
+        # Create a trace with the HTTP trace
+        payload = {
+            "model": "gpt-4",
+            "input": [{"type": "message", "role": "user", "content": "Hello"}],
+            "result": "Hi there!",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+        trace_data = response.json()
+        trace_id = trace_data["id"]
+
+        # Update the trace to link it to the HTTP trace
+        result = await test_session.execute(select(Trace).where(Trace.id == trace_id))
+        trace = result.scalar_one()
+        trace.http_trace_id = http_trace.id
+        await test_session.commit()
+
+        # Fetch the HTTP trace via the endpoint
+        response = await client.get(f"/traces/{trace_id}/http-trace")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["id"] == http_trace.id
+        assert data["status_code"] == 200
+        assert (
+            data["request"]
+            == '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}'
+        )
+        assert (
+            data["response"]
+            == '{"id": "chatcmpl-123", "choices": [{"message": {"content": "Hi there!"}}]}'
+        )
+        assert data["request_headers"]["Content-Type"] == "application/json"
+        assert data["response_headers"]["Content-Type"] == "application/json"
+
+    async def test_get_trace_http_trace_not_found(self, client: AsyncClient):
+        """Test fetching HTTP trace for non-existent trace."""
+        response = await client.get("/traces/99999/http-trace")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    async def test_get_trace_http_trace_no_http_trace(
+        self,
+        client: AsyncClient,
+    ):
+        """Test fetching HTTP trace for trace without HTTP trace."""
+        # Create a trace without HTTP trace
+        payload = {
+            "model": "gpt-4",
+            "input": [{"type": "message", "role": "user", "content": "Hello"}],
+            "result": "Hi there!",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+        trace_id = response.json()["id"]
+
+        # Try to fetch HTTP trace
+        response = await client.get(f"/traces/{trace_id}/http-trace")
+        assert response.status_code == 404
+        assert "no associated http trace" in response.json()["detail"].lower()
+
+    async def test_trace_with_system_messages(self, client: AsyncClient):
+        """Test trace with system messages in instructions, prompt, and input items."""
+        payload = {
+            "model": "gpt-4",
+            "instructions": "You are a helpful assistant.",
+            "prompt": "Always be concise.",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": "Use examples when explaining.",
+                },
+                {"type": "message", "role": "user", "content": "What is Python?"},
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": "Python is a programming language.",
+                },
+                {"type": "message", "role": "user", "content": "Tell me more."},
+            ],
+            "result": "Python is a high-level, interpreted programming language.",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] == "You are a helpful assistant."
+        assert data["prompt"] == "Always be concise."
+
+        # Verify we have all input items (3 non-system messages + 1 system message)
+        assert len(data["input"]) == 4
+
+        # Verify system message is in input
+        system_messages = [
+            item for item in data["input"] if item["data"]["role"] == "system"
+        ]
+        assert len(system_messages) == 1
+        assert system_messages[0]["data"]["content"] == "Use examples when explaining."
+
+        # Verify non-system messages
+        non_system_messages = [
+            item for item in data["input"] if item["data"]["role"] != "system"
+        ]
+        assert len(non_system_messages) == 3
+        assert non_system_messages[0]["data"]["role"] == "user"
+        assert non_system_messages[0]["data"]["content"] == "What is Python?"
+        assert non_system_messages[1]["data"]["role"] == "assistant"
+        assert non_system_messages[2]["data"]["role"] == "user"
+
+    async def test_trace_with_only_system_messages(self, client: AsyncClient):
+        """Test trace with only system messages, no user messages."""
+        payload = {
+            "model": "gpt-4",
+            "instructions": "System instruction 1",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": "System instruction 2",
+                },
+            ],
+            "result": "Result",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] == "System instruction 1"
+        assert len(data["input"]) == 1
+        assert data["input"][0]["data"]["role"] == "system"
+
+    async def test_trace_with_no_system_messages(self, client: AsyncClient):
+        """Test trace with no system messages at all."""
+        payload = {
+            "model": "gpt-4",
+            "input": [
+                {"type": "message", "role": "user", "content": "Hello"},
+                {"type": "message", "role": "assistant", "content": "Hi"},
+            ],
+            "result": "Hi",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] is None
+        assert data["prompt"] is None
+        assert len(data["input"]) == 2
+        assert all(item["data"]["role"] != "system" for item in data["input"])
