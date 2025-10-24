@@ -13,6 +13,7 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
         prompt: true,
         inputMessages: true,
         modelSettings: true,
+        metrics: true,
         output: true,
         rawRequest: false,
         rawResponse: false,
@@ -159,7 +160,11 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                 </div>
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">Cost:</span>
-                    <span className="font-mono">${trace.cost.toFixed(4)}</span>
+                    <span className="font-mono">
+                        {trace.cost === null
+                            ? "-"
+                            : "$" + trace.cost.toFixed(4)}
+                    </span>
                 </div>
             </div>
 
@@ -201,17 +206,52 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
 
                 <Section title="Model Settings" section="modelSettings">
                     <div className="space-y-1 font-mono">
-                        {Object.entries(trace.modelSettings).map(
-                            ([key, value]) => (
-                                <div key={key} className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                        {key}:
-                                    </span>
-                                    <span className="text-foreground">
-                                        {JSON.stringify(value)}
-                                    </span>
-                                </div>
-                            ),
+                        {Object.keys(trace.modelSettings).length > 0 ? (
+                            Object.entries(trace.modelSettings).map(
+                                ([key, value]) => (
+                                    <div
+                                        key={key}
+                                        className="flex justify-between"
+                                    >
+                                        <span className="text-muted-foreground">
+                                            {key}:
+                                        </span>
+                                        <span className="text-foreground">
+                                            {JSON.stringify(value)}
+                                        </span>
+                                    </div>
+                                ),
+                            )
+                        ) : (
+                            <span className="text-muted-foreground italic">
+                                No model settings
+                            </span>
+                        )}
+                    </div>
+                </Section>
+
+                <Section title="Metrics" section="metrics">
+                    <div className="space-y-1 font-mono">
+                        {Object.keys(trace.metrics).length > 0 ? (
+                            Object.entries(trace.metrics).map(
+                                ([key, value]) => (
+                                    <div
+                                        key={key}
+                                        className="flex justify-between"
+                                    >
+                                        <span className="text-muted-foreground">
+                                            {key}:
+                                        </span>
+                                        <span className="text-foreground">
+                                            {value.toLocaleString()}
+                                        </span>
+                                    </div>
+                                ),
+                            )
+                        ) : (
+                            <span className="text-muted-foreground italic">
+                                No metrics available
+                            </span>
                         )}
                     </div>
                 </Section>

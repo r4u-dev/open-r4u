@@ -13,6 +13,7 @@ export interface Trace {
     prompt: string;
     inputMessages: Array<{ role: string; content: string }>;
     modelSettings: Record<string, string | number | boolean>;
+    metrics: Record<string, number>;
     output: string;
     rawRequest: string;
     rawResponse: string;
