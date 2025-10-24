@@ -218,6 +218,7 @@ class OpenAIParser(ProviderParser):
             else "Default Project"
         )
         task_id = metadata.get("task_id") if metadata else None
+        max_tokens = request_body.get("max_tokens")
 
         return TraceCreate(
             project=project,
@@ -244,6 +245,7 @@ class OpenAIParser(ProviderParser):
             reasoning=reasoning,
             response_schema=response_format,
             trace_metadata=metadata,
+            max_tokens=max_tokens,
         )
 
     def _parse_responses_api(
@@ -385,6 +387,7 @@ class OpenAIParser(ProviderParser):
             else "Default Project"
         )
         task_id = metadata.get("task_id") if metadata else None
+        max_tokens = request_body.get("max_tokens")
 
         return TraceCreate(
             project=project,
@@ -411,4 +414,5 @@ class OpenAIParser(ProviderParser):
             reasoning=None,
             response_schema=response_format,
             trace_metadata=metadata,
+            max_tokens=max_tokens,
         )

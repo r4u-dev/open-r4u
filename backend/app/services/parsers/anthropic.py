@@ -219,4 +219,5 @@ class AnthropicParser(ProviderParser):
             reasoning=None,
             response_schema=None,
             trace_metadata=metadata,
+            max_tokens=max_tokens,
         )
