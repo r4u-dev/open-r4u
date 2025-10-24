@@ -122,8 +122,8 @@ class Task(Base):
         back_populates="task",
         cascade="all, delete-orphan",
     )
-    normalization_targets: Mapped["NormalizationTargets | None"] = relationship(  # type: ignore
-        "NormalizationTargets",
+    target_task_metrics: Mapped["TargetTaskMetrics | None"] = relationship(  # type: ignore
+        "TargetTaskMetrics",
         back_populates="task",
         uselist=False,
         cascade="all, delete-orphan",

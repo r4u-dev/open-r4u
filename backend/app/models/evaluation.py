@@ -150,7 +150,6 @@ class TestCase(Base):
     __tablename__ = "test_case"
     __table_args__ = (
         Index("ix_test_case_task_id", "task_id"),
-        Index("ix_test_case_is_active", "is_active"),
     )
 
     id: Mapped[intpk]
@@ -158,11 +157,9 @@ class TestCase(Base):
         ForeignKey("task.id", ondelete="CASCADE"),
         nullable=False,
     )
-    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    expected_output: Mapped[str | None] = mapped_column(Text, nullable=True)
-    expected_output_json: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    expected_output: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="test_cases")  # type: ignore
@@ -203,7 +200,7 @@ class EvaluationConfig(Base):
 
 
 class Evaluation(Base):
-    """Evaluation model for storing evaluation run information."""
+    """Evaluation model for storing evaluation run information and metrics."""
 
     __tablename__ = "evaluation"
     __table_args__ = (
@@ -211,6 +208,7 @@ class Evaluation(Base):
         Index("ix_evaluation_task_id", "task_id"),
         Index("ix_evaluation_status", "status"),
         Index("ix_evaluation_started_at", "started_at"),
+        Index("ix_evaluation_final_score", "final_evaluation_score"),
     )
 
     id: Mapped[intpk]
@@ -236,57 +234,30 @@ class Evaluation(Base):
     test_case_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Relationships
-    implementation: Mapped["Implementation"] = relationship("Implementation", back_populates="evaluations")  # type: ignore
-    task: Mapped["Task"] = relationship("Task", back_populates="evaluations")  # type: ignore
-    metrics: Mapped["EvaluationMetrics | None"] = relationship(
-        "EvaluationMetrics",
-        back_populates="evaluation",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-
-    created_at: Mapped[created_at_col]
-    updated_at: Mapped[updated_at_col]
-
-
-class EvaluationMetrics(Base):
-    """Evaluation metrics model for storing aggregated evaluation results."""
-
-    __tablename__ = "evaluation_metrics"
-    __table_args__ = (
-        Index("ix_evaluation_metrics_evaluation_id", "evaluation_id"),
-        Index("ix_evaluation_metrics_final_score", "final_evaluation_score"),
-    )
-
-    id: Mapped[intpk]
-    evaluation_id: Mapped[int] = mapped_column(
-        ForeignKey("evaluation.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
-    )
+    # Metrics fields
     grader_scores: Mapped[dict[str, float]] = mapped_column(JSONType, nullable=False, default=dict)
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    normalized_cost_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    normalized_time_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_efficiency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    time_efficiency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     final_evaluation_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Relationships
-    evaluation: Mapped["Evaluation"] = relationship("Evaluation", back_populates="metrics")
+    implementation: Mapped["Implementation"] = relationship("Implementation", back_populates="evaluations")  # type: ignore
+    task: Mapped["Task"] = relationship("Task", back_populates="evaluations")  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
 
 
-class NormalizationTargets(Base):
-    """Normalization targets model for storing best-known values for score normalization."""
+class TargetTaskMetrics(Base):
+    """Target task metrics model for storing best-known values for efficiency score calculation."""
 
-    __tablename__ = "normalization_targets"
+    __tablename__ = "target_task_metrics"
     __table_args__ = (
-        Index("ix_normalization_targets_task_id", "task_id"),
-        Index("ix_normalization_targets_last_updated", "last_updated_at"),
+        Index("ix_target_task_metrics_task_id", "task_id"),
+        Index("ix_target_task_metrics_last_updated", "last_updated_at"),
     )
 
     id: Mapped[intpk]
@@ -295,16 +266,14 @@ class NormalizationTargets(Base):
         nullable=False,
         unique=True,
     )
-    best_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
-    best_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    worst_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
-    worst_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # Relationships
-    task: Mapped["Task"] = relationship("Task", back_populates="normalization_targets")  # type: ignore
+    task: Mapped["Task"] = relationship("Task", back_populates="target_task_metrics")  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
