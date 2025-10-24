@@ -17,7 +17,6 @@ class ImplementationCreate(BaseModel):
     reasoning: Reasoning | None = None
     tools: list[ToolDefinition] | None = None
     tool_choice: str | dict[str, Any] | None = None
-    response_schema: dict[str, Any] | None = None
     max_output_tokens: int
     temp: bool = False
 
@@ -34,6 +33,7 @@ class TaskBase(BaseModel):
     """Base schema for task details."""
 
     path: str | None = None
+    response_schema: dict[str, Any] | None = None
 
 
 class TaskCreate(TaskBase):

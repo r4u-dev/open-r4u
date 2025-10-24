@@ -190,8 +190,8 @@ class GradingService:
             if execution_result.error:
                 context_parts.append(f"Error: {execution_result.error}")
             
-            if execution_result.variables:
-                context_parts.append(f"Variables: {json.dumps(execution_result.variables)}")
+            if execution_result.arguments:
+                context_parts.append(f"Arguments: {json.dumps(execution_result.arguments)}")
             
             return "\n".join(context_parts)
         
@@ -330,7 +330,7 @@ class GradingService:
             return grade
         
         # Create a temporary implementation-like object for executor
-        from app.models.tasks import Implementation
+        from app.models.tasks import Implementation, Task
         
         temp_impl = Implementation(
             task_id=0,  # Dummy value, won't be persisted
@@ -339,10 +339,17 @@ class GradingService:
             model=grader.model,
             temperature=grader.temperature,
             reasoning=grader.reasoning,
-            response_schema=grader.response_schema,
             max_output_tokens=grader.max_output_tokens,
             temp=True,
         )
+        
+        # Create a dummy task with the grader's response_schema
+        temp_task = Task(
+            id=0,  # Dummy ID
+            project_id=0,
+            response_schema=grader.response_schema,
+        )
+        temp_impl.task = temp_task
         
         # Execute grading using LLM executor
         executor = LLMExecutor(self.settings)
