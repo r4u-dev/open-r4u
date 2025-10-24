@@ -816,3 +816,102 @@ class TestTraceEndpoints:
         response = await client.get(f"/traces/{trace_id}/http-trace")
         assert response.status_code == 404
         assert "no associated http trace" in response.json()["detail"].lower()
+
+    async def test_trace_with_system_messages(self, client: AsyncClient):
+        """Test trace with system messages in instructions, prompt, and input items."""
+        payload = {
+            "model": "gpt-4",
+            "instructions": "You are a helpful assistant.",
+            "prompt": "Always be concise.",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": "Use examples when explaining.",
+                },
+                {"type": "message", "role": "user", "content": "What is Python?"},
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": "Python is a programming language.",
+                },
+                {"type": "message", "role": "user", "content": "Tell me more."},
+            ],
+            "result": "Python is a high-level, interpreted programming language.",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] == "You are a helpful assistant."
+        assert data["prompt"] == "Always be concise."
+
+        # Verify we have all input items (3 non-system messages + 1 system message)
+        assert len(data["input"]) == 4
+
+        # Verify system message is in input
+        system_messages = [
+            item for item in data["input"] if item["data"]["role"] == "system"
+        ]
+        assert len(system_messages) == 1
+        assert system_messages[0]["data"]["content"] == "Use examples when explaining."
+
+        # Verify non-system messages
+        non_system_messages = [
+            item for item in data["input"] if item["data"]["role"] != "system"
+        ]
+        assert len(non_system_messages) == 3
+        assert non_system_messages[0]["data"]["role"] == "user"
+        assert non_system_messages[0]["data"]["content"] == "What is Python?"
+        assert non_system_messages[1]["data"]["role"] == "assistant"
+        assert non_system_messages[2]["data"]["role"] == "user"
+
+    async def test_trace_with_only_system_messages(self, client: AsyncClient):
+        """Test trace with only system messages, no user messages."""
+        payload = {
+            "model": "gpt-4",
+            "instructions": "System instruction 1",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": "System instruction 2",
+                },
+            ],
+            "result": "Result",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] == "System instruction 1"
+        assert len(data["input"]) == 1
+        assert data["input"][0]["data"]["role"] == "system"
+
+    async def test_trace_with_no_system_messages(self, client: AsyncClient):
+        """Test trace with no system messages at all."""
+        payload = {
+            "model": "gpt-4",
+            "input": [
+                {"type": "message", "role": "user", "content": "Hello"},
+                {"type": "message", "role": "assistant", "content": "Hi"},
+            ],
+            "result": "Hi",
+            "started_at": "2025-10-15T10:00:00Z",
+            "completed_at": "2025-10-15T10:00:01Z",
+        }
+
+        response = await client.post("/traces", json=payload)
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data["instructions"] is None
+        assert data["prompt"] is None
+        assert len(data["input"]) == 2
+        assert all(item["data"]["role"] != "system" for item in data["input"])

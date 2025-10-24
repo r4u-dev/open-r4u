@@ -167,25 +167,35 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
             <div className="flex-1 overflow-auto">
                 <Section title="Prompt" section="prompt">
                     <div className="whitespace-pre-wrap break-words text-foreground">
-                        {trace.prompt}
+                        {trace.prompt || (
+                            <span className="text-muted-foreground italic">
+                                No system instructions
+                            </span>
+                        )}
                     </div>
                 </Section>
 
                 <Section title="Input Messages" section="inputMessages">
                     <div className="space-y-2">
-                        {trace.inputMessages.map((msg, idx) => (
-                            <div
-                                key={idx}
-                                className="border-l-2 border-primary pl-2"
-                            >
-                                <div className="text-muted-foreground font-medium">
-                                    {msg.role}
+                        {trace.inputMessages.length > 0 ? (
+                            trace.inputMessages.map((msg, idx) => (
+                                <div
+                                    key={idx}
+                                    className="border-l-2 border-primary pl-2"
+                                >
+                                    <div className="text-muted-foreground font-medium">
+                                        {msg.role}
+                                    </div>
+                                    <div className="text-foreground whitespace-pre-wrap break-words">
+                                        {msg.content}
+                                    </div>
                                 </div>
-                                <div className="text-foreground whitespace-pre-wrap break-words">
-                                    {msg.content}
-                                </div>
-                            </div>
-                        ))}
+                            ))
+                        ) : (
+                            <span className="text-muted-foreground italic">
+                                No input messages
+                            </span>
+                        )}
                     </div>
                 </Section>
 

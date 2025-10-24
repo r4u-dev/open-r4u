@@ -53,13 +53,45 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         ? "error"
         : "success";
 
-    // Extract messages from input items
-    const inputMessages = backendTrace.input
-        .filter((item) => item.type === "MESSAGE")
+    // Extract all messages from input items
+    const allMessages = backendTrace.input
+        .filter((item) => item.type === "message")
         .map((item) => ({
             role: item.data.role || "user",
             content: item.data.content || "",
         }));
+
+    // Extract system messages for prompt
+    // Prompt can come from:
+    // 1. trace.instructions field
+    // 2. trace.prompt field
+    // 3. input items with role=system
+    const systemMessages: string[] = [];
+
+    if (backendTrace.instructions) {
+        systemMessages.push(backendTrace.instructions);
+    }
+    if (
+        backendTrace.prompt &&
+        backendTrace.prompt !== backendTrace.instructions
+    ) {
+        systemMessages.push(backendTrace.prompt);
+    }
+
+    // Add system messages from input items
+    allMessages
+        .filter((msg) => msg.role === "system")
+        .forEach((msg) => {
+            if (msg.content) {
+                systemMessages.push(msg.content);
+            }
+        });
+
+    // Concatenate system messages with 2 newlines
+    const prompt = systemMessages.join("\n\n");
+
+    // Input messages are all non-system messages
+    const inputMessages = allMessages.filter((msg) => msg.role !== "system");
 
     // Calculate latency if we have both timestamps
     let latency = 0;
@@ -119,11 +151,7 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         latency,
         cost: 0, // Cost calculation not available yet
         taskVersion: undefined, // Task name not available from backend
-        prompt:
-            backendTrace.prompt ||
-            backendTrace.instructions ||
-            inputMessages[0]?.content ||
-            "",
+        prompt,
         inputMessages,
         modelSettings,
         output: backendTrace.result || "",
