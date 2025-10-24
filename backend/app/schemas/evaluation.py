@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.enums import ScoreType
+from app.enums import ScoreType, EvaluationStatus
 
 
 # Grader Schemas
@@ -160,6 +160,186 @@ class GradeListItem(BaseModel):
     grading_completed_at: datetime | None
     error: str | None
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Test Case Schemas
+class TestCaseBase(BaseModel):
+    """Base schema for test case details."""
+
+    description: str | None = Field(None, max_length=500, description="Optional description of the test case")
+    arguments: dict[str, Any] | None = Field(None, description="Arguments containing variables for prompt rendering and optional 'messages' key")
+    expected_output: str = Field(..., description="Expected output for accuracy comparison (JSON stored as string)")
+
+
+class TestCaseCreate(TestCaseBase):
+    """Schema for creating a test case."""
+    pass
+
+
+class TestCaseUpdate(BaseModel):
+    """Schema for updating a test case (all fields optional)."""
+
+    description: str | None = Field(None, max_length=500)
+    arguments: dict[str, Any] | None = None
+    expected_output: str | None = None
+
+
+class TestCaseRead(TestCaseBase):
+    """Schema for test case response."""
+
+    id: int
+    task_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TestCaseListItem(BaseModel):
+    """Lightweight schema for listing test cases."""
+
+    id: int
+    task_id: int
+    description: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Evaluation Config Schemas
+class EvaluationConfigBase(BaseModel):
+    """Base schema for evaluation configuration."""
+
+    quality_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for quality score (0.0 - 1.0)")
+    cost_weight: float = Field(0.3, ge=0.0, le=1.0, description="Weight for cost efficiency score (0.0 - 1.0)")
+    time_weight: float = Field(0.2, ge=0.0, le=1.0, description="Weight for time efficiency score (0.0 - 1.0)")
+    grader_ids: list[int] = Field(default_factory=list, description="List of grader IDs to use for evaluation")
+
+    @field_validator("quality_weight", "cost_weight", "time_weight")
+    @classmethod
+    def validate_weights_sum_to_one(cls, v, info):
+        """Ensure weights sum to approximately 1.0."""
+        if info.field_name == "time_weight":  # Only validate on the last field
+            values = info.data
+            total = values.get("quality_weight", 0) + values.get("cost_weight", 0) + v
+            if abs(total - 1.0) > 0.01:  # Allow small floating point errors
+                raise ValueError("Quality, cost, and time weights must sum to 1.0")
+        return v
+
+
+class EvaluationConfigCreate(EvaluationConfigBase):
+    """Schema for creating evaluation configuration."""
+    pass
+
+
+class EvaluationConfigUpdate(BaseModel):
+    """Schema for updating evaluation configuration (all fields optional)."""
+
+    quality_weight: float | None = Field(None, ge=0.0, le=1.0)
+    cost_weight: float | None = Field(None, ge=0.0, le=1.0)
+    time_weight: float | None = Field(None, ge=0.0, le=1.0)
+    grader_ids: list[int] | None = None
+
+
+class EvaluationConfigRead(EvaluationConfigBase):
+    """Schema for evaluation configuration response."""
+
+    id: int
+    task_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Evaluation Schemas
+class EvaluationBase(BaseModel):
+    """Base schema for evaluation details."""
+
+    status: EvaluationStatus = Field(EvaluationStatus.PENDING, description="Status of the evaluation")
+    started_at: datetime | None = Field(None, description="When the evaluation started")
+    completed_at: datetime | None = Field(None, description="When the evaluation completed")
+    test_case_count: int | None = Field(None, description="Number of test cases executed")
+    error: str | None = Field(None, description="Error message if evaluation failed")
+
+    # Metrics fields
+    grader_scores: dict[str, float] = Field(default_factory=dict, description="Average score per grader")
+    quality_score: float | None = Field(None, ge=0.0, le=1.0, description="Overall quality score (average of all grader scores)")
+    avg_cost: float | None = Field(None, ge=0.0, description="Average cost across all test executions")
+    avg_execution_time_ms: float | None = Field(None, ge=0.0, description="Average execution time in milliseconds")
+    cost_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Cost efficiency score (0-1, higher is better)")
+    time_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Time efficiency score (0-1, higher is better)")
+    final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0, description="Final weighted evaluation score")
+
+
+class EvaluationCreate(BaseModel):
+    """Schema for creating an evaluation (internal use)."""
+
+    implementation_id: int
+    task_id: int
+
+
+class EvaluationRead(EvaluationBase):
+    """Schema for evaluation response."""
+
+    id: int
+    implementation_id: int
+    task_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvaluationListItem(BaseModel):
+    """Lightweight schema for listing evaluations."""
+
+    id: int
+    implementation_id: int
+    task_id: int
+    status: EvaluationStatus
+    started_at: datetime | None
+    completed_at: datetime | None
+    test_case_count: int | None
+    error: str | None
+    quality_score: float | None
+    final_evaluation_score: float | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Target Task Metrics Schemas
+class TargetTaskMetricsBase(BaseModel):
+    """Base schema for target task metrics."""
+
+    cost: float | None = Field(None, ge=0.0, description="Target cost (best known value)")
+    time_ms: float | None = Field(None, ge=0.0, description="Target execution time in milliseconds (best known value)")
+    last_updated_at: datetime | None = Field(None, description="When the targets were last updated")
+
+
+class TargetTaskMetricsCreate(TargetTaskMetricsBase):
+    """Schema for creating target task metrics."""
+    pass
+
+
+class TargetTaskMetricsUpdate(BaseModel):
+    """Schema for updating target task metrics (all fields optional)."""
+
+    cost: float | None = Field(None, ge=0.0)
+    time_ms: float | None = Field(None, ge=0.0)
+    last_updated_at: datetime | None = None
+
+
+class TargetTaskMetricsRead(TargetTaskMetricsBase):
+    """Schema for target task metrics response."""
+
+    id: int
+    task_id: int
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
