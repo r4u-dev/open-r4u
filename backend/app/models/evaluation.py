@@ -208,7 +208,6 @@ class Evaluation(Base):
         Index("ix_evaluation_task_id", "task_id"),
         Index("ix_evaluation_status", "status"),
         Index("ix_evaluation_started_at", "started_at"),
-        Index("ix_evaluation_final_score", "final_evaluation_score"),
     )
 
     id: Mapped[intpk]

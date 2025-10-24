@@ -270,12 +270,18 @@ class EvaluationService:
             
             # Calculate metrics
             quality_score = statistics.mean(grader_scores.values()) if grader_scores else None
-            avg_cost = statistics.mean([r.cost for r in execution_results if r.cost is not None])
-            avg_time_ms = statistics.mean([
+            
+            # Calculate average cost (handle empty list)
+            cost_values = [r.cost for r in execution_results if r.cost is not None]
+            avg_cost = statistics.mean(cost_values) if cost_values else None
+            
+            # Calculate average execution time (handle empty list)
+            time_values = [
                 (r.completed_at - r.started_at).total_seconds() * 1000
                 for r in execution_results
                 if r.completed_at and r.started_at
-            ])
+            ]
+            avg_time_ms = statistics.mean(time_values) if time_values else None
             
             # Update evaluation with stored metrics (efficiency scores calculated on-demand)
             evaluation.status = EvaluationStatus.COMPLETED
@@ -411,6 +417,13 @@ class EvaluationService:
         self, session: AsyncSession, task_id: int
     ) -> TargetTaskMetrics:
         """Calculate and update target metrics for a task using SQL-based outlier detection."""
+        # First, verify the task exists
+        task_query = select(Task).where(Task.id == task_id)
+        task_result = await session.execute(task_query)
+        task = task_result.scalar_one_or_none()
+        if not task:
+            raise NotFoundError(f"Task with id {task_id} not found")
+        
         # Use SQL to calculate target metrics with robust outlier handling
         # This approach is more efficient and statistically robust than Python-based processing
         
