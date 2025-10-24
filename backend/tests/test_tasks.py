@@ -182,7 +182,11 @@ async def test_get_task(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        project_id=project.id, 
+        path="/api/test",
+        response_schema={"type": "object"}
+    )
     test_session.add(task)
     await test_session.flush()
 
@@ -191,7 +195,6 @@ async def test_get_task(client: AsyncClient, test_session):
         prompt="Test prompt",
         model="gpt-4",
         max_output_tokens=2000,
-        response_schema={"type": "object"},
     )
     test_session.add(implementation)
     await test_session.flush()
@@ -287,3 +290,39 @@ async def test_create_task_with_reasoning(client: AsyncClient):
 
     assert data["path"] == "/api/reason"
     assert data["production_version_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_response_schema(client: AsyncClient, test_session):
+    """Test creating a task with response schema."""
+    payload = {
+        "project": "Test Project",
+        "path": "/api/structured",
+        "response_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["summary"]
+        },
+        "implementation": {
+            "prompt": "Provide a structured response",
+            "model": "gpt-4",
+            "max_output_tokens": 1000,
+        },
+    }
+
+    response = await client.post("/tasks", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["path"] == "/api/structured"
+    assert data["response_schema"] == payload["response_schema"]
+    assert data["production_version_id"] is not None
+
+    # Verify task was created with response_schema
+    task_query = select(Task).where(Task.id == data["id"])
+    task_result = await test_session.execute(task_query)
+    task = task_result.scalar_one()
+    assert task.response_schema == payload["response_schema"]

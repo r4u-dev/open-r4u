@@ -153,7 +153,6 @@ async def test_get_implementation(client: AsyncClient, test_session):
         model="gpt-4-turbo",
         max_output_tokens=3000,
         temperature=0.5,
-        response_schema={"type": "object"},
     )
     test_session.add(implementation)
     await test_session.commit()
@@ -169,7 +168,7 @@ async def test_get_implementation(client: AsyncClient, test_session):
     assert data["model"] == "gpt-4-turbo"
     assert data["max_output_tokens"] == 3000
     assert data["temperature"] == 0.5
-    assert data["response_schema"] == {"type": "object"}
+    # response_schema is no longer part of implementation
 
 
 @pytest.mark.asyncio

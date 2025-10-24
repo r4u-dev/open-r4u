@@ -49,7 +49,6 @@ async def _create_temp_implementation(
         reasoning=overrides.get("reasoning", base_implementation.reasoning),
         tools=overrides.get("tools", base_implementation.tools),
         tool_choice=overrides.get("tool_choice", base_implementation.tool_choice),
-        response_schema=overrides.get("response_schema", base_implementation.response_schema),
         max_output_tokens=overrides.get("max_output_tokens", base_implementation.max_output_tokens),
         temp=True,
     )
@@ -66,8 +65,7 @@ async def execute(
     settings: Settings,
     task_id: int | None = None,
     implementation_id: int | None = None,
-    variables: dict[str, Any] | None = None,
-    input: list[InputItem] | None = None,
+    arguments: dict[str, Any] | None = None,
     overrides: dict[str, Any] | None = None,
 ) -> ExecutionResult:
     """Unified execution entrypoint.
@@ -75,7 +73,7 @@ async def execute(
     - If task_id is provided, executes the task's implementation.
       When overrides are provided, a temporary implementation is auto-created.
     - If implementation_id is provided, executes that implementation (overrides are not allowed).
-    - input: Optional message history (InputItem list). If provided, overrides prompt rendering.
+    - arguments: Contains variables for prompt rendering and optional "messages" key for input history.
     """
 
     if (task_id is None) == (implementation_id is None):
@@ -135,6 +133,16 @@ async def execute(
         resolved_task_id = task.id
         resolved_impl_id = implementation.id
 
+    # Extract variables and input from arguments
+    variables = None
+    input = None
+    if arguments:
+        # Extract variables for prompt rendering (everything except "messages")
+        variables = {k: v for k, v in arguments.items() if k != "messages"}
+        # Extract messages if present
+        if "messages" in arguments:
+            input = arguments["messages"]
+
     # Execute via LLM executor
     executor = LLMExecutor(settings)
     service_result = await executor.execute(implementation, variables, input)
@@ -150,11 +158,6 @@ async def execute(
             cached_tokens=service_result.cached_tokens,
         )
 
-    # Convert input items to JSON-serializable format
-    input_json = None
-    if input:
-        input_json = [item.model_dump() if hasattr(item, 'model_dump') else item for item in input]
-
     # Persist execution
     db_execution = ExecutionResult(
         task_id=resolved_task_id,
@@ -162,8 +165,7 @@ async def execute(
         started_at=service_result.started_at,
         completed_at=service_result.completed_at,
         prompt_rendered=service_result.prompt_rendered,
-        variables=variables,
-        input=input_json,
+        arguments=arguments,
         result_text=service_result.result_text,
         result_json=service_result.result_json,
         tool_calls=service_result.tool_calls,

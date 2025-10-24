@@ -52,8 +52,7 @@ class ExecutionResult(Base):
 
     # Prompt rendering
     prompt_rendered: Mapped[str] = mapped_column(Text, nullable=False)
-    variables: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    input: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
+    arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
 
     # Results
     result_text: Mapped[str | None] = mapped_column(Text, nullable=True)

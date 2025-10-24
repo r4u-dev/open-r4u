@@ -12,11 +12,8 @@ from app.schemas.traces import InputItem
 class ExecutionRequest(BaseModel):
     """Schema for task execution request."""
 
-    # Variables to render the prompt template
-    variables: dict[str, Any] | None = None
-    
-    # Optional message history (alternative to simple prompt rendering)
-    input: list[InputItem] | None = None
+    # Arguments for task execution - includes variables for prompt rendering and messages
+    arguments: dict[str, Any] | None = None
     
     # Optional overrides for implementation parameters
     model: str | None = None
@@ -24,7 +21,6 @@ class ExecutionRequest(BaseModel):
     max_output_tokens: int | None = None
     tools: list[dict[str, Any]] | None = None
     tool_choice: str | dict[str, Any] | None = None
-    response_schema: dict[str, Any] | None = None
     reasoning: dict[str, Any] | None = None
 
 
@@ -59,8 +55,7 @@ class ExecutionResultCreate(ExecutionResultBase):
 
     task_id: int
     implementation_id: int
-    variables: dict[str, Any] | None = None
-    input: list[InputItem] | None = None
+    arguments: dict[str, Any] | None = None
 
 
 class ExecutionResultRead(ExecutionResultCreate):
