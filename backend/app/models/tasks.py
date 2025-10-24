@@ -37,10 +37,6 @@ class Implementation(Base):
         JSONType,
         nullable=True,
     )
-    response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType,
-        nullable=True,
-    )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
     temp: Mapped[bool] = mapped_column(nullable=False, default=False)
 
@@ -101,6 +97,10 @@ class Task(Base):
         foreign_keys=[production_version_id],
         post_update=True,
     )  # type: ignore
+    response_schema: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONType,
+        nullable=True,
+    )
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
         back_populates="task",

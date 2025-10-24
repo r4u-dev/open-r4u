@@ -36,6 +36,7 @@ async def test_task(
     task = Task(
         project_id=test_project.id,
         path="test/path",
+        response_schema={"type": "object", "properties": {"summary": {"type": "string"}}},
     )
     test_session.add(task)
     await test_session.commit()
@@ -372,6 +373,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Summarize this text: Hello world",
+            arguments={"text": "Hello world"},
             result_text="A greeting message.",
             finish_reason=FinishReason.STOP,
             prompt_tokens=10,
@@ -388,7 +390,7 @@ class TestExecutionAPI:
 
             response = await client.post(
                 f"/executions/implementations/{implementation.id}/execute",
-                json={"variables": {"text": "Hello world"}},
+                json={"arguments": {"text": "Hello world"}},
             )
 
             assert response.status_code == 201
@@ -478,6 +480,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 1",
+            arguments={"key": "value1"},
             result_text="Result 1",
         )
         execution2 = ExecutionResult(
@@ -486,6 +489,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 2",
+            arguments={"key": "value2"},
             result_text="Result 2",
         )
 
@@ -514,6 +518,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 1",
+            arguments={"key": "value1"},
             result_text="Result 1",
         )
         execution2 = ExecutionResult(
@@ -522,6 +527,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 2",
+            arguments={"key": "value2"},
             result_text="Result 2",
         )
 
@@ -551,7 +557,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt",
             result_text="Test result",
-            variables={"key": "value"},
+            arguments={"key": "value"},
         )
 
         test_session.add(execution)
@@ -565,7 +571,7 @@ class TestExecutionAPI:
         assert data["id"] == execution.id
         assert data["task_id"] == task.id
         assert data["result_text"] == "Test result"
-        assert data["variables"] == {"key": "value"}
+        assert data["arguments"] == {"key": "value"}
 
     @pytest.mark.asyncio
     async def test_get_execution_not_found(self, client: AsyncClient):
@@ -616,6 +622,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt",
+            arguments={"key": "value"},
             result_text="Test result",
         )
 

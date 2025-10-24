@@ -466,6 +466,7 @@ class TaskGrouper:
         task = Task(
             project_id=reference_trace.project_id,
             path=reference_trace.path,
+            response_schema=reference_trace.response_schema,
         )
 
         session.add(task)
@@ -477,7 +478,6 @@ class TaskGrouper:
             prompt=final_prompt,
             model=reference_trace.model,
             tools=reference_trace.tools,
-            response_schema=reference_trace.response_schema,
             temperature=reference_trace.temperature,
             tool_choice=reference_trace.tool_choice,
             reasoning=reference_trace.reasoning,
