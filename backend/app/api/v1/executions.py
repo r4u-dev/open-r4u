@@ -44,8 +44,6 @@ async def execute_task(
         overrides["tools"] = payload.tools
     if payload.tool_choice is not None:
         overrides["tool_choice"] = payload.tool_choice
-    if payload.response_schema is not None:
-        overrides["response_schema"] = payload.response_schema
     if payload.reasoning is not None:
         overrides["reasoning"] = payload.reasoning
     
@@ -54,8 +52,7 @@ async def execute_task(
             session=session,
             settings=settings,
             task_id=task_id,
-            variables=payload.variables,
-            input=payload.input,
+            arguments=payload.arguments,
             overrides=overrides if overrides else None,
         )
     except svc.BadRequestError as e:
@@ -89,8 +86,7 @@ async def execute_implementation(
             session=session,
             settings=settings,
             implementation_id=implementation_id,
-            variables=payload.variables,
-            input=payload.input,
+            arguments=payload.arguments,
         )
     except svc.BadRequestError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)

@@ -37,10 +37,6 @@ class Implementation(Base):
         JSONType,
         nullable=True,
     )
-    response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType,
-        nullable=True,
-    )
     max_output_tokens: Mapped[int] = mapped_column(nullable=False)
     temp: Mapped[bool] = mapped_column(nullable=False, default=False)
 
@@ -56,6 +52,11 @@ class Implementation(Base):
 
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
+        back_populates="implementation",
+        cascade="all, delete-orphan",
+    )
+    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+        "Evaluation",
         back_populates="implementation",
         cascade="all, delete-orphan",
     )
@@ -96,9 +97,35 @@ class Task(Base):
         foreign_keys=[production_version_id],
         post_update=True,
     )  # type: ignore
+    response_schema: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONType,
+        nullable=True,
+    )
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
         back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    test_cases: Mapped[list["TestCase"]] = relationship(  # type: ignore
+        "TestCase",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    evaluation_config: Mapped["EvaluationConfig | None"] = relationship(  # type: ignore
+        "EvaluationConfig",
+        back_populates="task",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+        "Evaluation",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    target_task_metrics: Mapped["TargetTaskMetrics | None"] = relationship(  # type: ignore
+        "TargetTaskMetrics",
+        back_populates="task",
+        uselist=False,
         cascade="all, delete-orphan",
     )
 

@@ -185,7 +185,7 @@ class LLMExecutor:
         max_tokens = implementation.max_output_tokens
         tools = implementation.tools
         tool_choice = implementation.tool_choice
-        response_schema = implementation.response_schema
+        response_schema = implementation.task.response_schema
         reasoning = implementation.reasoning
 
         # Build request parameters

@@ -190,8 +190,8 @@ class GradingService:
             if execution_result.error:
                 context_parts.append(f"Error: {execution_result.error}")
             
-            if execution_result.variables:
-                context_parts.append(f"Variables: {json.dumps(execution_result.variables)}")
+            if execution_result.arguments:
+                context_parts.append(f"Arguments: {json.dumps(execution_result.arguments)}")
             
             return "\n".join(context_parts)
         
@@ -330,7 +330,7 @@ class GradingService:
             return grade
         
         # Create a temporary implementation-like object for executor
-        from app.models.tasks import Implementation
+        from app.models.tasks import Implementation, Task
         
         temp_impl = Implementation(
             task_id=0,  # Dummy value, won't be persisted
@@ -339,10 +339,17 @@ class GradingService:
             model=grader.model,
             temperature=grader.temperature,
             reasoning=grader.reasoning,
-            response_schema=grader.response_schema,
             max_output_tokens=grader.max_output_tokens,
             temp=True,
         )
+        
+        # Create a dummy task with the grader's response_schema
+        temp_task = Task(
+            id=0,  # Dummy ID
+            project_id=0,
+            response_schema=grader.response_schema,
+        )
+        temp_impl.task = temp_task
         
         # Execute grading using LLM executor
         executor = LLMExecutor(self.settings)
@@ -445,4 +452,48 @@ class GradingService:
         grade = await self.get_grade(session, grade_id)
         await session.delete(grade)
         await session.commit()
+
+    async def create_default_accuracy_grader(
+        self, session: AsyncSession, project_id: int
+    ) -> Grader:
+        """Create a default accuracy grader for a project."""
+        # Check if project already has an accuracy grader
+        query = (
+            select(Grader)
+            .where(Grader.project_id == project_id)
+            .where(Grader.name == "Accuracy")
+        )
+        result = await session.execute(query)
+        existing_grader = result.scalar_one_or_none()
+        
+        if existing_grader:
+            return existing_grader
+        
+        # Create default accuracy grader
+        return await self.create_grader(
+            session=session,
+            project_id=project_id,
+            name="Accuracy",
+            description="Default accuracy grader that compares actual output with expected output",
+            prompt="""Compare the actual output with the expected output. 
+
+Actual Output: {actual_output}
+Expected Output: {expected_output}
+
+Respond with JSON: {{"score": true/false, "reasoning": "explanation"}}
+
+Return true if the outputs match or are equivalent, false otherwise.""",
+            score_type=ScoreType.BOOLEAN,
+            model="gpt-4o-mini",
+            temperature=0.0,
+            max_output_tokens=500,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "score": {"type": "boolean"},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["score", "reasoning"]
+            },
+        )
 

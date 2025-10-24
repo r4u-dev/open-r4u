@@ -51,3 +51,12 @@ class ScoreType(str, Enum):
 
     FLOAT = "float"  # 0.0 - 1.0 numeric scores
     BOOLEAN = "boolean"  # true/false binary evaluation
+
+
+class EvaluationStatus(str, Enum):
+    """Status of an evaluation run."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"

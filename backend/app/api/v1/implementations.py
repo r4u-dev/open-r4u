@@ -91,7 +91,6 @@ async def create_implementation(
             if payload.tool_choice
             else None
         ),
-        response_schema=payload.response_schema,
         max_output_tokens=payload.max_output_tokens,
     )
 
@@ -145,7 +144,6 @@ async def update_implementation(
         if payload.tool_choice
         else None
     )
-    implementation.response_schema = payload.response_schema
     implementation.max_output_tokens = payload.max_output_tokens
 
     await session.commit()

@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ScoreType
+from app.enums import ScoreType, EvaluationStatus
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 # Use JSONB for PostgreSQL, JSON for other databases
@@ -137,6 +137,141 @@ class Grade(Base):
     grader: Mapped["Grader"] = relationship("Grader", back_populates="grades")
     trace: Mapped["Trace | None"] = relationship("Trace", back_populates="grades")  # type: ignore
     execution_result: Mapped["ExecutionResult | None"] = relationship("ExecutionResult", back_populates="grades")  # type: ignore
+
+    created_at: Mapped[created_at_col]
+    updated_at: Mapped[updated_at_col]
+
+
+class TestCase(Base):
+    """Test case model for storing test inputs and expected outputs for tasks."""
+
+    __test__ = False
+
+    __tablename__ = "test_case"
+    __table_args__ = (
+        Index("ix_test_case_task_id", "task_id"),
+    )
+
+    id: Mapped[intpk]
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    expected_output: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships
+    task: Mapped["Task"] = relationship("Task", back_populates="test_cases")  # type: ignore
+
+    created_at: Mapped[created_at_col]
+    updated_at: Mapped[updated_at_col]
+
+
+class EvaluationConfig(Base):
+    """Evaluation configuration model for storing task-level evaluation settings."""
+
+    __tablename__ = "evaluation_config"
+    __table_args__ = (
+        Index("ix_evaluation_config_task_id", "task_id"),
+        # Ensure one config per task
+        CheckConstraint(
+            "task_id IS NOT NULL",
+            name="ck_evaluation_config_task_id_not_null",
+        ),
+    )
+
+    id: Mapped[intpk]
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    quality_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    cost_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.3)
+    time_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
+    grader_ids: Mapped[list[int]] = mapped_column(JSONType, nullable=False, default=list)
+
+    # Relationships
+    task: Mapped["Task"] = relationship("Task", back_populates="evaluation_config")  # type: ignore
+
+    created_at: Mapped[created_at_col]
+    updated_at: Mapped[updated_at_col]
+
+
+class Evaluation(Base):
+    """Evaluation model for storing evaluation run information and metrics."""
+
+    __tablename__ = "evaluation"
+    __table_args__ = (
+        Index("ix_evaluation_implementation_id", "implementation_id"),
+        Index("ix_evaluation_task_id", "task_id"),
+        Index("ix_evaluation_status", "status"),
+        Index("ix_evaluation_started_at", "started_at"),
+    )
+
+    id: Mapped[intpk]
+    implementation_id: Mapped[int] = mapped_column(
+        ForeignKey("implementation.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[EvaluationStatus] = mapped_column(
+        SQLEnum(EvaluationStatus, name="evaluation_status"),
+        nullable=False,
+        default=EvaluationStatus.PENDING,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    test_case_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Metrics fields (stored)
+    grader_scores: Mapped[dict[str, float]] = mapped_column(JSONType, nullable=False, default=dict)
+    quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
+    # Efficiency and final scores are calculated on-demand, not stored
+
+    # Relationships
+    implementation: Mapped["Implementation"] = relationship("Implementation", back_populates="evaluations")  # type: ignore
+    task: Mapped["Task"] = relationship("Task", back_populates="evaluations")  # type: ignore
+
+    created_at: Mapped[created_at_col]
+    updated_at: Mapped[updated_at_col]
+
+
+class TargetTaskMetrics(Base):
+    """Target task metrics model for storing best-known values for efficiency score calculation."""
+
+    __tablename__ = "target_task_metrics"
+    __table_args__ = (
+        Index("ix_target_task_metrics_task_id", "task_id"),
+        Index("ix_target_task_metrics_last_updated", "last_updated_at"),
+    )
+
+    id: Mapped[intpk]
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("task.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Relationships
+    task: Mapped["Task"] = relationship("Task", back_populates="target_task_metrics")  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
