@@ -145,6 +145,8 @@ class Grade(Base):
 class TestCase(Base):
     """Test case model for storing test inputs and expected outputs for tasks."""
 
+    __test__ = False
+
     __tablename__ = "test_case"
     __table_args__ = (
         Index("ix_test_case_task_id", "task_id"),
@@ -157,8 +159,7 @@ class TestCase(Base):
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    input_variables: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    input_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
+    arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     expected_output: Mapped[str | None] = mapped_column(Text, nullable=True)
     expected_output_json: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
