@@ -453,3 +453,47 @@ class GradingService:
         await session.delete(grade)
         await session.commit()
 
+    async def create_default_accuracy_grader(
+        self, session: AsyncSession, project_id: int
+    ) -> Grader:
+        """Create a default accuracy grader for a project."""
+        # Check if project already has an accuracy grader
+        query = (
+            select(Grader)
+            .where(Grader.project_id == project_id)
+            .where(Grader.name == "Accuracy")
+        )
+        result = await session.execute(query)
+        existing_grader = result.scalar_one_or_none()
+        
+        if existing_grader:
+            return existing_grader
+        
+        # Create default accuracy grader
+        return await self.create_grader(
+            session=session,
+            project_id=project_id,
+            name="Accuracy",
+            description="Default accuracy grader that compares actual output with expected output",
+            prompt="""Compare the actual output with the expected output. 
+
+Actual Output: {actual_output}
+Expected Output: {expected_output}
+
+Respond with JSON: {{"score": true/false, "reasoning": "explanation"}}
+
+Return true if the outputs match or are equivalent, false otherwise.""",
+            score_type=ScoreType.BOOLEAN,
+            model="gpt-4o-mini",
+            temperature=0.0,
+            max_output_tokens=500,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "score": {"type": "boolean"},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["score", "reasoning"]
+            },
+        )
+
