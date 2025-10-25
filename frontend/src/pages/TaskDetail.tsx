@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TaskService } from "@/services/taskService";
@@ -8,7 +8,7 @@ import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
 import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 
-type TabType = "overview" | "traces" | "executions" | "test-cases" | "settings";
+type TabType = "overview" | "traces" | "evaluations" | "settings";
 
 const TaskDetail = () => {
   const { taskId } = useParams<{ taskId: string }>();
@@ -19,7 +19,94 @@ const TaskDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [selectedVersion, setSelectedVersion] = useState<string>("");
-  const [expandedSection, setExpandedSection] = useState<"contracts" | "requirements" | null>("contracts");
+  const [expandedSection, setExpandedSection] = useState<"contracts" | null>("contracts");
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+
+  // Helper functions for tool information
+  const getToolDescription = (toolName: string): string => {
+    const descriptions: Record<string, string> = {
+      "web-search": "Search the web for real-time information and current events",
+      "text-analysis": "Analyze text content for sentiment, entities, and linguistic features",
+      "image-analysis": "Analyze images for objects, text, and visual content",
+      "code-analysis": "Analyze code for quality, patterns, and potential issues",
+      "security-checker": "Check code and content for security vulnerabilities",
+      "language-detection": "Detect and identify languages in text content",
+      "text-parsing": "Parse and extract structured data from unstructured text",
+      "context-analysis": "Analyze conversation context and maintain dialogue state",
+      "content-analysis": "Analyze content for appropriateness and policy compliance",
+      "policy-checker": "Check content against moderation policies and guidelines",
+      "data-processor": "Process and transform data according to specified rules",
+      "quality-checker": "Validate data quality and completeness",
+      "performance-monitor": "Monitor and analyze system performance metrics",
+      "error-handler": "Handle and manage errors and exceptions"
+    };
+    return descriptions[toolName] || "Tool for processing and analysis";
+  };
+
+  const getToolSchema = (toolName: string): Record<string, any> | null => {
+    const schemas: Record<string, Record<string, any>> = {
+      "web-search": {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query string" },
+          max_results: { type: "integer", description: "Maximum number of results to return", default: 10 },
+          language: { type: "string", description: "Language for search results", default: "en" }
+        },
+        required: ["query"]
+      },
+      "text-analysis": {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Text content to analyze" },
+          analysis_type: {
+            type: "string",
+            enum: ["sentiment", "entities", "keywords", "summary"],
+            description: "Type of analysis to perform"
+          },
+          language: { type: "string", description: "Language of the text", default: "auto" }
+        },
+        required: ["text", "analysis_type"]
+      },
+      "image-analysis": {
+        type: "object",
+        properties: {
+          image_url: { type: "string", description: "URL of the image to analyze" },
+          features: {
+            type: "array",
+            items: { type: "string", enum: ["objects", "text", "faces", "labels"] },
+            description: "Features to extract from the image"
+          }
+        },
+        required: ["image_url", "features"]
+      },
+      "code-analysis": {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "Source code to analyze" },
+          language: { type: "string", description: "Programming language" },
+          checks: {
+            type: "array",
+            items: { type: "string", enum: ["syntax", "style", "security", "performance"] },
+            description: "Types of checks to perform"
+          }
+        },
+        required: ["code", "language"]
+      }
+    };
+    return schemas[toolName] || null;
+  };
+
+  const toggleToolExpansion = (toolName: string) => {
+    setExpandedTools(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(toolName)) {
+        newSet.delete(toolName);
+      } else {
+        newSet.add(toolName);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     const loadTask = async () => {
@@ -88,8 +175,7 @@ const TaskDetail = () => {
   const tabs: Array<{ id: TabType; label: string }> = [
     { id: "overview", label: "Overview" },
     { id: "traces", label: "Traces" },
-    { id: "executions", label: "Executions" },
-    { id: "test-cases", label: "Test Cases" },
+    { id: "evaluations", label: "Evaluations" },
     { id: "settings", label: "Settings" },
   ];
 
@@ -126,12 +212,12 @@ const TaskDetail = () => {
               </div>
 
               {/* Contracts */}
-              <div className="border border-border rounded-lg p-3">
+              <div className="border border-border rounded-lg p-4">
                 <button
                   onClick={() => setExpandedSection(expandedSection === "contracts" ? null : "contracts")}
                   className="w-full flex items-center justify-between hover:text-primary mb-2"
                 >
-                  <h2 className="text-sm font-semibold">Contracts</h2>
+                  <h2 className="text-lg font-semibold">Contracts</h2>
                   {expandedSection === "contracts" ? (
                     <ChevronUp className="w-4 h-4" />
                   ) : (
@@ -144,37 +230,36 @@ const TaskDetail = () => {
                     {/* Input Contract */}
                     <JsonSchemaViewer
                       schema={task.contract.input_schema}
-                      title="Input Contract"
+                      title="Input"
                     />
 
                     {/* Output Contract */}
                     <JsonSchemaViewer
                       schema={task.contract.output_schema}
-                      title="Output Contract"
+                      title="Output"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Implementation Details */}
-              <div className="border border-border rounded-lg p-3">
-                <h2 className="text-sm font-semibold mb-3">Implementation Details</h2>
+              {/* Implementation */}
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Implementation</h2>
+                  <select
+                    value={selectedVersion}
+                    onChange={(e) => setSelectedVersion(e.target.value)}
+                    className="bg-background border border-border rounded px-3 py-1 text-sm"
+                  >
+                    {task.versions.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        v{version.version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 
                 <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-semibold block mb-2">Version</label>
-                    <select
-                      value={selectedVersion}
-                      onChange={(e) => setSelectedVersion(e.target.value)}
-                      className="w-full bg-background border border-border rounded px-3 py-2 text-sm"
-                    >
-                      {task.versions.map((version) => (
-                        <option key={version.id} value={version.id}>
-                          v{version.version} - {version.model} ({new Date(version.createdAt).toLocaleDateString()})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
                   {selectedVersion &&
                     (() => {
@@ -182,97 +267,83 @@ const TaskDetail = () => {
                       return version ? (
                         <div className="space-y-3">
                           <div>
-                            <div className="text-muted-foreground mb-1 text-xs">Model</div>
-                            <div className="font-mono text-xs bg-muted p-2 rounded">{version.model}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground mb-1 text-xs">Settings</div>
-                            <div className="font-mono text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
-                              {JSON.stringify(version.settings, null, 2)}
-                            </div>
-                          </div>
-                          <div>
                             <div className="text-muted-foreground mb-1 text-xs">Prompt</div>
-                            <div className="bg-muted p-2 rounded text-xs">{version.prompt}</div>
+                            <div className="text-sm">{version.prompt}</div>
                           </div>
                           {version.tools.length > 0 && (
                             <div>
-                              <div className="text-muted-foreground mb-1 text-xs">Tools</div>
-                              <div className="flex gap-1 flex-wrap">
-                                {version.tools.map((tool) => (
-                                  <span key={tool} className="px-1.5 py-0.5 bg-muted rounded text-xs">
-                                    {tool}
-                                  </span>
-                                ))}
+                              <div className="text-muted-foreground mb-2 text-xs font-medium">Tools</div>
+                              <div className="space-y-2">
+                                {version.tools.map((tool) => {
+                                  const isExpanded = expandedTools.has(tool);
+                                  const hasSchema = getToolSchema(tool);
+                                  return (
+                                    <div key={tool} className="p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        {hasSchema && (
+                                          <button
+                                            onClick={() => toggleToolExpansion(tool)}
+                                            className="hover:text-primary transition-colors"
+                                          >
+                                            {isExpanded ? (
+                                              <ChevronDown className="h-4 w-4" />
+                                            ) : (
+                                              <ChevronRight className="h-4 w-4" />
+                                            )}
+                                          </button>
+                                        )}
+                                        <h4 className="font-mono text-sm font-semibold">{tool}</h4>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {getToolDescription(tool)}
+                                      </div>
+                                      {hasSchema && isExpanded && (
+                                        <div className="mt-2">
+                                          <JsonSchemaViewer
+                                            schema={getToolSchema(tool)}
+                                            title="Parameters"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
+                          <div>
+                            <div className="text-muted-foreground mb-2 text-xs font-medium">Configuration</div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="p-2">
+                                <div className="text-muted-foreground text-xs">model</div>
+                                <div className="font-mono text-xs">{version.model}</div>
+                              </div>
+                              {Object.entries(version.settings).map(([key, value]) => {
+                                // Map camelCase to snake_case for API parameter names
+                                const apiKey = key === 'maxTokens' ? 'max_tokens' :
+                                             key === 'topP' ? 'top_p' :
+                                             key === 'frequencyPenalty' ? 'frequency_penalty' :
+                                             key === 'presencePenalty' ? 'presence_penalty' :
+                                             key === 'stopSequences' ? 'stop' :
+                                             key;
+                                return (
+                                  <div key={key} className="p-2">
+                                    <div className="text-muted-foreground text-xs">{apiKey}</div>
+                                    <div className="font-mono text-xs">{String(value)}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       ) : null;
                     })()}
                 </div>
               </div>
 
-              {/* Performance Metrics */}
-              <div className="border border-border rounded-lg p-3">
-                <h2 className="text-sm font-semibold mb-3">Performance Metrics</h2>
-                <div className="grid grid-cols-5 gap-2 text-xs">
-                  <div className="bg-muted p-2 rounded">
-                    <div className="text-muted-foreground">Traces</div>
-                    <div className="font-semibold">{task.traceCount}</div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <div className="text-muted-foreground">Latency</div>
-                    <div className="font-semibold">{task.avgLatency.toFixed(2)}s</div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <div className="text-muted-foreground">Cost</div>
-                    <div className="font-semibold">${task.avgCost.toFixed(4)}</div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <div className="text-muted-foreground">Quality</div>
-                    <div className="font-semibold">{(task.avgQuality * 100).toFixed(0)}%</div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <div className="text-muted-foreground">Versions</div>
-                    <div className="font-semibold">{task.versions.length}</div>
-                  </div>
-                </div>
-              </div>
 
 
 
-              {/* Requirements */}
-              <div className="border border-border rounded-lg p-3">
-                <button
-                  onClick={() => setExpandedSection(expandedSection === "requirements" ? null : "requirements")}
-                  className="w-full flex items-center justify-between hover:text-primary mb-2"
-                >
-                  <h2 className="text-sm font-semibold">Requirements & Capabilities</h2>
-                  {expandedSection === "requirements" ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </button>
-
-                {expandedSection === "requirements" && (
-                  <div className="text-xs space-y-1">
-                    <div className="flex gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Handles long-form text processing</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Preserves key information and context</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Maintains high accuracy and quality</span>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -321,60 +392,15 @@ const TaskDetail = () => {
             </div>
           )}
 
-          {/* Executions Tab */}
-          {activeTab === "executions" && (
-            <div className="p-4">
-              {task.executions.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  <p>No executions yet</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {task.executions.map((execution) => (
-                    <div key={execution.id} className="border border-border rounded p-3 text-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(execution.timestamp).toLocaleString()}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">{execution.steps} steps</span>
-                          <span
-                            className={`text-xs px-2 py-1 rounded ${execution.status === "success" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
-                          >
-                            {execution.status}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{execution.latency.toFixed(2)}s</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-1">Input</div>
-                          <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                            {JSON.stringify(execution.input, null, 2)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-1">Output</div>
-                          <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                            {JSON.stringify(execution.output, null, 2)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Test Cases Tab */}
-          {activeTab === "test-cases" && (
+          {/* Evaluations Tab */}
+          {activeTab === "evaluations" && (
             <div className="p-4">
               {task.testCases.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
-                  <p>No test cases yet</p>
+                  <p>No evaluations yet</p>
                   <Button variant="link" className="text-primary hover:underline mt-2 p-0 h-auto">
-                    Create test case
+                    Create evaluation
                   </Button>
                 </div>
               ) : (

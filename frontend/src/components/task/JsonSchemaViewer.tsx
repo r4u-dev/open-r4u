@@ -15,7 +15,20 @@ interface PropertyViewerProps {
 
 const PropertyViewer = ({ propKey, value, required = false, level = 0 }: PropertyViewerProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const indentClass = `ml-${level * 4}`;
+
+  // Use a more controlled indentation approach with reduced spacing
+  const getIndentClass = (level: number) => {
+    switch (level) {
+      case 0: return "ml-0";
+      case 1: return "ml-2";
+      case 2: return "ml-4";
+      case 3: return "ml-6";
+      case 4: return "ml-8";
+      default: return "ml-10"; // Cap at a reasonable maximum
+    }
+  };
+
+  const indentClass = getIndentClass(level);
 
   const getTypeBadge = (type: any, items?: any) => {
     if (Array.isArray(type)) {
@@ -43,18 +56,18 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
     const typeStr = Array.isArray(type) ? type[0] : type;
     switch (typeStr) {
       case "string":
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
       case "integer":
       case "number":
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
       case "boolean":
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
       case "array":
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
       case "object":
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
       default:
-        return "bg-muted/50 text-muted-foreground";
+        return "text-muted-foreground";
     }
   };
 
@@ -137,9 +150,9 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
   };
 
   return (
-    <div className={`${indentClass} mb-4`}>
-      <div className="flex items-center gap-1 flex-wrap">
-        <div className="w-4 flex justify-center">
+    <div className={`${indentClass} mb-2`}>
+      <div className="flex items-center gap-0.5 flex-wrap">
+        <div className="w-3 flex justify-center">
           {shouldShowExpandButton(value) ? (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -163,31 +176,31 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
         )}
         
         {required && (
-          <span className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+          <span className="px-1.5 py-0.5 text-muted-foreground text-xs">
             required
           </span>
         )}
 
         {value?.enum && (
-          <span className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+          <span className="px-1.5 py-0.5 text-muted-foreground text-xs">
             enum
           </span>
         )}
 
         {value?.pattern && (
-          <span className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+          <span className="px-1.5 py-0.5 text-muted-foreground text-xs">
             pattern
           </span>
         )}
 
         {value?.minimum !== undefined && (
-          <span className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+          <span className="px-1.5 py-0.5 text-muted-foreground text-xs">
             min: {value.minimum}
           </span>
         )}
 
         {value?.maximum !== undefined && (
-          <span className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+          <span className="px-1.5 py-0.5 text-muted-foreground text-xs">
             max: {value.maximum}
           </span>
         )}
@@ -200,12 +213,10 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
       )}
 
       {isExpanded && (
-        <div className="ml-4 mt-2 border-l border-border pl-2">
+        <div className="ml-1 mt-2 border-l border-border pl-1">
           {/* Show properties if it's an object with properties */}
           {value?.properties && (
             <div>
-              <div className="text-muted-foreground text-xs font-medium mb-1">Properties:</div>
-              <div>
                 {Object.entries(value.properties).map(([key, propValue]: [string, any]) => (
                   <PropertyViewer
                     key={key}
@@ -215,15 +226,12 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
                     level={level + 1}
                   />
                 ))}
-              </div>
             </div>
           )}
 
           {/* Show array item properties directly */}
           {value?.items && value?.items?.properties && (
             <div>
-              <div className="text-muted-foreground text-xs font-medium mb-1">Array Item Properties:</div>
-              <div>
                 {Object.entries(value.items.properties).map(([key, propValue]: [string, any]) => (
                   <PropertyViewer
                     key={key}
@@ -234,7 +242,6 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
                   />
                 ))}
               </div>
-            </div>
           )}
 
           {/* Show enum values for simple types */}
@@ -243,7 +250,7 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
               <div className="text-muted-foreground text-xs font-medium mb-1">Allowed Values:</div>
               <div className="flex gap-1 flex-wrap">
                 {value.enum.map((enumValue: any, index: number) => (
-                  <span key={index} className="px-1.5 py-0.5 bg-muted/50 text-muted-foreground rounded text-xs">
+                  <span key={index} className="px-1.5 py-0.5 text-muted-foreground text-xs">
                     {String(enumValue)}
                   </span>
                 ))}
@@ -255,7 +262,7 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
           {value?.pattern && !value?.properties && (
             <div>
               <div className="text-muted-foreground text-xs font-medium mb-1">Pattern:</div>
-              <div className="font-mono text-xs bg-muted p-1 rounded">
+              <div className="font-mono text-xs">
                 {value.pattern}
               </div>
             </div>
@@ -286,7 +293,7 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
           {value?.default !== undefined && !value?.properties && (
             <div>
               <div className="text-muted-foreground text-xs font-medium mb-1">Default:</div>
-              <div className="font-mono text-xs bg-muted p-1 rounded">
+              <div className="font-mono text-xs">
                 {renderValue(value.default)}
               </div>
             </div>
@@ -296,7 +303,7 @@ const PropertyViewer = ({ propKey, value, required = false, level = 0 }: Propert
           {value?.example && !value?.properties && (
             <div>
               <div className="text-muted-foreground text-xs font-medium mb-1">Example:</div>
-              <div className="font-mono text-xs bg-muted p-1 rounded">
+              <div className="font-mono text-xs">
                 {renderValue(value.example)}
               </div>
             </div>
@@ -319,9 +326,9 @@ export const JsonSchemaViewer = ({ schema, title }: JsonSchemaViewerProps) => {
 
   return (
     <div className="text-xs space-y-2">
-      <h3 className="font-semibold text-sm">{title}</h3>
+      <div className="text-muted-foreground mb-1 text-xs">{title}</div>
       <div>
-        <div className="bg-muted p-2 rounded">
+        <div>
           {Object.entries(schema.properties).map(([key, prop]: [string, any]) => (
             <PropertyViewer
               key={key}
