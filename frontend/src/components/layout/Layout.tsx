@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import { useProject } from "@/contexts/ProjectContext";
+import { usePage } from "@/contexts/PageContext";
 import NoProjectsModal from "../project/NoProjectsModal";
 import LoadingOverlay from "../project/LoadingOverlay";
 import { cn } from "@/lib/utils";
@@ -16,10 +17,10 @@ interface Breadcrumb {
 const Layout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [customBreadcrumbs, setCustomBreadcrumbs] = useState<Breadcrumb[] | null>(null);
   const [noProjectsModalOpen, setNoProjectsModalOpen] = useState(false);
   const location = useLocation();
   const { hasNoProjects, isLoading } = useProject();
+  const { pageTitle } = usePage();
 
   const getBreadcrumbs = () => {
     const pathname = location.pathname;
@@ -63,10 +64,9 @@ const Layout = () => {
 
     // Handle task detail page
     if (pathname.startsWith('/tasks/') && pathname !== '/tasks/new') {
-      const taskId = pathname.split('/')[2];
       return [
         { label: 'Tasks', to: '/tasks' },
-        { label: 'Task', isCurrentPage: true }
+        { label: pageTitle || 'Task Details', isCurrentPage: true }
       ];
     }
 
@@ -152,11 +152,11 @@ const Layout = () => {
         <Header
           onToggleSidebar={toggleMobileMenu}
           mobileMenuOpen={mobileMenuOpen}
-          breadcrumbs={customBreadcrumbs || getBreadcrumbs()}
+          breadcrumbs={getBreadcrumbs()}
         />
         
         <main className="flex-1 p-6">
-          <Outlet context={{ setCustomBreadcrumbs }} />
+          <Outlet />
         </main>
       </div>
 

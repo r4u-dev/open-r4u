@@ -35,7 +35,7 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
     <div className="border-b border-border">
       <button
         onClick={() => toggleSection(section)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 hover:text-primary transition-colors"
       >
         <span className="text-xs font-medium text-foreground">{title}</span>
         {expandedSections[section] ? (
@@ -83,11 +83,11 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Latency:</span>
-          <span className="font-mono">{trace.latency}ms</span>
+          <span className="font-mono text-foreground">{trace.latency}ms</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Cost:</span>
-          <span className="font-mono">${trace.cost.toFixed(4)}</span>
+          <span className="font-mono text-foreground">${trace.cost.toFixed(4)}</span>
         </div>
       </div>
 

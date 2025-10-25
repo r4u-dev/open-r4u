@@ -14,6 +14,7 @@ import Traces from "./pages/Traces";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { ProjectProvider } from "./contexts/ProjectContext";
+import { PageProvider } from "./contexts/PageContext";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
             <TooltipProvider>
                 <Toaster />
                 <ProjectProvider>
+                    <PageProvider>
                         <BrowserRouter
                             future={{
                                 v7_startTransition: true,
@@ -63,7 +65,8 @@ const App = () => (
                                 <Route path="*" element={<NotFound />} />
                             </Routes>
                         </BrowserRouter>
-                    </ProjectProvider>
+                    </PageProvider>
+                </ProjectProvider>
             </TooltipProvider>
         </ThemeProvider>
     </QueryClientProvider>
