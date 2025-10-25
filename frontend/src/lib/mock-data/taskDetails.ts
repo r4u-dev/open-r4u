@@ -81,7 +81,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "openai/gpt-4.1",
         prompt_template: "Summarize the following article in 3-5 sentences, focusing on the main points and key insights...",
-        temperature: 0.7,
+        temperature: "0.7",
         max_tokens: 500,
         reasoning_effort: "medium",
         tools: ["web-search", "text-analysis"],
@@ -101,7 +101,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.2",
         model: "openai/gpt-4.1",
         settings: {
-          temperature: 0.7,
+          temperature: "0.7",
           maxTokens: 500,
           topP: 0.9,
         },
@@ -208,7 +208,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "openai/gpt-4-vision",
         prompt_template: "Generate a detailed caption for this image, describing the main elements and context...",
-        temperature: 0.6,
+        temperature: "0.6",
         max_tokens: 200,
         reasoning_effort: "low",
         tools: ["image-analysis"],
@@ -228,7 +228,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.0",
         model: "openai/gpt-4-vision",
         settings: {
-          temperature: 0.6,
+          temperature: "0.6",
           maxTokens: 200,
         },
         prompt: "Generate a detailed caption for this image, describing the main elements, colors, and context.",
@@ -294,7 +294,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "anthropic/claude-3-sonnet",
         prompt_template: "Analyze the sentiment of the following text and provide a confidence score...",
-        temperature: 0.3,
+        temperature: "0.3",
         max_tokens: 100,
         reasoning_effort: "low",
         tools: ["text-analysis"],
@@ -314,7 +314,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "2.0",
         model: "anthropic/claude-3-sonnet",
         settings: {
-          temperature: 0.3,
+          temperature: "0.3",
           maxTokens: 100,
         },
         prompt: "Analyze the sentiment of the following text and provide a confidence score.",
@@ -326,7 +326,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.0",
         model: "openai/gpt-3.5-turbo",
         settings: {
-          temperature: 0.2,
+          temperature: "0.2",
           maxTokens: 50,
         },
         prompt: "Determine if this text is positive, negative, or neutral.",
@@ -401,7 +401,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "anthropic/claude-3-sonnet",
         prompt_template: "Review the following code for security issues, performance problems, and best practices...",
-        temperature: 0.2,
+        temperature: "0.2",
         max_tokens: 1000,
         reasoning_effort: "high",
         tools: ["code-analysis", "security-checker"],
@@ -421,7 +421,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.5",
         model: "anthropic/claude-3-sonnet",
         settings: {
-          temperature: 0.2,
+          temperature: "0.2",
           maxTokens: 1000,
         },
         prompt: "Review the following code for security issues, performance problems, and best practices violations.",
@@ -496,7 +496,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "openai/gpt-4",
         prompt_template: "Translate the following text to {target_language} while preserving context and meaning...",
-        temperature: 0.3,
+        temperature: "0.3",
         max_tokens: 2000,
         reasoning_effort: "medium",
         tools: ["language-detection"],
@@ -516,7 +516,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.1",
         model: "openai/gpt-4",
         settings: {
-          temperature: 0.3,
+          temperature: "0.3",
           maxTokens: 2000,
         },
         prompt: "Translate the following text while preserving context and meaning.",
@@ -589,7 +589,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "openai/gpt-4",
         prompt_template: "Extract structured data from the following text according to the provided schema...",
-        temperature: 0.1,
+        temperature: "0.1",
         max_tokens: 1500,
         reasoning_effort: "high",
         tools: ["text-parsing"],
@@ -609,7 +609,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.3",
         model: "openai/gpt-4",
         settings: {
-          temperature: 0.1,
+          temperature: "0.1",
           maxTokens: 1500,
         },
         prompt: "Extract structured data from the following text according to the provided schema.",
@@ -682,7 +682,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "openai/gpt-4",
         prompt_template: "Generate a helpful response to the customer's message, considering the conversation context...",
-        temperature: 0.7,
+        temperature: "0.7",
         max_tokens: 500,
         reasoning_effort: "medium",
         tools: ["context-analysis"],
@@ -702,7 +702,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "2.1",
         model: "openai/gpt-4",
         settings: {
-          temperature: 0.7,
+          temperature: "0.7",
           maxTokens: 500,
         },
         prompt: "Generate a helpful response to the customer's message, considering the conversation context.",
@@ -777,7 +777,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
       config: {
         model: "anthropic/claude-3-sonnet",
         prompt_template: "Review the following content for policy violations and provide a moderation decision...",
-        temperature: 0.1,
+        temperature: "0.1",
         max_tokens: 300,
         reasoning_effort: "high",
         tools: ["content-analysis", "policy-checker"],
@@ -797,7 +797,7 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
         version: "1.4",
         model: "anthropic/claude-3-sonnet",
         settings: {
-          temperature: 0.1,
+          temperature: "0.1",
           maxTokens: 300,
         },
         prompt: "Review the following content for policy violations and provide a moderation decision.",
@@ -839,5 +839,733 @@ export const mockTaskDetails: Record<string, TaskDetail> = {
     avgCost: 0.0008,
     avgQuality: 0.96,
     traceCount: 2891,
+  },
+  "task-9": {
+    id: "task-9",
+    name: "advanced-data-pipeline-processor",
+    description: "Processes complex data pipelines with nested objects, arrays, and conditional logic for enterprise analytics",
+    project_id: "proj-123",
+    production_version: "2.3",
+    contract: {
+      input_schema: {
+        type: "object",
+        required: ["pipeline_config", "data_sources", "processing_options"],
+        properties: {
+          pipeline_config: {
+            type: "object",
+            required: ["name", "version", "stages"],
+            properties: {
+              name: { type: "string", description: "Pipeline identifier" },
+              version: { type: "string", pattern: "^\\d+\\.\\d+\\.\\d+$" },
+              stages: {
+                type: "array",
+                minItems: 1,
+                items: {
+                  type: "object",
+                  required: ["id", "type", "config"],
+                  properties: {
+                    id: { type: "string" },
+                    type: {
+                      type: "string",
+                      enum: ["extract", "transform", "load", "validate", "aggregate", "filter"]
+                    },
+                    config: {
+                      type: "object",
+                      properties: {
+                        parameters: { type: "object" },
+                        conditions: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              field: { type: "string" },
+                              operator: {
+                                type: "string",
+                                enum: ["equals", "not_equals", "greater_than", "less_than", "contains", "regex"]
+                              },
+                              value: { type: ["string", "number", "boolean"] }
+                            }
+                          }
+                        },
+                        transformations: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              operation: {
+                                type: "string",
+                                enum: ["map", "filter", "reduce", "group_by", "join", "sort"]
+                              },
+                              target_field: { type: "string" },
+                              expression: { type: "string" }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    dependencies: {
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    retry_policy: {
+                      type: "object",
+                      properties: {
+                        max_attempts: { type: "integer", minimum: 1, maximum: 10 },
+                        backoff_strategy: {
+                          type: "string",
+                          enum: ["linear", "exponential", "fixed"]
+                        },
+                        delay_ms: { type: "integer", minimum: 100 }
+                      }
+                    }
+                  }
+                }
+              },
+              metadata: {
+                type: "object",
+                properties: {
+                  description: { type: "string" },
+                  tags: {
+                    type: "array",
+                    items: { type: "string" }
+                  },
+                  owner: { type: "string" },
+                  environment: {
+                    type: "string",
+                    enum: ["development", "staging", "production"]
+                  }
+                }
+              }
+            }
+          },
+          data_sources: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["id", "type", "connection"],
+              properties: {
+                id: { type: "string" },
+                type: {
+                  type: "string",
+                  enum: ["database", "api", "file", "stream", "cache"]
+                },
+                connection: {
+                  type: "object",
+                  properties: {
+                    host: { type: "string" },
+                    port: { type: "integer" },
+                    database: { type: "string" },
+                    credentials: {
+                      type: "object",
+                      properties: {
+                        username: { type: "string" },
+                        password: { type: "string" },
+                        api_key: { type: "string" }
+                      }
+                    },
+                    ssl: { type: "boolean", default: true },
+                    timeout_ms: { type: "integer", default: 30000 }
+                  }
+                },
+                query: { type: "string" },
+                schema: {
+                  type: "object",
+                  properties: {
+                    fields: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string" },
+                          type: {
+                            type: "string",
+                            enum: ["string", "integer", "float", "boolean", "date", "json"]
+                          },
+                          nullable: { type: "boolean" },
+                          constraints: {
+                            type: "object",
+                            properties: {
+                              min_length: { type: "integer" },
+                              max_length: { type: "integer" },
+                              pattern: { type: "string" },
+                              min_value: { type: "number" },
+                              max_value: { type: "number" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          processing_options: {
+            type: "object",
+            properties: {
+              parallelism: {
+                type: "object",
+                properties: {
+                  max_workers: { type: "integer", minimum: 1, maximum: 100 },
+                  batch_size: { type: "integer", minimum: 1, maximum: 10000 }
+                }
+              },
+              quality_checks: {
+                type: "object",
+                properties: {
+                  data_validation: { type: "boolean" },
+                  schema_validation: { type: "boolean" },
+                  anomaly_detection: { type: "boolean" },
+                  completeness_threshold: { type: "number", minimum: 0, maximum: 1 }
+                }
+              },
+              error_handling: {
+                type: "object",
+                properties: {
+                  strategy: {
+                    type: "string",
+                    enum: ["fail_fast", "continue_on_error", "skip_invalid"]
+                  },
+                  log_level: {
+                    type: "string",
+                    enum: ["debug", "info", "warn", "error"]
+                  },
+                  notification_channels: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type: {
+                          type: "string",
+                          enum: ["email", "slack", "webhook", "sms"]
+                        },
+                        config: { type: "object" }
+                      }
+                    }
+                  }
+                }
+              },
+              performance: {
+                type: "object",
+                properties: {
+                  memory_limit_mb: { type: "integer", minimum: 100 },
+                  cpu_limit_percent: { type: "integer", minimum: 1, maximum: 100 },
+                  timeout_seconds: { type: "integer", minimum: 30 }
+                }
+              }
+            }
+          },
+          context: {
+            type: "object",
+            properties: {
+              execution_id: { type: "string" },
+              user_id: { type: "string" },
+              session_id: { type: "string" },
+              request_metadata: { type: "object" }
+            }
+          }
+        }
+      },
+      output_schema: {
+        type: "object",
+        required: ["execution_id", "status", "results", "metrics"],
+        properties: {
+          execution_id: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["success", "partial_success", "failed", "cancelled"]
+          },
+          results: {
+            type: "object",
+            properties: {
+              processed_records: { type: "integer" },
+              successful_records: { type: "integer" },
+              failed_records: { type: "integer" },
+              output_data: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    stage_id: { type: "string" },
+                    records: { type: "array" },
+                    metadata: { type: "object" }
+                  }
+                }
+              },
+              errors: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    stage_id: { type: "string" },
+                    error_type: { type: "string" },
+                    message: { type: "string" },
+                    record_id: { type: "string" },
+                    timestamp: { type: "string", format: "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          metrics: {
+            type: "object",
+            properties: {
+              execution_time_ms: { type: "integer" },
+              memory_usage_mb: { type: "number" },
+              cpu_usage_percent: { type: "number" },
+              throughput_records_per_second: { type: "number" },
+              data_quality_score: { type: "number", minimum: 0, maximum: 1 },
+              stage_metrics: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    stage_id: { type: "string" },
+                    duration_ms: { type: "integer" },
+                    records_processed: { type: "integer" },
+                    success_rate: { type: "number" }
+                  }
+                }
+              }
+            }
+          },
+          artifacts: {
+            type: "object",
+            properties: {
+              logs: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    level: { type: "string" },
+                    message: { type: "string" },
+                    timestamp: { type: "string" },
+                    context: { type: "object" }
+                  }
+                }
+              },
+              reports: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    format: { type: "string" },
+                    content: { type: "string" },
+                    url: { type: "string" }
+                  }
+                }
+              },
+              checkpoints: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    stage_id: { type: "string" },
+                    checkpoint_data: { type: "object" },
+                    timestamp: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          notifications: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                channel: { type: "string" },
+                status: { type: "string" },
+                message: { type: "string" },
+                sent_at: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    implementation: {
+      task_id: "task-9",
+      version: "2.3.0",
+      implementation_type: "functional",
+      config: {
+        mcp_server_id: "data-pipeline-server",
+        mcp_tool_name: "process_pipeline",
+        mcp_server_uri: "https://pipeline.company.com/mcp",
+        mcp_auth_config: { api_key: "required" },
+        implementation_details: {
+          language: "python",
+          framework: "pandas",
+          dependencies: ["pandas", "numpy", "sqlalchemy", "pydantic"],
+          code: "def process_data_pipeline(pipeline_config, data_sources, processing_options):\n    # Complex data pipeline processing logic\n    pass"
+        }
+      },
+      created_at: "2024-10-15T09:30:00Z"
+    },
+    score_weights: {
+      accuracy: 0.4,
+      time_efficiency: 0.3,
+      cost_efficiency: 0.2,
+    },
+    versions: [
+      {
+        id: "v2.3.0",
+        version: "2.3.0",
+        model: "gpt-4-turbo",
+        settings: {
+          temperature: "0.1",
+          maxTokens: 4000,
+          topP: 0.9,
+        },
+        prompt: "Process the complex data pipeline with the provided configuration, ensuring data quality and performance optimization.",
+        tools: ["data-processor", "quality-checker", "performance-monitor", "error-handler"],
+        createdAt: "2024-10-15T09:30:00Z",
+      },
+    ],
+    traces: [
+      {
+        id: "trace-9-1",
+        input: {
+          pipeline_config: {
+            name: "customer-analytics-pipeline",
+            version: "1.0.0",
+            stages: [
+              {
+                id: "extract-customers",
+                type: "extract",
+                config: {
+                  parameters: { table: "customers" },
+                  conditions: [
+                    { field: "status", operator: "equals", value: "active" }
+                  ]
+                },
+                dependencies: [],
+                retry_policy: { max_attempts: 3, backoff_strategy: "exponential", delay_ms: 1000 }
+              },
+              {
+                id: "transform-demographics",
+                type: "transform",
+                config: {
+                  transformations: [
+                    { operation: "map", target_field: "age_group", expression: "CASE WHEN age < 25 THEN 'young' WHEN age < 65 THEN 'adult' ELSE 'senior' END" }
+                  ]
+                },
+                dependencies: ["extract-customers"]
+              }
+            ],
+            metadata: {
+              description: "Customer demographic analysis pipeline",
+              tags: ["analytics", "demographics", "customers"],
+              owner: "data-team",
+              environment: "production"
+            }
+          },
+          data_sources: [
+            {
+              id: "main-db",
+              type: "database",
+              connection: {
+                host: "db.company.com",
+                port: 5432,
+                database: "analytics",
+                credentials: { username: "analytics_user" },
+                ssl: true,
+                timeout_ms: 30000
+              },
+              query: "SELECT * FROM customers WHERE created_at >= '2024-01-01'",
+              schema: {
+                fields: [
+                  { name: "id", type: "integer", nullable: false },
+                  { name: "name", type: "string", nullable: false, constraints: { min_length: 1, max_length: 100 } },
+                  { name: "age", type: "integer", nullable: false, constraints: { min_value: 0, max_value: 120 } },
+                  { name: "email", type: "string", nullable: false, constraints: { pattern: "^[\\w\\.-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$" } }
+                ]
+              }
+            }
+          ],
+          processing_options: {
+            parallelism: { max_workers: 8, batch_size: 1000 },
+            quality_checks: {
+              data_validation: true,
+              schema_validation: true,
+              anomaly_detection: true,
+              completeness_threshold: 0.95
+            },
+            error_handling: {
+              strategy: "continue_on_error",
+              log_level: "info",
+              notification_channels: [
+                { type: "slack", config: { channel: "#data-alerts" } }
+              ]
+            },
+            performance: {
+              memory_limit_mb: 2048,
+              cpu_limit_percent: 80,
+              timeout_seconds: 3600
+            }
+          },
+          context: {
+            execution_id: "exec-2024-10-15-001",
+            user_id: "user-123",
+            session_id: "session-456"
+          }
+        },
+        output: {
+          execution_id: "exec-2024-10-15-001",
+          status: "success",
+          results: {
+            processed_records: 50000,
+            successful_records: 49850,
+            failed_records: 150,
+            output_data: [
+              {
+                stage_id: "extract-customers",
+                records: [],
+                metadata: { extraction_time_ms: 1200, records_found: 50000 }
+              },
+              {
+                stage_id: "transform-demographics",
+                records: [],
+                metadata: { transformation_time_ms: 800, records_processed: 49850 }
+              }
+            ],
+            errors: [
+              {
+                stage_id: "transform-demographics",
+                error_type: "validation_error",
+                message: "Invalid age value: -5",
+                record_id: "customer-12345",
+                timestamp: "2024-10-15T09:32:15Z"
+              }
+            ]
+          },
+          metrics: {
+            execution_time_ms: 45000,
+            memory_usage_mb: 1024.5,
+            cpu_usage_percent: 65.2,
+            throughput_records_per_second: 1111.1,
+            data_quality_score: 0.997,
+            stage_metrics: [
+              {
+                stage_id: "extract-customers",
+                duration_ms: 1200,
+                records_processed: 50000,
+                success_rate: 1.0
+              },
+              {
+                stage_id: "transform-demographics",
+                duration_ms: 800,
+                records_processed: 49850,
+                success_rate: 0.997
+              }
+            ]
+          },
+          artifacts: {
+            logs: [
+              {
+                level: "info",
+                message: "Pipeline execution started",
+                timestamp: "2024-10-15T09:30:00Z",
+                context: { execution_id: "exec-2024-10-15-001" }
+              }
+            ],
+            reports: [
+              {
+                type: "data_quality",
+                format: "json",
+                content: "{\"quality_score\": 0.997, \"issues_found\": 150}",
+                url: "https://reports.company.com/exec-2024-10-15-001/quality.json"
+              }
+            ],
+            checkpoints: [
+              {
+                stage_id: "extract-customers",
+                checkpoint_data: { last_processed_id: 50000 },
+                timestamp: "2024-10-15T09:30:12Z"
+              }
+            ]
+          },
+          notifications: [
+            {
+              channel: "slack",
+              status: "sent",
+              message: "Pipeline execution completed successfully",
+              sent_at: "2024-10-15T09:32:45Z"
+            }
+          ]
+        },
+        timestamp: "2024-10-15T09:30:00Z",
+        status: "success",
+        latency: 45.0,
+      },
+    ],
+    executions: [
+      {
+        id: "exec-9-1",
+        input: {
+          pipeline_config: {
+            name: "customer-analytics-pipeline",
+            version: "1.0.0",
+            stages: [
+              {
+                id: "extract-customers",
+                type: "extract",
+                config: {
+                  parameters: { table: "customers" },
+                  conditions: [
+                    { field: "status", operator: "equals", value: "active" }
+                  ]
+                },
+                dependencies: [],
+                retry_policy: { max_attempts: 3, backoff_strategy: "exponential", delay_ms: 1000 }
+              }
+            ],
+            metadata: {
+              description: "Customer demographic analysis pipeline",
+              tags: ["analytics", "demographics", "customers"],
+              owner: "data-team",
+              environment: "production"
+            }
+          },
+          data_sources: [
+            {
+              id: "main-db",
+              type: "database",
+              connection: {
+                host: "db.company.com",
+                port: 5432,
+                database: "analytics",
+                credentials: { username: "analytics_user" },
+                ssl: true,
+                timeout_ms: 30000
+              },
+              query: "SELECT * FROM customers WHERE created_at >= '2024-01-01'",
+              schema: {
+                fields: [
+                  { name: "id", type: "integer", nullable: false },
+                  { name: "name", type: "string", nullable: false },
+                  { name: "age", type: "integer", nullable: false },
+                  { name: "email", type: "string", nullable: false }
+                ]
+              }
+            }
+          ],
+          processing_options: {
+            parallelism: { max_workers: 8, batch_size: 1000 },
+            quality_checks: {
+              data_validation: true,
+              schema_validation: true,
+              anomaly_detection: true,
+              completeness_threshold: 0.95
+            },
+            error_handling: {
+              strategy: "continue_on_error",
+              log_level: "info",
+              notification_channels: [
+                { type: "slack", config: { channel: "#data-alerts" } }
+              ]
+            },
+            performance: {
+              memory_limit_mb: 2048,
+              cpu_limit_percent: 80,
+              timeout_seconds: 3600
+            }
+          }
+        },
+        output: {
+          execution_id: "exec-2024-10-15-001",
+          status: "success",
+          results: {
+            processed_records: 50000,
+            successful_records: 49850,
+            failed_records: 150,
+            output_data: [],
+            errors: []
+          },
+          metrics: {
+            execution_time_ms: 45000,
+            memory_usage_mb: 1024.5,
+            cpu_usage_percent: 65.2,
+            throughput_records_per_second: 1111.1,
+            data_quality_score: 0.997,
+            stage_metrics: []
+          },
+          artifacts: {
+            logs: [],
+            reports: [],
+            checkpoints: []
+          },
+          notifications: []
+        },
+        timestamp: "2024-10-15T09:30:00Z",
+        status: "success",
+        latency: 45.0,
+        steps: 2,
+      },
+    ],
+    testCases: [
+      {
+        id: "tc-9-1",
+        name: "Basic pipeline execution with valid data",
+        input: {
+          pipeline_config: {
+            name: "test-pipeline",
+            version: "1.0.0",
+            stages: [
+              {
+                id: "extract-test",
+                type: "extract",
+                config: { parameters: { table: "test_data" } },
+                dependencies: [],
+                retry_policy: { max_attempts: 3, backoff_strategy: "exponential", delay_ms: 1000 }
+              }
+            ],
+            metadata: { description: "Test pipeline", tags: ["test"], owner: "test-user", environment: "development" }
+          },
+          data_sources: [
+            {
+              id: "test-db",
+              type: "database",
+              connection: { host: "test.db.com", port: 5432, database: "test", ssl: true },
+              query: "SELECT * FROM test_data LIMIT 100",
+              schema: { fields: [{ name: "id", type: "integer", nullable: false }] }
+            }
+          ],
+          processing_options: {
+            parallelism: { max_workers: 2, batch_size: 100 },
+            quality_checks: { data_validation: true, schema_validation: true },
+            error_handling: { strategy: "fail_fast", log_level: "info" },
+            performance: { memory_limit_mb: 512, cpu_limit_percent: 50, timeout_seconds: 300 }
+          }
+        },
+        expectedOutput: {
+          execution_id: "test-exec-001",
+          status: "success",
+          results: {
+            processed_records: 100,
+            successful_records: 100,
+            failed_records: 0,
+            output_data: [],
+            errors: []
+          },
+          metrics: {
+            execution_time_ms: 5000,
+            memory_usage_mb: 256.0,
+            cpu_usage_percent: 45.0,
+            throughput_records_per_second: 20.0,
+            data_quality_score: 1.0,
+            stage_metrics: []
+          }
+        },
+        status: "passed",
+      },
+    ],
+    avgLatency: 45.0,
+    avgCost: 0.045,
+    avgQuality: 0.997,
+    traceCount: 1247,
+    created_at: "2024-10-15T09:30:00Z",
+    updated_at: "2024-10-15T09:30:00Z",
   },
 };

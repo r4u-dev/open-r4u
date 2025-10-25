@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { TaskService } from "@/services/taskService";
 import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
+import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 
 type TabType = "overview" | "traces" | "executions" | "test-cases" | "settings";
 
@@ -94,29 +95,6 @@ const TaskDetail = () => {
 
   return (
     <div className="flex flex-col bg-background font-sans">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-5 gap-2 text-xs mb-6">
-        <div className="bg-muted p-2 rounded">
-          <div className="text-muted-foreground">Traces</div>
-          <div className="font-semibold">{task.traceCount}</div>
-        </div>
-        <div className="bg-muted p-2 rounded">
-          <div className="text-muted-foreground">Latency</div>
-          <div className="font-semibold">{task.avgLatency.toFixed(2)}s</div>
-        </div>
-        <div className="bg-muted p-2 rounded">
-          <div className="text-muted-foreground">Cost</div>
-          <div className="font-semibold">${task.avgCost.toFixed(4)}</div>
-        </div>
-        <div className="bg-muted p-2 rounded">
-          <div className="text-muted-foreground">Quality</div>
-          <div className="font-semibold">{(task.avgQuality * 100).toFixed(0)}%</div>
-        </div>
-        <div className="bg-muted p-2 rounded">
-          <div className="text-muted-foreground">Versions</div>
-          <div className="font-semibold">{task.versions.length}</div>
-        </div>
-      </div>
 
       {/* Tabs */}
       <div className="border-b border-border bg-card px-4 flex gap-4 text-sm">
@@ -137,60 +115,17 @@ const TaskDetail = () => {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto">
+        <div className="w-full">
           {/* Overview Tab */}
           {activeTab === "overview" && (
             <div className="space-y-4 p-4">
-              <div className="border border-border rounded-lg p-3">
-                <label className="text-sm font-semibold block mb-2">Version</label>
-                <select
-                  value={selectedVersion}
-                  onChange={(e) => setSelectedVersion(e.target.value)}
-                  className="w-full bg-background border border-border rounded px-3 py-2 text-sm"
-                >
-                  {task.versions.map((version) => (
-                    <option key={version.id} value={version.id}>
-                      v{version.version} - {version.model} ({new Date(version.createdAt).toLocaleDateString()})
-                    </option>
-                  ))}
-                </select>
+              {/* Task Description */}
+              <div className="border border-border rounded-lg p-4">
+                <h2 className="text-lg font-semibold mb-2">Description</h2>
+                <p className="text-muted-foreground">{task.description}</p>
               </div>
 
-              {selectedVersion &&
-                (() => {
-                  const version = task.versions.find((v) => v.id === selectedVersion);
-                  return version ? (
-                    <div className="border border-border rounded-lg p-3 space-y-3">
-                      <div>
-                        <div className="text-muted-foreground mb-1 text-xs">Model</div>
-                        <div className="font-mono text-xs bg-muted p-2 rounded">{version.model}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground mb-1 text-xs">Settings</div>
-                        <div className="font-mono text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
-                          {JSON.stringify(version.settings, null, 2)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground mb-1 text-xs">Prompt</div>
-                        <div className="bg-muted p-2 rounded text-xs">{version.prompt}</div>
-                      </div>
-                      {version.tools.length > 0 && (
-                        <div>
-                          <div className="text-muted-foreground mb-1 text-xs">Tools</div>
-                          <div className="flex gap-1 flex-wrap">
-                            {version.tools.map((tool) => (
-                              <span key={tool} className="px-1.5 py-0.5 bg-muted rounded text-xs">
-                                {tool}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : null;
-                })()}
-
+              {/* Contracts */}
               <div className="border border-border rounded-lg p-3">
                 <button
                   onClick={() => setExpandedSection(expandedSection === "contracts" ? null : "contracts")}
@@ -205,56 +140,107 @@ const TaskDetail = () => {
                 </button>
 
                 {expandedSection === "contracts" && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Input Contract */}
-                    <div className="text-xs space-y-2">
-                      <h3 className="font-semibold text-sm">Input</h3>
-                      <div>
-                        <div className="text-muted-foreground mb-1">Properties</div>
-                        <div className="bg-muted p-2 rounded space-y-1">
-                          {task.contract.input_schema?.properties && Object.entries(task.contract.input_schema.properties as Record<string, any>).map(([key, prop]: [string, any]) => (
-                            <div key={key} className="text-xs">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="font-mono">{key}</span>
-                                <span className="px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">
-                                  {prop.type}
-                                </span>
-                                {(task.contract.input_schema?.required as string[])?.includes(key) && (
-                                  <span className="px-1.5 py-0.5 bg-warning/20 text-warning rounded text-xs font-semibold">
-                                    required
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-muted-foreground text-xs ml-2 mt-0.5">{prop.description}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    <JsonSchemaViewer
+                      schema={task.contract.input_schema}
+                      title="Input Contract"
+                    />
 
                     {/* Output Contract */}
-                    <div className="text-xs space-y-2">
-                      <h3 className="font-semibold text-sm">Output</h3>
-                      <div>
-                        <div className="text-muted-foreground mb-1">Properties</div>
-                        <div className="bg-muted p-2 rounded space-y-1">
-                          {task.contract.output_schema?.properties && Object.entries(task.contract.output_schema.properties as Record<string, any>).map(([key, prop]: [string, any]) => (
-                            <div key={key} className="text-xs">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="font-mono">{key}</span>
-                                <span className="px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">
-                                  {prop.type}
-                                </span>
-                              </div>
-                              <div className="text-muted-foreground text-xs ml-2 mt-0.5">{prop.description}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    <JsonSchemaViewer
+                      schema={task.contract.output_schema}
+                      title="Output Contract"
+                    />
                   </div>
                 )}
               </div>
+
+              {/* Implementation Details */}
+              <div className="border border-border rounded-lg p-3">
+                <h2 className="text-sm font-semibold mb-3">Implementation Details</h2>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-semibold block mb-2">Version</label>
+                    <select
+                      value={selectedVersion}
+                      onChange={(e) => setSelectedVersion(e.target.value)}
+                      className="w-full bg-background border border-border rounded px-3 py-2 text-sm"
+                    >
+                      {task.versions.map((version) => (
+                        <option key={version.id} value={version.id}>
+                          v{version.version} - {version.model} ({new Date(version.createdAt).toLocaleDateString()})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedVersion &&
+                    (() => {
+                      const version = task.versions.find((v) => v.id === selectedVersion);
+                      return version ? (
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-muted-foreground mb-1 text-xs">Model</div>
+                            <div className="font-mono text-xs bg-muted p-2 rounded">{version.model}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground mb-1 text-xs">Settings</div>
+                            <div className="font-mono text-xs bg-muted p-2 rounded max-h-40 overflow-auto">
+                              {JSON.stringify(version.settings, null, 2)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground mb-1 text-xs">Prompt</div>
+                            <div className="bg-muted p-2 rounded text-xs">{version.prompt}</div>
+                          </div>
+                          {version.tools.length > 0 && (
+                            <div>
+                              <div className="text-muted-foreground mb-1 text-xs">Tools</div>
+                              <div className="flex gap-1 flex-wrap">
+                                {version.tools.map((tool) => (
+                                  <span key={tool} className="px-1.5 py-0.5 bg-muted rounded text-xs">
+                                    {tool}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
+                </div>
+              </div>
+
+              {/* Performance Metrics */}
+              <div className="border border-border rounded-lg p-3">
+                <h2 className="text-sm font-semibold mb-3">Performance Metrics</h2>
+                <div className="grid grid-cols-5 gap-2 text-xs">
+                  <div className="bg-muted p-2 rounded">
+                    <div className="text-muted-foreground">Traces</div>
+                    <div className="font-semibold">{task.traceCount}</div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <div className="text-muted-foreground">Latency</div>
+                    <div className="font-semibold">{task.avgLatency.toFixed(2)}s</div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <div className="text-muted-foreground">Cost</div>
+                    <div className="font-semibold">${task.avgCost.toFixed(4)}</div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <div className="text-muted-foreground">Quality</div>
+                    <div className="font-semibold">{(task.avgQuality * 100).toFixed(0)}%</div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <div className="text-muted-foreground">Versions</div>
+                    <div className="font-semibold">{task.versions.length}</div>
+                  </div>
+                </div>
+              </div>
+
+
 
               {/* Requirements */}
               <div className="border border-border rounded-lg p-3">

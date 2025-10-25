@@ -254,6 +254,115 @@ const mockTasks: TaskListItem[] = [
     created_at: "2024-09-25T16:30:00Z",
     updated_at: "2024-10-12T14:20:00Z",
   },
+  {
+    id: "task-9",
+    name: "advanced-data-pipeline-processor",
+    description: "Processes complex data pipelines with nested objects, arrays, and conditional logic for enterprise analytics",
+    production_version: "2.3",
+    contract: {
+      input_schema: {
+        type: "object",
+        required: ["pipeline_config", "data_sources", "processing_options"],
+        properties: {
+          pipeline_config: {
+            type: "object",
+            required: ["name", "version", "stages"],
+            properties: {
+              name: { type: "string", description: "Pipeline identifier" },
+              version: { type: "string", pattern: "^\\d+\\.\\d+\\.\\d+$" },
+              stages: {
+                type: "array",
+                minItems: 1,
+                items: {
+                  type: "object",
+                  required: ["id", "type", "config"],
+                  properties: {
+                    id: { type: "string" },
+                    type: {
+                      type: "string",
+                      enum: ["extract", "transform", "load", "validate", "aggregate", "filter"]
+                    },
+                    config: { type: "object" },
+                    dependencies: { type: "array", items: { type: "string" } },
+                    retry_policy: { type: "object" }
+                  }
+                }
+              },
+              metadata: { type: "object" }
+            }
+          },
+          data_sources: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["id", "type", "connection"],
+              properties: {
+                id: { type: "string" },
+                type: {
+                  type: "string",
+                  enum: ["database", "api", "file", "stream", "cache"]
+                },
+                connection: { type: "object" },
+                query: { type: "string" },
+                schema: { type: "object" }
+              }
+            }
+          },
+          processing_options: {
+            type: "object",
+            properties: {
+              parallelism: { type: "object" },
+              quality_checks: { type: "object" },
+              error_handling: { type: "object" },
+              performance: { type: "object" }
+            }
+          }
+        }
+      },
+      output_schema: {
+        type: "object",
+        required: ["execution_id", "status", "results", "metrics"],
+        properties: {
+          execution_id: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["success", "partial_success", "failed", "cancelled"]
+          },
+          results: {
+            type: "object",
+            properties: {
+              processed_records: { type: "integer" },
+              successful_records: { type: "integer" },
+              failed_records: { type: "integer" },
+              output_data: { type: "array" },
+              errors: { type: "array" }
+            }
+          },
+          metrics: {
+            type: "object",
+            properties: {
+              execution_time_ms: { type: "integer" },
+              memory_usage_mb: { type: "number" },
+              cpu_usage_percent: { type: "number" },
+              throughput_records_per_second: { type: "number" },
+              data_quality_score: { type: "number", minimum: 0, maximum: 1 },
+              stage_metrics: { type: "array" }
+            }
+          },
+          artifacts: { type: "object" },
+          notifications: { type: "array" }
+        }
+      }
+    },
+    score_weights: {
+      accuracy: 0.4,
+      time_efficiency: 0.3,
+      cost_efficiency: 0.2,
+    },
+    created_at: "2024-10-15T09:30:00Z",
+    updated_at: "2024-10-15T09:30:00Z",
+  },
 ];
 
 // Import the detailed task data
