@@ -22,25 +22,25 @@ const strategyConfig = {
     label: 'Priority',
     description: 'Run only high-priority test cases for faster evaluation',
     icon: Target,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200'
+    color: 'text-warning',
+    bgColor: 'bg-warning/20',
+    borderColor: 'border-warning/30'
   },
   stable: {
     label: 'Stable',
     description: 'Run only stable, well-tested cases for reliable results',
     icon: Shield,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200'
+    color: 'text-success',
+    bgColor: 'bg-success/20',
+    borderColor: 'border-success/30'
   },
   all_applicable: {
     label: 'All Applicable',
     description: 'Run all test cases that are applicable to this task',
     icon: CheckCircle,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200'
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
+    borderColor: 'border-primary/30'
   }
 };
 

@@ -1,604 +1,435 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, TestTube, BarChart3, Clock, DollarSign, Loader2, AlertCircle } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
-import { Progress } from '@/components/ui/progress';
-import { ScoreWeightsSelector } from '@/components/ui/score-weights-selector';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
-import EvaluationsSection from '@/components/task/EvaluationsSection';
-import { testCasesApi, TestCase } from '@/services/testCasesApi';
-import { evaluationsApi, EvaluationDetail } from '@/services/evaluationsApi';
-import TestCasesSection from '@/components/task/TestCasesSection';
-import { getTask, updateTaskScoreWeights } from '@/lib/api/tasks';
-import type { ScoreWeightsUpdate } from '@/lib/api/tasks';
-import { Task, ReasoningConfig, FunctionalConfig, WorkflowConfig } from '@/lib/types/task';
-import { formatDistanceToNow } from 'date-fns';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { TaskService } from "@/services/taskService";
+import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
+import { usePage } from "@/contexts/PageContext";
+import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 
-interface AverageMetrics {
-  accuracy: number;
-  cost: number;
-  time: number;
-  totalEvaluations: number;
-}
-
-// Simple in-memory caches for task details page
-const taskCache = new Map<string, Task>();
-const testCasesCache = new Map<string, TestCase[]>();
-const metricsCache = new Map<string, AverageMetrics | null>();
+type TabType = "overview" | "traces" | "evaluations" | "settings";
 
 const TaskDetail = () => {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
-  const [task, setTask] = useState<Task | null>(null);
-  const [testCases, setTestCases] = useState<TestCase[]>([]);
-  const [averageMetrics, setAverageMetrics] = useState<AverageMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [metricsLoading, setMetricsLoading] = useState(false);
+  const { setPageTitle } = usePage();
+  const [task, setTask] = useState<TaskDetailType | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = (searchParams.get('tab') as 'details' | 'evaluations' | 'tests') || 'details';
-  const [activeTab, setActiveTab] = useState<'details' | 'evaluations' | 'tests'>(initialTab);
-  const [refreshing, setRefreshing] = useState(false);
-  const [testsRefreshing, setTestsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [selectedVersion, setSelectedVersion] = useState<string>("");
+  const [expandedSection, setExpandedSection] = useState<"contracts" | null>("contracts");
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
-  const cacheKey = useMemo(() => taskId || '', [taskId]);
+  // Helper functions for tool information
+  const getToolDescription = (toolName: string): string => {
+    const descriptions: Record<string, string> = {
+      "web-search": "Search the web for real-time information and current events",
+      "text-analysis": "Analyze text content for sentiment, entities, and linguistic features",
+      "image-analysis": "Analyze images for objects, text, and visual content",
+      "code-analysis": "Analyze code for quality, patterns, and potential issues",
+      "security-checker": "Check code and content for security vulnerabilities",
+      "language-detection": "Detect and identify languages in text content",
+      "text-parsing": "Parse and extract structured data from unstructured text",
+      "context-analysis": "Analyze conversation context and maintain dialogue state",
+      "content-analysis": "Analyze content for appropriateness and policy compliance",
+      "policy-checker": "Check content against moderation policies and guidelines",
+      "data-processor": "Process and transform data according to specified rules",
+      "quality-checker": "Validate data quality and completeness",
+      "performance-monitor": "Monitor and analyze system performance metrics",
+      "error-handler": "Handle and manage errors and exceptions"
+    };
+    return descriptions[toolName] || "Tool for processing and analysis";
+  };
 
-  // Edit state for score weights
-  const [isEditingWeights, setIsEditingWeights] = useState(false);
-  const [editWeights, setEditWeights] = useState<{ accuracy: number; costEfficiency: number; timeEfficiency: number } | null>(null);
-  const { toast } = useToast();
-  const [savingWeights, setSavingWeights] = useState(false);
-
-  // Metrics are now provided directly by backend; no need to fan out per-evaluation
-  const loadEvaluationMetrics = useCallback(async (opts?: { background?: boolean }) => {
-    const isBackground = !!opts?.background;
-    // Only show skeletons if we have no cached metrics
-    const shouldShowSkeleton = !isBackground && !metricsCache.has(cacheKey) && !averageMetrics;
-    try {
-      if (shouldShowSkeleton) setMetricsLoading(true);
-      const res = await evaluationsApi.getTaskEvaluationMetrics(taskId!);
-      const data = res.data as unknown as {
-        average_accuracy: number;
-        average_cost: number;
-        average_time: number;
-        total_evaluations: number;
-      } | null;
-      if (!data) {
-        setAverageMetrics(null);
-        metricsCache.set(cacheKey, null);
-      } else {
-        setAverageMetrics({
-          accuracy: data.average_accuracy,
-          cost: data.average_cost,
-          time: data.average_time,
-          totalEvaluations: data.total_evaluations,
-        });
-        metricsCache.set(cacheKey, {
-          accuracy: data.average_accuracy,
-          cost: data.average_cost,
-          time: data.average_time,
-          totalEvaluations: data.total_evaluations,
-        });
+  const getToolSchema = (toolName: string): Record<string, any> | null => {
+    const schemas: Record<string, Record<string, any>> = {
+      "web-search": {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query string" },
+          max_results: { type: "integer", description: "Maximum number of results to return", default: 10 },
+          language: { type: "string", description: "Language for search results", default: "en" }
+        },
+        required: ["query"]
+      },
+      "text-analysis": {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Text content to analyze" },
+          analysis_type: {
+            type: "string",
+            enum: ["sentiment", "entities", "keywords", "summary"],
+            description: "Type of analysis to perform"
+          },
+          language: { type: "string", description: "Language of the text", default: "auto" }
+        },
+        required: ["text", "analysis_type"]
+      },
+      "image-analysis": {
+        type: "object",
+        properties: {
+          image_url: { type: "string", description: "URL of the image to analyze" },
+          features: {
+            type: "array",
+            items: { type: "string", enum: ["objects", "text", "faces", "labels"] },
+            description: "Features to extract from the image"
+          }
+        },
+        required: ["image_url", "features"]
+      },
+      "code-analysis": {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "Source code to analyze" },
+          language: { type: "string", description: "Programming language" },
+          checks: {
+            type: "array",
+            items: { type: "string", enum: ["syntax", "style", "security", "performance"] },
+            description: "Types of checks to perform"
+          }
+        },
+        required: ["code", "language"]
       }
-    } catch (error) {
-      console.error('Failed to load evaluation metrics:', error);
-      setAverageMetrics(null);
-    } finally {
-      if (shouldShowSkeleton) setMetricsLoading(false);
-    }
-  }, [taskId, cacheKey]);
+    };
+    return schemas[toolName] || null;
+  };
 
-  // Deprecated fan-out loader replaced by loadEvaluationMetrics
-
-  const fetchAll = useCallback(async () => {
-    // Load task
-    const taskData = await getTask(taskId!);
-    setTask(taskData);
-    taskCache.set(cacheKey, taskData);
-  }, [taskId, cacheKey]);
-
-  const fetchTests = useCallback(async () => {
-    const testCasesResponse = await testCasesApi.getTestCasesByTask(taskId!);
-    const dataUnknown = testCasesResponse.data as unknown;
-    const loadedTestCases = Array.isArray(dataUnknown)
-      ? (dataUnknown as TestCase[])
-      : (typeof dataUnknown === 'object' && dataUnknown !== null && 'test_cases' in (dataUnknown as Record<string, unknown>))
-        ? ((dataUnknown as { test_cases?: TestCase[] }).test_cases || [])
-        : [];
-    setTestCases(loadedTestCases);
-    testCasesCache.set(cacheKey, loadedTestCases);
-  }, [taskId, cacheKey]);
-
-  const loadBlocking = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      await fetchAll();
-      await loadEvaluationMetrics({ background: false });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load task data');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchAll, loadEvaluationMetrics]);
-
-  const loadBackground = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      await fetchAll();
-      await loadEvaluationMetrics({ background: true });
-    } catch (err) {
-      // Keep showing cached content
-      console.warn('Background refresh failed:', err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchAll, loadEvaluationMetrics]);
-
-  // Stable callback to avoid retriggering evaluation list loads
-  const handleEvaluationsChange = useCallback(() => {
-    return loadEvaluationMetrics({ background: true });
-  }, [loadEvaluationMetrics]);
-
-  const loadTestsBlocking = useCallback(async () => {
-    try {
-      setTestsRefreshing(true);
-      // We don't use page-level loading here to avoid blocking the whole UI
-      await fetchTests();
-    } catch (apiError) {
-      console.warn('Failed to load test cases:', apiError);
-      setTestCases([]);
-      testCasesCache.set(cacheKey, []);
-    }
-    finally {
-      setTestsRefreshing(false);
-    }
-  }, [fetchTests, cacheKey]);
-
-  const loadTestsBackground = useCallback(async () => {
-    try {
-      setTestsRefreshing(true);
-      await fetchTests();
-    } catch (apiError) {
-      console.warn('Background tests refresh failed:', apiError);
-    }
-    finally {
-      setTestsRefreshing(false);
-    }
-  }, [fetchTests]);
+  const toggleToolExpansion = (toolName: string) => {
+    setExpandedTools(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(toolName)) {
+        newSet.delete(toolName);
+      } else {
+        newSet.add(toolName);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
-    if (!taskId) return;
-    const cachedTask = taskCache.get(cacheKey);
-    const cachedTests = testCasesCache.get(cacheKey);
-    const cachedMetrics = metricsCache.get(cacheKey);
+    const loadTask = async () => {
+      if (!taskId) {
+        setError("No task ID provided");
+        setIsLoading(false);
+        return;
+      }
 
-    if (cachedTask) {
-      setTask(cachedTask);
-      setLoading(false);
-      if (cachedTests) setTestCases(cachedTests);
-      if (typeof cachedMetrics !== 'undefined') setAverageMetrics(cachedMetrics);
-      // Always background refresh to keep content up-to-date
-      loadBackground();
-    } else {
-      // No cached critical data; block once
-      loadBlocking();
-    }
-  }, [taskId, cacheKey, loadBlocking, loadBackground]);
+      try {
+        setIsLoading(true);
+        setError(null);
+        const taskData = await TaskService.getTaskById(taskId);
+        if (taskData) {
+          setTask(taskData);
+          setSelectedVersion(taskData.versions[0]?.id || "");
+          setPageTitle(taskData.name);
+        } else {
+          setError(`Task not found for ID: ${taskId}`);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load task");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  // Defer loading test cases until the Tests tab is viewed
+    loadTask();
+  }, [taskId, setPageTitle]);
+
+  // Cleanup page title when component unmounts
   useEffect(() => {
-    if (!taskId) return;
-    if (activeTab !== 'tests') return;
+    return () => {
+      setPageTitle(null);
+    };
+  }, [setPageTitle]);
 
-    const cachedTests = testCasesCache.get(cacheKey);
-    if (cachedTests) {
-      setTestCases(cachedTests);
-      // Soft refresh in background
-      loadTestsBackground();
-    } else {
-      // First-time load for tests, but don't block entire page
-      loadTestsBlocking();
-    }
-  }, [taskId, cacheKey, activeTab, loadTestsBlocking, loadTestsBackground]);
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/tasks')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-bold">Task Details</h1>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading task details...</p>
         </div>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
       </div>
     );
   }
 
-  if (!task) {
+  if (error || !task) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">{error || "Task not found"}</p>
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/tasks')}
+            variant="outline"
+            onClick={() => navigate("/tasks")}
+            className="mt-4"
           >
-            <ArrowLeft className="h-4 w-4" />
+            Back to Tasks
           </Button>
-          <h1 className="text-2xl font-bold">Task Details</h1>
         </div>
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Task not found</AlertDescription>
-        </Alert>
       </div>
     );
   }
+
+  const tabs: Array<{ id: TabType; label: string }> = [
+    { id: "overview", label: "Overview" },
+    { id: "traces", label: "Traces" },
+    { id: "evaluations", label: "Evaluations" },
+    { id: "settings", label: "Settings" },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/tasks')}
-            className="mr-2"
+    <div className="flex flex-col bg-background font-sans">
+
+      {/* Tabs */}
+      <div className="border-b border-border bg-card px-4 flex gap-4 text-sm">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`py-2 px-1 border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">{task.name}</h1>
-              {(refreshing || metricsLoading) && (
-                <Loader2 aria-label="Refreshing" className="h-4 w-4 animate-spin text-muted-foreground" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        <div className="w-full">
+          {/* Overview Tab */}
+          {activeTab === "overview" && (
+            <div className="space-y-4 p-4">
+              {/* Task Description */}
+              <div className="border border-border rounded-lg p-4">
+                <h2 className="text-lg font-semibold mb-2">Description</h2>
+                <p className="text-muted-foreground">{task.description}</p>
+              </div>
+
+              {/* Contracts */}
+              <div className="border border-border rounded-lg p-4">
+                <button
+                  onClick={() => setExpandedSection(expandedSection === "contracts" ? null : "contracts")}
+                  className="w-full flex items-center justify-between hover:text-primary mb-2"
+                >
+                  <h2 className="text-lg font-semibold">Contracts</h2>
+                  {expandedSection === "contracts" ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+
+                {expandedSection === "contracts" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Input Contract */}
+                    <JsonSchemaViewer
+                      schema={task.contract.input_schema}
+                      title="Input"
+                    />
+
+                    {/* Output Contract */}
+                    <JsonSchemaViewer
+                      schema={task.contract.output_schema}
+                      title="Output"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Implementation */}
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Implementation</h2>
+                  <select
+                    value={selectedVersion}
+                    onChange={(e) => setSelectedVersion(e.target.value)}
+                    className="bg-background border border-border rounded px-3 py-1 text-sm"
+                  >
+                    {task.versions.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        v{version.version}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-3">
+
+                  {selectedVersion &&
+                    (() => {
+                      const version = task.versions.find((v) => v.id === selectedVersion);
+                      return version ? (
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-muted-foreground mb-1 text-xs">Prompt</div>
+                            <div className="text-sm">{version.prompt}</div>
+                          </div>
+                          {version.tools.length > 0 && (
+                            <div>
+                              <div className="text-muted-foreground mb-2 text-xs font-medium">Tools</div>
+                              <div className="space-y-2">
+                                {version.tools.map((tool) => {
+                                  const isExpanded = expandedTools.has(tool);
+                                  const hasSchema = getToolSchema(tool);
+                                  return (
+                                    <div key={tool} className="p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        {hasSchema && (
+                                          <button
+                                            onClick={() => toggleToolExpansion(tool)}
+                                            className="hover:text-primary transition-colors"
+                                          >
+                                            {isExpanded ? (
+                                              <ChevronDown className="h-4 w-4" />
+                                            ) : (
+                                              <ChevronRight className="h-4 w-4" />
+                                            )}
+                                          </button>
+                                        )}
+                                        <h4 className="font-mono text-sm font-semibold">{tool}</h4>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {getToolDescription(tool)}
+                                      </div>
+                                      {hasSchema && isExpanded && (
+                                        <div className="mt-2">
+                                          <JsonSchemaViewer
+                                            schema={getToolSchema(tool)}
+                                            title="Parameters"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-muted-foreground mb-2 text-xs font-medium">Configuration</div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="p-2">
+                                <div className="text-muted-foreground text-xs">model</div>
+                                <div className="font-mono text-xs">{version.model}</div>
+                              </div>
+                              {Object.entries(version.settings).map(([key, value]) => {
+                                // Map camelCase to snake_case for API parameter names
+                                const apiKey = key === 'maxTokens' ? 'max_tokens' :
+                                             key === 'topP' ? 'top_p' :
+                                             key === 'frequencyPenalty' ? 'frequency_penalty' :
+                                             key === 'presencePenalty' ? 'presence_penalty' :
+                                             key === 'stopSequences' ? 'stop' :
+                                             key;
+                                return (
+                                  <div key={key} className="p-2">
+                                    <div className="text-muted-foreground text-xs">{apiKey}</div>
+                                    <div className="font-mono text-xs">{String(value)}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                </div>
+              </div>
+
+
+
+
+            </div>
+          )}
+
+          {/* Traces Tab */}
+          {activeTab === "traces" && (
+            <div className="p-4">
+              {task.traces.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  <p>No traces yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {task.traces.map((trace) => (
+                    <div key={trace.id} className="border border-border rounded p-3 text-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(trace.timestamp).toLocaleString()}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${trace.status === "success" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
+                          >
+                            {trace.status}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{trace.latency.toFixed(2)}s</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-1">Input</div>
+                          <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
+                            {JSON.stringify(trace.input, null, 2)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-1">Output</div>
+                          <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
+                            {JSON.stringify(trace.output, null, 2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            <p className="text-muted-foreground">
-              {task.implementation.implementation_type} • v{task.production_version} • Updated {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">
-            Version {task.production_version}
-          </Badge>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-        </div>
-      </div>
-
-      {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  {averageMetrics ? `Avg Accuracy (${averageMetrics.totalEvaluations} evals)` : 'Average Accuracy'}
-                </p>
-                {metricsLoading ? (
-                  <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
-                ) : averageMetrics ? (
-                  <p className="text-2xl font-bold">{(averageMetrics.accuracy * 100).toFixed(1)}%</p>
-                ) : (
-                  <div>
-                    <p className="text-2xl font-bold text-muted-foreground">--</p>
-                    <p className="text-xs text-muted-foreground">No evaluations yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-green-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  {averageMetrics ? `Avg Execution Time (${averageMetrics.totalEvaluations} evals)` : 'Average Execution Time'}
-                </p>
-                {metricsLoading ? (
-                  <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
-                ) : averageMetrics ? (
-                  <p className="text-2xl font-bold">{averageMetrics.time.toFixed(1)}s</p>
-                ) : (
-                  <div>
-                    <p className="text-2xl font-bold text-muted-foreground">--</p>
-                    <p className="text-xs text-muted-foreground">No evaluations yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-orange-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  {averageMetrics ? `Avg Cost (${averageMetrics.totalEvaluations} evals)` : 'Average Cost'}
-                </p>
-                {metricsLoading ? (
-                  <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
-                ) : averageMetrics ? (
-                  <p className="text-2xl font-bold">${averageMetrics.cost.toFixed(3)}</p>
-                ) : (
-                  <div>
-                    <p className="text-2xl font-bold text-muted-foreground">--</p>
-                    <p className="text-xs text-muted-foreground">No evaluations yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TestTube className="h-4 w-4 text-purple-600" />
-              <div>
-                <p className="text-sm text-muted-foreground">Test Cases</p>
-                <p className="text-2xl font-bold">{testCases?.length || 0}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'details' | 'evaluations' | 'tests'); setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('tab', v); return p; }); }} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="details" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Details
-          </TabsTrigger>
-          <TabsTrigger value="evaluations" className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Evaluations
-          </TabsTrigger>
-          <TabsTrigger value="tests" className="gap-2">
-            <TestTube className="h-4 w-4" />
-            Tests
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Description</label>
-                  <p className="text-sm">{task.description || 'No description provided'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Implementation Type</label>
-                  <p className="text-sm capitalize">{task.implementation.implementation_type}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Production Version</label>
-                  <p className="text-sm">{task.production_version}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Created</label>
-                  <p className="text-sm">{formatDistanceToNow(new Date(task.created_at), { addSuffix: true })}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
-                  <p className="text-sm">{formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Implementation Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {task.implementation.implementation_type === 'reasoning' && (
-                    <>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Model</label>
-                        <p className="text-sm font-mono">{(task.implementation.config as ReasoningConfig).model}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Temperature</label>
-                        <p className="text-sm">{(task.implementation.config as ReasoningConfig).temperature}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Max Tokens</label>
-                        <p className="text-sm">{(task.implementation.config as ReasoningConfig).max_tokens}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Reasoning Effort</label>
-                        <p className="text-sm capitalize">{(task.implementation.config as ReasoningConfig).reasoning_effort}</p>
-                      </div>
-                    </>
-                  )}
-                  {task.implementation.implementation_type === 'workflow' && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Subtasks</label>
-                      <p className="text-sm">{(task.implementation.config as WorkflowConfig).subtasks?.length || 0} subtasks</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Score Weights</CardTitle>
-                  {isEditingWeights ? (
-                    <div className="flex items-center gap-2">
-                      {!savingWeights && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setIsEditingWeights(false);
-                            setEditWeights(null);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            if (!task) return;
-                            setSavingWeights(true);
-                            const payload: ScoreWeightsUpdate = editWeights
-                              ? {
-                                  accuracy: editWeights.accuracy,
-                                  time_efficiency: editWeights.timeEfficiency,
-                                  cost_efficiency: editWeights.costEfficiency,
-                                }
-                              : null;
-                            const updated = await updateTaskScoreWeights(task.id, payload);
-                            setTask(updated);
-                            setIsEditingWeights(false);
-                            setEditWeights(null);
-                            toast({ title: 'Score weights updated' });
-                          } catch (e) {
-                            toast({ title: 'Failed to update weights', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
-                          } finally {
-                            setSavingWeights(false);
-                          }
-                        }}
-                        disabled={!isEditingWeights || savingWeights}
-                        aria-busy={savingWeights}
-                      >
-                        {savingWeights ? (
-                          <span className="inline-flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Saving...
-                          </span>
-                        ) : (
-                          'Save'
-                        )}
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        if (!task) return;
-                        const current = task.score_weights || { accuracy: 0.5, time_efficiency: 0.3, cost_efficiency: 0.2 };
-                        setEditWeights({
-                          accuracy: current.accuracy ?? 0,
-                          timeEfficiency: current.time_efficiency ?? 0,
-                          costEfficiency: current.cost_efficiency ?? 0,
-                        });
-                        setIsEditingWeights(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <ScoreWeightsSelector
-                    initialWeights={
-                      isEditingWeights ? (editWeights || undefined) : {
-                        accuracy: task.score_weights?.accuracy ?? 0,
-                        timeEfficiency: task.score_weights?.time_efficiency ?? 0,
-                        costEfficiency: task.score_weights?.cost_efficiency ?? 0,
-                      }
-                    }
-                    onWeightsChange={isEditingWeights ? (w) => setEditWeights(w) : undefined}
-                    disabled={!isEditingWeights}
-                  />
-                  {!task.score_weights && !isEditingWeights && (
-                    <p className="text-xs text-muted-foreground">Using project defaults. Click Edit to set task-specific weights.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {(task.contract.input_schema || task.contract.output_schema) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Contract Schema</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {task.contract.input_schema && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Input Schema</label>
-                      <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-48">
-                        {JSON.stringify(task.contract.input_schema, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {task.contract.output_schema && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Output Schema</label>
-                      <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-48">
-                        {JSON.stringify(task.contract.output_schema, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           )}
-        </TabsContent>
 
-        <TabsContent value="evaluations" className="space-y-4">
-          <EvaluationsSection taskId={taskId!} onEvaluationsChange={handleEvaluationsChange} />
-        </TabsContent>
 
-        <TabsContent value="tests" className="space-y-4">
-          <TestCasesSection
-            taskId={taskId!}
-            testCases={testCases || []}
-            onTestCasesChange={setTestCases}
-            refreshing={testsRefreshing}
-          />
-        </TabsContent>
-      </Tabs>
+          {/* Evaluations Tab */}
+          {activeTab === "evaluations" && (
+            <div className="p-4">
+              {task.testCases.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  <p>No evaluations yet</p>
+                  <Button variant="link" className="text-primary hover:underline mt-2 p-0 h-auto">
+                    Create evaluation
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {task.testCases.map((tc) => (
+                    <div key={tc.id} className="border border-border rounded p-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{tc.name}</span>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${tc.status === "passed" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
+                        >
+                          {tc.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Settings Tab */}
+          {activeTab === "settings" && (
+            <div className="p-4">
+              <div className="text-sm text-muted-foreground">Settings coming soon</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

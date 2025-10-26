@@ -28,69 +28,69 @@ export function TraceTable({ traces, selectedTraceId, onSelectTrace, sortField, 
   };
   return (
     <div className="w-full">
-      <table className="w-full border-collapse text-xs">
+      <table className="w-full border-collapse text-xs select-none">
         <thead>
           <tr className="border-b border-border bg-muted/90 sticky top-0 h-10">
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-12 cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-12 cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('status')}
             >
               <div className="flex items-center">
-                Status
+                STATUS
                 {getSortIcon('status')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-foreground cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('task')}
             >
               <div className="flex items-center">
-                Task
+                TASK
                 {getSortIcon('task')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-foreground w-20 cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-20 cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('latency')}
             >
               <div className="flex items-center">
-                Latency
+                LATENCY
                 {getSortIcon('latency')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-foreground w-16 cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-16 cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('cost')}
             >
               <div className="flex items-center">
-                Cost
+                COST
                 {getSortIcon('cost')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-16 cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-16 cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('type')}
             >
               <div className="flex items-center">
-                Type
+                TYPE
                 {getSortIcon('type')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('model')}
             >
               <div className="flex items-center">
-                Model
+                MODEL
                 {getSortIcon('model')}
               </div>
             </th>
             <th 
-              className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-41 cursor-pointer hover:text-foreground transition-colors"
+              className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-41 cursor-pointer hover:text-primary transition-colors"
               onClick={() => handleSort('timestamp')}
             >
               <div className="flex items-center">
-                Timestamp
+                TIMESTAMP
                 {getSortIcon('timestamp')}
               </div>
             </th>

@@ -14,9 +14,9 @@ const TestCaseViewDialog = ({ isOpen, onClose, testCase }: TestCaseViewDialogPro
 
   const getComparisonMethodBadge = (method: ComparisonMethod) => {
     const colors = {
-      [ComparisonMethod.EXACT_MATCH]: 'bg-blue-100 text-blue-800',
-      [ComparisonMethod.SEMANTIC_SIMILARITY]: 'bg-green-100 text-green-800',
-      [ComparisonMethod.AI_EVALUATION]: 'bg-purple-100 text-purple-800',
+      [ComparisonMethod.EXACT_MATCH]: 'bg-primary/20 text-primary',
+      [ComparisonMethod.SEMANTIC_SIMILARITY]: 'bg-success/20 text-success',
+      [ComparisonMethod.AI_EVALUATION]: 'bg-accent text-accent-foreground',
     };
 
     return (

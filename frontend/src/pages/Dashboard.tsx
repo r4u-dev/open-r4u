@@ -278,7 +278,7 @@ const Dashboard = () => {
       {/* Usage Overview Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+          <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
           <h2 className="text-xl font-semibold text-foreground">Usage Overview</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -347,7 +347,7 @@ const Dashboard = () => {
       {/* Optimization Overview Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+          <div className="w-3 h-3 bg-success rounded-full animate-pulse" />
           <h2 className="text-xl font-semibold text-foreground">Optimization Overview</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
