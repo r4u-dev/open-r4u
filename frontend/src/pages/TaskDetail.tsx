@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
 import { TaskService } from "@/services/taskService";
 import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
@@ -21,6 +25,16 @@ const TaskDetail = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [expandedSection, setExpandedSection] = useState<"contracts" | null>("contracts");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+
+  // Task evaluation settings state
+  const [taskEvaluationSettings, setTaskEvaluationSettings] = useState({
+    evaluationWeights: {
+      quality: 0.5,
+      costEfficiency: 0.25,
+      timeEfficiency: 0.25
+    },
+    qualityThreshold: 85
+  });
 
   // Helper functions for tool information
   const getToolDescription = (toolName: string): string => {
@@ -424,8 +438,36 @@ const TaskDetail = () => {
 
           {/* Settings Tab */}
           {activeTab === "settings" && (
-            <div className="p-4">
-              <div className="text-sm text-muted-foreground">Settings coming soon</div>
+            <div className="p-4 space-y-6">
+              {/* Evaluation Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Evaluation Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-4">
+                    <span className="text-sm font-medium">Evaluation Weights</span>
+                    <ScoreWeightsSelector
+                      initialWeights={taskEvaluationSettings.evaluationWeights}
+                      onWeightsChange={(weights) => setTaskEvaluationSettings(prev => ({ ...prev, evaluationWeights: weights }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quality-threshold">Test Quality Score Threshold (%)</Label>
+                    <Input
+                      id="quality-threshold"
+                      name="qualityThreshold"
+                      type="number"
+                      value={taskEvaluationSettings.qualityThreshold}
+                      onChange={(e) => setTaskEvaluationSettings(prev => ({ ...prev, qualityThreshold: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
