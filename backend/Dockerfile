@@ -13,12 +13,12 @@ ENV UV_PYTHON_DOWNLOADS=0
 
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+  --mount=type=bind,source=uv.lock,target=uv.lock \
+  --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+  uv sync --locked --no-install-project --no-dev
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+  uv sync --locked --no-dev
 
 
 # Then, use a final image without uv
@@ -29,7 +29,7 @@ FROM python:3.12-slim-bookworm
 
 # Setup a non-root user
 RUN groupadd --system --gid 999 nonroot \
- && useradd --system --gid 999 --uid 999 --create-home nonroot
+  && useradd --system --gid 999 --uid 999 --create-home nonroot
 
 # Copy the application from the builder
 COPY --from=builder --chown=nonroot:nonroot /app /app
