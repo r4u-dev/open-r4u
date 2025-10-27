@@ -18,10 +18,27 @@ providers:
         input_usd_per_million: 0.05
         cached_input_usd_per_million: 0.005
         output_usd_per_million: 0.40
+      gpt-5-chat-latest:
+        input_usd_per_million: 1.25
+        cached_input_usd_per_million: 0.125
+        output_usd_per_million: 10.00
+      gpt-5-codex:
+        input_usd_per_million: 1.25
+        cached_input_usd_per_million: 0.125
+        output_usd_per_million: 10.00
       gpt-5-pro:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: null
         output_usd_per_million: 120.00
+      gpt-5-search-api:
+        input_usd_per_million: 1.25
+        cached_input_usd_per_million: 0.125
+        output_usd_per_million: 10.00
+      # GPT-3.5 series models
+      "gpt-3.5-turbo":
+        input_usd_per_million: 0.50
+        cached_input_usd_per_million: null
+        output_usd_per_million: 1.50
       "gpt-4.1":
         input_usd_per_million: 2.00
         cached_input_usd_per_million: 0.50
@@ -34,18 +51,53 @@ providers:
         input_usd_per_million: 0.10
         cached_input_usd_per_million: 0.025
         output_usd_per_million: 0.40
+      # GPT-4o series models
       gpt-4o:
         input_usd_per_million: 2.50
         cached_input_usd_per_million: 1.25
         output_usd_per_million: 10.00
+      gpt-4o-2024-05-13:
+        input_usd_per_million: 5.00
+        cached_input_usd_per_million: null
+        output_usd_per_million: 15.00
       gpt-4o-mini:
         input_usd_per_million: 0.15
         cached_input_usd_per_million: 0.075
         output_usd_per_million: 0.60
+      # o1/o3/o4 series models
+      o1:
+        input_usd_per_million: 15.00
+        cached_input_usd_per_million: 7.50
+        output_usd_per_million: 60.00
+      o1-pro:
+        input_usd_per_million: 150.00
+        cached_input_usd_per_million: null
+        output_usd_per_million: 600.00
+      o1-mini:
+        input_usd_per_million: 1.10
+        cached_input_usd_per_million: 0.55
+        output_usd_per_million: 4.40
       o3:
         input_usd_per_million: 2.00
         cached_input_usd_per_million: 0.50
         output_usd_per_million: 8.00
+      o3-pro:
+        input_usd_per_million: 20.00
+        cached_input_usd_per_million: null
+        output_usd_per_million: 80.00
+      o4-mini:
+        input_usd_per_million: 1.10
+        cached_input_usd_per_million: 0.275
+        output_usd_per_million: 4.40
+      # Realtime API models
+      gpt-realtime:
+        input_usd_per_million: 4.00
+        cached_input_usd_per_million: 0.40
+        output_usd_per_million: 16.00
+      gpt-realtime-mini:
+        input_usd_per_million: 0.60
+        cached_input_usd_per_million: 0.06
+        output_usd_per_million: 2.40
 
   anthropic:
     display_name: Anthropic (Claude)
