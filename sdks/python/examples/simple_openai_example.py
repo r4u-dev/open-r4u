@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Simple OpenAI API Tracing Example
+"""Simple OpenAI API Tracing Example.
 
 This example shows the simplest way to trace OpenAI API calls with R4U.
 
@@ -14,6 +13,7 @@ IMPORTANT: trace_all() must be called BEFORE importing OpenAI!
 
 import os
 import sys
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -52,13 +52,13 @@ def main():
         print("📤 Sending request to OpenAI...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Say hello in 5 words"}],
-            max_tokens=20,
+            messages=[{"role": "user", "content": "Hey, what is your name?"}],
+            stream=True,
         )
+        for chunk in response:
+            print(chunk)
 
         # Print the response
-        answer = response.choices[0].message.content
-        print(f"📥 Response: {answer}\n")
 
         # Print trace info
         print("✅ Success! The request was traced and sent to:")

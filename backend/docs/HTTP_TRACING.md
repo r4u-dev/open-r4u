@@ -61,12 +61,13 @@ The HTTP tracing system consists of three main components:
 - **API Formats**:
     - Chat Completions API (traditional)
     - Responses API (new) ✨
+- **Streaming Support**: ✅ Both streaming and non-streaming responses
 - **Extracted Fields**:
     - Model, messages/input, tools, temperature
     - Token usage (prompt, completion, cached, reasoning)
     - Finish reason, system fingerprint
     - Response format/schema
-- **Note**: Automatically detects and supports both Chat Completions and Responses API formats
+- **Note**: Automatically detects and supports both Chat Completions and Responses API formats, including streaming responses
 - **See**: [OpenAI Responses API Support](OPENAI_RESPONSES_API.md) for details
 
 ### 2. Anthropic (Claude)
@@ -126,6 +127,40 @@ This endpoint:
     }
 }
 ```
+
+**Streaming Responses**:
+
+For streaming responses, the SDK concatenates all Server-Sent Events (SSE) chunks with `\n\n` separators:
+
+```json
+{
+    "started_at": "2024-01-01T12:00:00Z",
+    "completed_at": "2024-01-01T12:00:01Z",
+    "status_code": 200,
+    "error": null,
+    "request": "{\"model\": \"gpt-4\", \"messages\": [...], \"stream\": true}",
+    "request_headers": {
+        "content-type": "application/json",
+        "host": "api.openai.com"
+    },
+    "response": "data: {\"id\":\"...\",\"choices\":[...]}\n\ndata: {\"id\":\"...\",\"choices\":[...]}\n\ndata: [DONE]",
+    "response_headers": {
+        "content-type": "text/event-stream"
+    },
+    "metadata": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "method": "POST",
+        "project": "My Project"
+    }
+}
+```
+
+The backend automatically detects streaming responses by checking:
+
+- `content-type: text/event-stream` header
+- Response starting with `data:` or `event:` prefix
+
+The parser then reconstructs the complete response from the stream chunks.
 
 **Note**: Request and response should be sent as strings (not bytes or hex-encoded).
 
@@ -240,11 +275,52 @@ def __init__(self):
 
 **Note**: HTTPTrace is always persisted to the database, even when parsing fails. This ensures raw data is never lost and can be inspected or reprocessed later.
 
+### Streaming Support
+
+The backend automatically handles streaming responses from OpenAI APIs:
+
+1. **Detection**: Streaming is detected via `content-type: text/event-stream` header or response format
+2. **Parsing**: Server-Sent Events (SSE) are parsed into individual events
+3. **Reconstruction**: Complete response is reconstructed from streaming chunks
+4. **Supported APIs**:
+    - Chat Completions API streaming (`stream: true`)
+    - Responses API streaming (event-based)
+
+**Chat Completions Stream Format**:
+
+```
+data: {"id":"...", "choices":[{"delta":{"content":"Hi"}}]}
+
+data: {"id":"...", "choices":[{"delta":{"content":" there"}}]}
+
+data: [DONE]
+```
+
+**Responses API Stream Format**:
+
+```
+event: response.created
+data: {"type":"response.created", ...}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta", "delta":"Hello"}
+
+event: response.completed
+data: {"type":"response.completed", ...}
+```
+
+The parser reconstructs the final response by:
+
+- Accumulating content deltas into complete text
+- Extracting metadata from initial chunks
+- Using completion event for final token counts
+
 ### Performance
 
 - HTTP traces are sent asynchronously (queue + worker thread)
 - Parsing happens on backend, doesn't block SDK
 - Failed trace sends don't affect application performance
+- Streaming responses are fully buffered before parsing
 
 ## Testing
 
@@ -280,9 +356,9 @@ Stores parsed, structured trace data:
 
 ## Future Enhancements
 
-1. **Streaming Support**: Handle streaming responses
-2. **More Providers**: Add support for more LLM providers
-3. **Compression**: Compress large request/response bodies
-4. **Batching**: Batch multiple traces in single request
-5. **Schema Validation**: Validate provider-specific schemas
-6. **Reprocessing**: UI to reprocess failed HTTPTraces with updated parsers
+1. **More Providers**: Add streaming support for Anthropic and Google GenAI
+2. **Compression**: Compress large request/response bodies
+3. **Batching**: Batch multiple traces in single request
+4. **Schema Validation**: Validate provider-specific schemas
+5. **Reprocessing**: UI to reprocess failed HTTPTraces with updated parsers
+6. **Partial Streams**: Handle incomplete/interrupted streams

@@ -35,6 +35,8 @@ class GoogleGenAIParser(ProviderParser):
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
         call_path: str | None = None,
+        is_streaming: bool = False,
+        streaming_response: str | None = None,
     ) -> TraceCreate:
         """Parse Google GenAI API request/response."""
         # Extract model from URL or metadata (Google uses model in URL path)

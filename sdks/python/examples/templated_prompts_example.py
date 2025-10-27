@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Templated Prompts with Automatic Implementation Matching
+"""Templated Prompts with Automatic Implementation Matching
 
 This example demonstrates how R4U automatically:
 1. Detects similar prompts with variable parts
@@ -21,6 +20,7 @@ IMPORTANT: trace_all() must be called BEFORE importing OpenAI!
 import os
 import sys
 import time
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -91,7 +91,7 @@ def make_greeting_request(client, user_name: str, greeting_style: str):
 def make_task_request(client, task_type: str, priority: str, user_id: str):
     """Make a request with task-specific prompt."""
     print(
-        f"\n📤 Making task request: {task_type} (priority: {priority}, user: {user_id})"
+        f"\n📤 Making task request: {task_type} (priority: {priority}, user: {user_id})",
     )
 
     response = client.chat.completions.create(
@@ -141,7 +141,7 @@ def main():
         print("=" * 80)
         print("These requests have the same structure but different values.")
         print(
-            "Expected template: 'You are a helpful assistant for {role}. The user's name is {name}...'"
+            "Expected template: 'You are a helpful assistant for {role}. The user's name is {name}...'",
         )
 
         make_personalized_request(client, "Alice", "software developer")
@@ -154,7 +154,7 @@ def main():
         print("=" * 80)
         print("These greetings vary by name and style.")
         print(
-            "Expected template: 'You are a friendly greeter. Greet user {name} in a {style} manner...'"
+            "Expected template: 'You are a friendly greeter. Greet user {name} in a {style} manner...'",
         )
 
         make_greeting_request(client, "Diana", "warm and enthusiastic")
@@ -167,7 +167,7 @@ def main():
         print("=" * 80)
         print("These tasks have multiple variables: type, priority, and user ID.")
         print(
-            "Expected template: 'You are a task management assistant. Handle {task_type} tasks for user ID {user_id} with {priority} priority...'"
+            "Expected template: 'You are a task management assistant. Handle {task_type} tasks for user ID {user_id} with {priority} priority...'",
         )
 
         make_task_request(client, "coding", "high", "user_101")
