@@ -266,7 +266,7 @@ docker compose up -d db
 
 # Install backend dependencies
 cd backend
-uv install
+uv sync
 
 # Run database migrations
 alembic upgrade head
