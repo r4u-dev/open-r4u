@@ -154,3 +154,23 @@ function getStatusText(statusCode: number): string {
 
     return statusTexts[statusCode] || "Unknown";
 }
+
+/**
+ * Extract the last function name from a trace path
+ * Example: "examples/templated_prompts_example.py::main->make_greeting_request" => "make_greeting_request"
+ * Example: "src/app.py::handler" => "handler"
+ * Example: null => null
+ */
+export function extractFunctionName(path: string | null): string | null {
+    if (!path) return null;
+
+    // Split by -> to get the last function in the call chain
+    const parts = path.split("->");
+    const lastPart = parts[parts.length - 1];
+
+    // If there's a :: separator (file::function), take the function part
+    const functionParts = lastPart.split("::");
+    const functionName = functionParts[functionParts.length - 1];
+
+    return functionName.trim() || null;
+}

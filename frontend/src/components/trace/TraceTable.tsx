@@ -1,9 +1,10 @@
 import { AlertCircle, CheckCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { Trace } from "@/lib/types/trace";
+import { extractFunctionName } from "@/lib/utils";
 
 type SortField =
     | "status"
-    | "task"
+    | "path"
     | "type"
     | "model"
     | "latency"
@@ -57,11 +58,11 @@ export function TraceTable({
                         </th>
                         <th
                             className="px-3 py-2 text-left text-[10px] font-medium text-foreground cursor-pointer hover:text-primary transition-colors"
-                            onClick={() => handleSort("task")}
+                            onClick={() => handleSort("path")}
                         >
                             <div className="flex items-center">
-                                TASK
-                                {getSortIcon("task")}
+                                PATH
+                                {getSortIcon("path")}
                             </div>
                         </th>
                         <th
@@ -132,7 +133,7 @@ export function TraceTable({
                             <td
                                 className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}
                             >
-                                {trace.taskVersion || "-"}
+                                {extractFunctionName(trace.path) || "-"}
                             </td>
                             <td
                                 className={`px-3 py-2 text-right ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}
