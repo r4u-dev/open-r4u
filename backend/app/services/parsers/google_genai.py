@@ -186,6 +186,7 @@ class GoogleGenAIParser(ProviderParser):
             else "Default Project"
         )
         task_id = metadata.get("task_id") if metadata else None
+        max_tokens = generation_config.get("maxOutputTokens")
 
         return TraceCreate(
             project=project,
@@ -212,4 +213,5 @@ class GoogleGenAIParser(ProviderParser):
             reasoning=None,
             response_schema=None,
             trace_metadata=metadata,
+            max_tokens=max_tokens,
         )
