@@ -146,7 +146,7 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                     </span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Path:</span>
+                    <span className="text-muted-foreground">Source:</span>
                     <span
                         className="font-mono text-foreground truncate max-w-[200px]"
                         title={trace.path || "-"}

@@ -4,7 +4,7 @@ import { extractFunctionName } from "@/lib/utils";
 
 type SortField =
     | "status"
-    | "path"
+    | "source"
     | "type"
     | "model"
     | "latency"
@@ -58,11 +58,11 @@ export function TraceTable({
                         </th>
                         <th
                             className="px-3 py-2 text-left text-[10px] font-medium text-foreground cursor-pointer hover:text-primary transition-colors"
-                            onClick={() => handleSort("path")}
+                            onClick={() => handleSort("source")}
                         >
                             <div className="flex items-center">
-                                PATH
-                                {getSortIcon("path")}
+                                SOURCE
+                                {getSortIcon("source")}
                             </div>
                         </th>
                         <th
@@ -133,7 +133,17 @@ export function TraceTable({
                             <td
                                 className={`px-3 py-2 ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}
                             >
-                                {extractFunctionName(trace.path) || "-"}
+                                <span
+                                    className="inline-block max-w-[150px] truncate"
+                                    title={trace.path || undefined}
+                                    aria-label={
+                                        trace.path
+                                            ? `Source: ${trace.path}`
+                                            : "No source available"
+                                    }
+                                >
+                                    {extractFunctionName(trace.path) || "-"}
+                                </span>
                             </td>
                             <td
                                 className={`px-3 py-2 text-right ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}

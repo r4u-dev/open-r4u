@@ -9,7 +9,7 @@ const ITEMS_PER_LOAD = 25;
 
 type SortField =
     | "status"
-    | "path"
+    | "source"
     | "type"
     | "model"
     | "latency"
@@ -91,7 +91,7 @@ const Traces = () => {
                     aValue = a.status;
                     bValue = b.status;
                     break;
-                case "path":
+                case "source":
                     aValue = a.path || "";
                     bValue = b.path || "";
                     break;
