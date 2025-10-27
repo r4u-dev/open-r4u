@@ -110,13 +110,22 @@ class HTTPTraceParserService:
             raise ValueError(f"Failed to parse request body: {e}")
 
         response_body = {}
+        is_streaming = False
+
         if not error and response_str:
-            try:
-                response_body = json.loads(response_str)
-            except Exception:
-                # If response parsing fails, it's not necessarily an error
-                # (could be streaming or non-JSON response)
-                pass
+            # Check if this is a streaming response (Server-Sent Events)
+            content_type = response_headers.get("content-type", "")
+            if "text/event-stream" in content_type or response_str.strip().startswith(
+                ("data:", "event:"),
+            ):
+                is_streaming = True
+            else:
+                try:
+                    response_body = json.loads(response_str)
+                except Exception:
+                    # If response parsing fails, it's not necessarily an error
+                    # (could be streaming or non-JSON response)
+                    pass
 
         # Use the parser to create TraceCreate
         return parser.parse(
@@ -127,4 +136,6 @@ class HTTPTraceParserService:
             error=error,
             metadata=metadata,
             call_path=call_path,
+            is_streaming=is_streaming,
+            streaming_response=response_str if is_streaming else None,
         )

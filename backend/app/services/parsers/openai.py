@@ -1,5 +1,6 @@
 """OpenAI API parser."""
 
+import json
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
@@ -32,6 +33,198 @@ class OpenAIParser(ProviderParser):
         """
         return "input" in request_body and "messages" not in request_body
 
+    def _parse_sse_stream(self, streaming_response: str) -> list[dict[str, Any]]:
+        """Parse Server-Sent Events (SSE) stream into list of events.
+
+        Args:
+            streaming_response: Raw SSE response with chunks concatenated by \n\n
+
+        Returns:
+            List of parsed event dictionaries
+
+        """
+        events = []
+        lines = streaming_response.strip().split("\n")
+
+        current_event = {}
+        for line in lines:
+            line = line.strip()
+
+            if not line:
+                # Empty line signals end of event
+                if current_event:
+                    events.append(current_event)
+                    current_event = {}
+                continue
+
+            if line.startswith("event:"):
+                current_event["event"] = line[6:].strip()
+            elif line.startswith("data:"):
+                data_str = line[5:].strip()
+                if data_str == "[DONE]":
+                    current_event["done"] = True
+                else:
+                    try:
+                        current_event["data"] = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        # Skip invalid JSON
+                        pass
+
+        # Add last event if exists
+        if current_event:
+            events.append(current_event)
+
+        return events
+
+    def _reconstruct_chat_completions_from_stream(
+        self,
+        events: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Reconstruct a complete Chat Completions response from streaming chunks.
+
+        Args:
+            events: List of SSE events
+
+        Returns:
+            Reconstructed response body dictionary
+
+        """
+        # Initialize response structure
+        response = {
+            "id": None,
+            "object": "chat.completion",
+            "created": None,
+            "model": None,
+            "choices": [],
+            "usage": None,
+        }
+
+        # Track content accumulation
+        content_parts = []
+        finish_reason = None
+
+        for event in events:
+            if event.get("done"):
+                continue
+
+            data = event.get("data")
+            if not data:
+                continue
+
+            # Extract metadata from first chunk
+            if response["id"] is None:
+                response["id"] = data.get("id")
+                response["created"] = data.get("created")
+                response["model"] = data.get("model")
+                response["system_fingerprint"] = data.get("system_fingerprint")
+                response["service_tier"] = data.get("service_tier")
+
+            # Process choices
+            choices = data.get("choices", [])
+            for choice in choices:
+                delta = choice.get("delta", {})
+
+                # Accumulate content
+                if delta.get("content"):
+                    content_parts.append(delta["content"])
+
+                # Capture finish reason
+                if choice.get("finish_reason"):
+                    finish_reason = choice["finish_reason"]
+
+        # Build final choice
+        if content_parts or finish_reason:
+            response["choices"] = [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "".join(content_parts) if content_parts else None,
+                    },
+                    "finish_reason": finish_reason,
+                },
+            ]
+
+        return response
+
+    def _reconstruct_responses_api_from_stream(
+        self,
+        events: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Reconstruct a complete Responses API response from streaming events.
+
+        Args:
+            events: List of SSE events
+
+        Returns:
+            Reconstructed response body dictionary
+
+        """
+        # Initialize response structure
+        response = {
+            "id": None,
+            "object": "response",
+            "created": None,
+            "model": None,
+            "output": None,
+            "finish_reason": None,
+            "usage": None,
+        }
+
+        # Track the final completed event
+        for event in events:
+            event_type = event.get("event")
+            data = event.get("data")
+
+            if not data:
+                continue
+
+            # Look for response.completed event which has everything
+            if (
+                event_type == "response.completed"
+                or data.get("type") == "response.completed"
+            ):
+                response_data = data.get("response", data)
+                response["id"] = response_data.get("id")
+                response["created"] = response_data.get(
+                    "created_at",
+                ) or response_data.get("created")
+                response["model"] = response_data.get("model")
+                response["finish_reason"] = response_data.get("finish_reason")
+                response["usage"] = response_data.get("usage")
+                response["system_fingerprint"] = response_data.get("system_fingerprint")
+                response["service_tier"] = response_data.get("service_tier")
+                response["temperature"] = response_data.get("temperature")
+
+                # Extract output text from output items
+                output_items = response_data.get("output", [])
+                if output_items:
+                    if isinstance(output_items, list):
+                        # Extract text from message content
+                        for item in output_items:
+                            if item.get("type") == "message":
+                                content = item.get("content", [])
+                                if content:
+                                    for content_part in content:
+                                        if content_part.get("type") == "output_text":
+                                            response["output"] = content_part.get(
+                                                "text",
+                                            )
+                                            break
+                                if response["output"]:
+                                    break
+                break
+
+            # Fallback: look for output_text.done event
+            if (
+                event_type == "response.output_text.done"
+                or data.get("type") == "response.output_text.done"
+            ):
+                if not response["output"]:
+                    response["output"] = data.get("text")
+
+        return response
+
     def parse(
         self,
         request_body: dict[str, Any],
@@ -41,11 +234,24 @@ class OpenAIParser(ProviderParser):
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
         call_path: str | None = None,
+        is_streaming: bool = False,
+        streaming_response: str | None = None,
     ) -> TraceCreate:
         """Parse OpenAI API request/response.
 
         Supports both Chat Completions API and the new Responses API.
+        Also handles streaming responses.
         """
+        # Handle streaming responses
+        if is_streaming and streaming_response:
+            events = self._parse_sse_stream(streaming_response)
+
+            # Reconstruct response based on API type
+            if self._is_responses_api(request_body):
+                response_body = self._reconstruct_responses_api_from_stream(events)
+            else:
+                response_body = self._reconstruct_chat_completions_from_stream(events)
+
         # Check if this is the new Responses API
         if self._is_responses_api(request_body):
             return self._parse_responses_api(
@@ -171,19 +377,17 @@ class OpenAIParser(ProviderParser):
                         pass
 
             # Extract token usage
-            usage = response_body.get("usage", {})
+            usage = response_body.get("usage") or {}
             prompt_tokens = usage.get("prompt_tokens")
             completion_tokens = usage.get("completion_tokens")
             total_tokens = usage.get("total_tokens")
 
             # Additional token metrics
-            if "prompt_tokens_details" in usage:
-                cached_tokens = usage["prompt_tokens_details"].get("cached_tokens")
+            prompt_tokens_details = usage.get("prompt_tokens_details") or {}
+            cached_tokens = prompt_tokens_details.get("cached_tokens")
 
-            if "completion_tokens_details" in usage:
-                reasoning_tokens = usage["completion_tokens_details"].get(
-                    "reasoning_tokens",
-                )
+            completion_tokens_details = usage.get("completion_tokens_details") or {}
+            reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
 
             system_fingerprint = response_body.get("system_fingerprint")
 
@@ -345,7 +549,7 @@ class OpenAIParser(ProviderParser):
                     pass
 
             # Extract token usage (same structure as Chat Completions)
-            usage = response_body.get("usage", {})
+            usage = response_body.get("usage") or {}
             prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens")
             completion_tokens = usage.get("completion_tokens") or usage.get(
                 "output_tokens",
@@ -353,13 +557,11 @@ class OpenAIParser(ProviderParser):
             total_tokens = usage.get("total_tokens")
 
             # Additional token metrics
-            if "prompt_tokens_details" in usage:
-                cached_tokens = usage["prompt_tokens_details"].get("cached_tokens")
+            prompt_tokens_details = usage.get("prompt_tokens_details") or {}
+            cached_tokens = prompt_tokens_details.get("cached_tokens")
 
-            if "completion_tokens_details" in usage:
-                reasoning_tokens = usage["completion_tokens_details"].get(
-                    "reasoning_tokens",
-                )
+            completion_tokens_details = usage.get("completion_tokens_details") or {}
+            reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
 
             system_fingerprint = response_body.get("system_fingerprint")
 
@@ -377,7 +579,10 @@ class OpenAIParser(ProviderParser):
 
         # Extract other request parameters
         instructions = request_body.get("instructions")
-        temperature = request_body.get("temperature")
+        # Prefer temperature from response (for streaming) if available
+        temperature = response_body.get("temperature") or request_body.get(
+            "temperature",
+        )
         response_format = request_body.get("response_format")
 
         # Extract project from metadata or use default

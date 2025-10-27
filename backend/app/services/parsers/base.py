@@ -32,6 +32,8 @@ class ProviderParser(ABC):
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
         call_path: str | None = None,
+        is_streaming: bool = False,
+        streaming_response: str | None = None,
     ) -> TraceCreate:
         """Parse HTTP request/response into a TraceCreate object.
 
@@ -43,6 +45,8 @@ class ProviderParser(ABC):
             error: Error message if any
             metadata: Additional metadata
             call_path: The call path where the request was made
+            is_streaming: Whether this is a streaming response
+            streaming_response: Raw streaming response (SSE format) if is_streaming is True
 
         Returns:
             TraceCreate object ready for database insertion

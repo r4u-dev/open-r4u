@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest.mark.asyncio
 async def test_create_openai_http_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI HTTP request/response."""
     # Sample OpenAI request
@@ -99,7 +100,8 @@ async def test_create_openai_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_anthropic_http_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from Anthropic HTTP request/response."""
     # Sample Anthropic request
@@ -182,7 +184,8 @@ async def test_create_anthropic_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_openai_responses_api_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI Responses API format."""
     # Sample OpenAI Responses API request
@@ -298,7 +301,8 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_create_openai_tool_call_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI with tool calls."""
     # Sample OpenAI request with tools
@@ -409,7 +413,8 @@ async def test_create_openai_tool_call_trace(
 
 @pytest.mark.asyncio
 async def test_http_trace_persisted_on_parse_failure(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test that HTTPTrace is persisted even when parsing fails."""
     from sqlalchemy import select
@@ -467,3 +472,205 @@ async def test_http_trace_persisted_on_parse_failure(
     trace = trace_result.scalar_one_or_none()
 
     assert trace is None, "No Trace should be created when parsing fails"
+
+
+@pytest.mark.asyncio
+async def test_create_openai_streaming_chat_completions_trace(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test creating a trace from OpenAI streaming Chat Completions API."""
+    # Sample OpenAI request
+    request_data = {
+        "model": "gpt-3.5-turbo-0125",
+        "messages": [
+            {"role": "user", "content": "Say hi"},
+        ],
+        "stream": True,
+    }
+
+    # Sample OpenAI streaming response (chunks concatenated with \n\n)
+    streaming_response = """data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"logprobs":null,"finish_reason":null}],"obfuscation":"kSx18"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"Hi"},"logprobs":null,"finish_reason":null}],"obfuscation":"Gpkah"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":","},"logprobs":null,"finish_reason":null}],"obfuscation":"38dLw0"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" how"},"logprobs":null,"finish_reason":null}],"obfuscation":"M5w"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" are"},"logprobs":null,"finish_reason":null}],"obfuscation":"AKb"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" you"},"logprobs":null,"finish_reason":null}],"obfuscation":"e8E"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"?"},"logprobs":null,"finish_reason":null}],"obfuscation":"2c6Xq1"}
+
+data: {"id":"chatcmpl-CVFjOTBIgA3kuQLnIXXxtg7Ge7hbs","object":"chat.completion.chunk","created":1761564674,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"obfuscation":"a"}
+
+data: [DONE]"""
+
+    # Create HTTP trace payload
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 200,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "authorization": "Bearer sk-test",
+            "host": "api.openai.com",
+        },
+        "response": streaming_response.encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "text/event-stream",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/http-traces", json=payload)
+
+    if response.status_code != 201:
+        print(f"Error: {response.status_code}")
+        print(f"Detail: {response.json()}")
+
+    assert response.status_code == 201
+    data = response.json()
+
+    # Verify trace was created correctly
+    assert data["model"] == "gpt-3.5-turbo-0125"
+    assert data["result"] == "Hi, how are you?"
+    assert data["finish_reason"] == "stop"
+
+    # Verify input items were created
+    assert len(data["input"]) == 1
+    assert data["input"][0]["type"] == "message"
+    assert data["input"][0]["data"]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_create_openai_streaming_responses_api_trace(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test creating a trace from OpenAI streaming Responses API."""
+    # Sample OpenAI Responses API request
+    request_data = {
+        "model": "gpt-3.5-turbo-0125",
+        "input": [
+            {"role": "user", "content": "Say some greetings"},
+        ],
+        "stream": True,
+    }
+
+    # Sample OpenAI Responses API streaming response (chunks concatenated with \n\n)
+    streaming_response = """event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_045d5195f1ed9f940068ff5b16458c8197acc79be8346cd880","object":"response","created_at":1761565462,"status":"in_progress","background":false,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-3.5-turbo-0125","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}
+
+event: response.in_progress
+data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_045d5195f1ed9f940068ff5b16458c8197acc79be8346cd880","object":"response","created_at":1761565462,"status":"in_progress","background":false,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-3.5-turbo-0125","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","type":"message","status":"in_progress","content":[],"role":"assistant"}}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":"Greetings","logprobs":[],"obfuscation":"mvkAadO"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":",","logprobs":[],"obfuscation":"d3983J1LnnINX8U"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":6,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":" hello","logprobs":[],"obfuscation":"TZOE4wuLRN"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":7,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":",","logprobs":[],"obfuscation":"1IgEZnLm4x3wykQ"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":8,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":" hi","logprobs":[],"obfuscation":"OUVlhaiOQDTgm"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":9,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":",","logprobs":[],"obfuscation":"1VMNe9emr6FMPYR"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":10,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":" hey","logprobs":[],"obfuscation":"CDv4Vfns9WCh"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":11,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":",","logprobs":[],"obfuscation":"qYiIWF51l1Q0QPz"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":12,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":" sal","logprobs":[],"obfuscation":"V1VCdyRXwMpb"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":13,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":"utations","logprobs":[],"obfuscation":"8KyjANpr"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":14,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"delta":"!","logprobs":[],"obfuscation":"WraPeSlOcUXTOJ2"}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","sequence_number":15,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"text":"Greetings, hello, hi, hey, salutations!","logprobs":[]}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","sequence_number":16,"item_id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"Greetings, hello, hi, hey, salutations!"}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":17,"output_index":0,"item":{"id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Greetings, hello, hi, hey, salutations!"}],"role":"assistant"}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_045d5195f1ed9f940068ff5b16458c8197acc79be8346cd880","object":"response","created_at":1761565462,"status":"completed","background":false,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-3.5-turbo-0125","output":[{"id":"msg_045d5195f1ed9f940068ff5b17fd08819787a7a968fc33300f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Greetings, hello, hi, hey, salutations!"}],"role":"assistant"}],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":13,"input_tokens_details":{"cached_tokens":0},"output_tokens":12,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":25},"user":null,"metadata":{}}}"""
+
+    # Create HTTP trace payload
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 200,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "authorization": "Bearer sk-test",
+            "host": "api.openai.com",
+        },
+        "response": streaming_response.encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "text/event-stream",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/responses",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/http-traces", json=payload)
+
+    if response.status_code != 201:
+        print(f"Error: {response.status_code}")
+        print(f"Detail: {response.json()}")
+
+    assert response.status_code == 201
+    data = response.json()
+
+    # Verify trace was created correctly
+    assert data["model"] == "gpt-3.5-turbo-0125"
+    assert data["result"] == "Greetings, hello, hi, hey, salutations!"
+    assert data["temperature"] == 1.0
+    assert data["prompt_tokens"] == 13
+    assert data["completion_tokens"] == 12
+    assert data["total_tokens"] == 25
+
+    # Verify input items were created
+    assert len(data["input"]) == 1
+    assert data["input"][0]["type"] == "message"
+    assert data["input"][0]["data"]["role"] == "user"
