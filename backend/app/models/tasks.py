@@ -55,6 +55,11 @@ class Implementation(Base):
         back_populates="implementation",
         cascade="all, delete-orphan",
     )
+    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+        "Evaluation",
+        back_populates="implementation",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
@@ -99,6 +104,28 @@ class Task(Base):
     executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
         "ExecutionResult",
         back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    test_cases: Mapped[list["TestCase"]] = relationship(  # type: ignore
+        "TestCase",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    evaluation_config: Mapped["EvaluationConfig | None"] = relationship(  # type: ignore
+        "EvaluationConfig",
+        back_populates="task",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+        "Evaluation",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
+    target_task_metrics: Mapped["TargetTaskMetrics | None"] = relationship(  # type: ignore
+        "TargetTaskMetrics",
+        back_populates="task",
+        uselist=False,
         cascade="all, delete-orphan",
     )
 
