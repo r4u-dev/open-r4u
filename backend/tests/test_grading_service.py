@@ -229,7 +229,7 @@ async def test_prepare_target_context_execution_result(grading_service, test_ses
         result_text="Hello! How can I assist you today?",
         result_json={"response": "Hello! How can I assist you today?"},
         error=None,
-        variables={"user_input": "Hello"},
+        arguments={"user_input": "Hello"},
     )
 
     context = await grading_service._prepare_target_context(test_session, execution_result=execution_result)
@@ -239,7 +239,7 @@ async def test_prepare_target_context_execution_result(grading_service, test_ses
     assert "Rendered Prompt: You are a helpful assistant. User: Hello" in context
     assert "Result: Hello! How can I assist you today?" in context
     assert "Result JSON:" in context
-    assert "Variables:" in context
+    assert "Arguments:" in context
 
 
 @pytest.mark.asyncio

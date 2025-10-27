@@ -107,7 +107,7 @@ class TestExecutionCostIntegration:
                     session=mock_session,
                     settings=mock_settings,
                     task_id=1,
-                    variables={"test": "value"},
+                    arguments={"test": "value"},
                 )
                 
                 # Verify pricing service was called correctly

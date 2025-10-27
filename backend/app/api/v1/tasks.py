@@ -72,6 +72,7 @@ async def create_task(
     task = Task(
         project_id=project.id,
         path=payload.path,
+        response_schema=payload.response_schema,
     )
     session.add(task)
     await session.flush()
@@ -103,7 +104,6 @@ async def create_task(
             if payload.implementation.tool_choice
             else None
         ),
-        response_schema=payload.implementation.response_schema,
         max_output_tokens=payload.implementation.max_output_tokens,
     )
     session.add(implementation)
