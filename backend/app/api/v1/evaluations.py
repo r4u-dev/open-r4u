@@ -1,6 +1,6 @@
 """API endpoints for Evaluation and Evaluation Configuration management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
@@ -11,10 +11,11 @@ from app.schemas.evaluation import (
     EvaluationConfigUpdate,
     EvaluationRead,
     EvaluationListItem,
+    EvaluationRunRequest,
 )
 from app.services.evaluation_service import EvaluationService, NotFoundError, BadRequestError
 
-router = APIRouter(prefix="/evaluations", tags=["evaluations", "evaluation-config"])
+router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
 def get_evaluation_service(settings: Settings = Depends(get_settings)) -> EvaluationService:
@@ -23,13 +24,8 @@ def get_evaluation_service(settings: Settings = Depends(get_settings)) -> Evalua
 
 
 # Evaluation Configuration Endpoints
-@router.post(
-    "/tasks/{task_id}/evaluation-config",
-    response_model=EvaluationConfigRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/config", response_model=EvaluationConfigRead, status_code=status.HTTP_201_CREATED)
 async def create_or_update_evaluation_config(
-    task_id: int,
     payload: EvaluationConfigCreate,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
@@ -38,7 +34,7 @@ async def create_or_update_evaluation_config(
     try:
         config = await evaluation_service.create_or_update_evaluation_config(
             session=session,
-            task_id=task_id,
+            task_id=payload.task_id,
             quality_weight=payload.quality_weight,
             cost_weight=payload.cost_weight,
             time_weight=payload.time_weight,
@@ -57,12 +53,9 @@ async def create_or_update_evaluation_config(
     return EvaluationConfigRead.model_validate(config)
 
 
-@router.get(
-    "/tasks/{task_id}/evaluation-config",
-    response_model=EvaluationConfigRead | None,
-)
+@router.get("/config", response_model=EvaluationConfigRead | None)
 async def get_evaluation_config(
-    task_id: int,
+    task_id: int = Query(..., description="ID of the task"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationConfigRead | None:
@@ -80,13 +73,10 @@ async def get_evaluation_config(
     return EvaluationConfigRead.model_validate(config) if config else None
 
 
-@router.patch(
-    "/tasks/{task_id}/evaluation-config",
-    response_model=EvaluationConfigRead,
-)
+@router.patch("/config", response_model=EvaluationConfigRead)
 async def update_evaluation_config(
-    task_id: int,
     payload: EvaluationConfigUpdate,
+    task_id: int = Query(..., description="ID of the task"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationConfigRead:
@@ -123,13 +113,9 @@ async def update_evaluation_config(
 
 
 # Evaluation Execution Endpoints
-@router.post(
-    "/implementations/{implementation_id}/evaluations",
-    response_model=EvaluationRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=EvaluationRead, status_code=status.HTTP_201_CREATED)
 async def run_evaluation(
-    implementation_id: int,
+    payload: EvaluationRunRequest,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationRead:
@@ -137,7 +123,7 @@ async def run_evaluation(
     try:
         evaluation = await evaluation_service.run_evaluation(
             session=session,
-            implementation_id=implementation_id,
+            implementation_id=payload.implementation_id,
         )
     except BadRequestError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
@@ -158,16 +144,13 @@ async def run_evaluation(
     return evaluation_with_scores
 
 
-@router.get(
-    "/implementations/{implementation_id}/evaluations",
-    response_model=list[EvaluationListItem],
-)
-async def list_implementation_evaluations(
-    implementation_id: int,
+@router.get("", response_model=list[EvaluationListItem])
+async def list_evaluations(
+    implementation_id: int | None = Query(None, description="Filter by implementation ID"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> list[EvaluationListItem]:
-    """List all evaluations for an implementation."""
+    """List evaluations, optionally filtered by implementation_id."""
     try:
         evaluations = await evaluation_service.list_evaluations(
             session=session,
@@ -184,10 +167,7 @@ async def list_implementation_evaluations(
     return evaluations
 
 
-@router.get(
-    "/evaluations/{evaluation_id}",
-    response_model=EvaluationRead,
-)
+@router.get("/{evaluation_id}", response_model=EvaluationRead)
 async def get_evaluation(
     evaluation_id: int,
     session: AsyncSession = Depends(get_session),
@@ -210,10 +190,7 @@ async def get_evaluation(
     return evaluation
 
 
-@router.delete(
-    "/evaluations/{evaluation_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/{evaluation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_evaluation(
     evaluation_id: int,
     session: AsyncSession = Depends(get_session),
@@ -234,10 +211,7 @@ async def delete_evaluation(
         )
 
 
-@router.post(
-    "/tasks/{task_id}/normalization-targets/recalculate",
-    status_code=status.HTTP_200_OK,
-)
+@router.post("/tasks/{task_id}/recalculate-normalization-targets", status_code=status.HTTP_202_ACCEPTED)
 async def recalculate_normalization_targets(
     task_id: int,
     session: AsyncSession = Depends(get_session),

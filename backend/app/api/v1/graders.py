@@ -1,6 +1,6 @@
 """API endpoints for Grader management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
@@ -21,13 +21,8 @@ def get_grading_service(settings: Settings = Depends(get_settings)) -> GradingSe
     return GradingService(settings)
 
 
-@router.post(
-    "/projects/{project_id}/graders",
-    response_model=GraderRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=GraderRead, status_code=status.HTTP_201_CREATED)
 async def create_grader(
-    project_id: int,
     payload: GraderCreate,
     session: AsyncSession = Depends(get_session),
     grading_service: GradingService = Depends(get_grading_service),
@@ -36,7 +31,7 @@ async def create_grader(
     try:
         grader = await grading_service.create_grader(
             session=session,
-            project_id=project_id,
+            project_id=payload.project_id,
             name=payload.name,
             description=payload.description,
             prompt=payload.prompt,
@@ -61,9 +56,9 @@ async def create_grader(
         )
 
 
-@router.get("/projects/{project_id}/graders", response_model=list[GraderListItem])
+@router.get("", response_model=list[GraderListItem])
 async def list_graders(
-    project_id: int,
+    project_id: int = Query(..., description="ID of the project"),
     session: AsyncSession = Depends(get_session),
     grading_service: GradingService = Depends(get_grading_service),
 ) -> list[GraderListItem]:
@@ -97,7 +92,7 @@ async def get_grader(
         grader = await grading_service.get_grader(session, grader_id)
         
         # Get grade count
-        grades = await grading_service.list_grades_for_grader(session, grader_id)
+        grades = await grading_service.list_grades(session, grader_id=grader_id)
         
         grader_dict = GraderRead.model_validate(grader).model_dump()
         grader_dict["grade_count"] = len(grades)
@@ -134,7 +129,7 @@ async def update_grader(
         )
         
         # Get grade count
-        grades = await grading_service.list_grades_for_grader(session, grader_id)
+        grades = await grading_service.list_grades(session, grader_id=grader_id)
         
         grader_dict = GraderRead.model_validate(grader).model_dump()
         grader_dict["grade_count"] = len(grades)

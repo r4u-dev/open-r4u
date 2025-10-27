@@ -2,7 +2,7 @@
 
 from typing import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
@@ -19,18 +19,17 @@ from app.services import executions_service as svc
 router = APIRouter(prefix="/executions", tags=["executions"])
 
 
-@router.post(
-    "/tasks/{task_id}/execute",
-    response_model=ExecutionResultRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def execute_task(
-    task_id: int,
+@router.post("", response_model=ExecutionResultRead, status_code=status.HTTP_201_CREATED)
+async def execute(
     payload: ExecutionRequest,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> ExecutionResultRead:
-    """Execute a task with optional parameter overrides."""
+    """Execute a task or implementation with optional parameter overrides.
+    
+    The request body must specify either task_id OR implementation_id.
+    Option overrides (model, temperature, etc.) are only supported when executing by task_id.
+    """
     
     # Extract overrides from payload
     overrides = {}
@@ -51,7 +50,8 @@ async def execute_task(
         execution = await svc.execute(
             session=session,
             settings=settings,
-            task_id=task_id,
+            task_id=payload.task_id,
+            implementation_id=payload.implementation_id,
             arguments=payload.arguments,
             overrides=overrides if overrides else None,
         )
@@ -66,71 +66,6 @@ async def execute_task(
         )
     
     return ExecutionResultRead.model_validate(execution)
-
-
-@router.post(
-    "/implementations/{implementation_id}/execute",
-    response_model=ExecutionResultRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def execute_implementation(
-    implementation_id: int,
-    payload: ExecutionRequest,
-    session: AsyncSession = Depends(get_session),
-    settings: Settings = Depends(get_settings),
-) -> ExecutionResultRead:
-    """Execute a specific implementation with optional variable substitution."""
-
-    try:
-        execution = await svc.execute(
-            session=session,
-            settings=settings,
-            implementation_id=implementation_id,
-            arguments=payload.arguments,
-        )
-    except svc.BadRequestError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
-    except svc.NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Execution failed: {str(e)}",
-        )
-
-    return ExecutionResultRead.model_validate(execution)
-
-
-@router.get("/implementations/{implementation_id}/executions", response_model=list[ExecutionResultListItem])
-async def list_implementation_executions(
-    implementation_id: int,
-    session: AsyncSession = Depends(get_session),
-) -> list[ExecutionResultListItem]:
-    """List all executions for a specific implementation."""
-
-    try:
-        executions = await svc.list_implementation_executions(
-            session=session, implementation_id=implementation_id
-        )
-    except svc.NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
-
-    return [ExecutionResultListItem.model_validate(exec) for exec in executions]
-
-
-@router.get("/tasks/{task_id}/executions", response_model=list[ExecutionResultListItem])
-async def list_task_executions(
-    task_id: int,
-    session: AsyncSession = Depends(get_session),
-) -> list[ExecutionResultListItem]:
-    """List all executions for a specific task."""
-
-    try:
-        executions = await svc.list_task_executions(session=session, task_id=task_id)
-    except svc.NotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
-
-    return [ExecutionResultListItem.model_validate(exec) for exec in executions]
 
 
 @router.get("/{execution_id}", response_model=ExecutionResultRead)
@@ -150,8 +85,8 @@ async def get_execution(
 
 @router.get("", response_model=list[ExecutionResultListItem])
 async def list_executions(
-    task_id: int | None = None,
-    implementation_id: int | None = None,
+    task_id: int | None = Query(None, description="Filter by task ID"),
+    implementation_id: int | None = Query(None, description="Filter by implementation ID"),
     session: AsyncSession = Depends(get_session),
 ) -> list[ExecutionResultListItem]:
     """List all executions, optionally filtered by task_id or implementation_id."""
@@ -175,4 +110,8 @@ async def delete_execution(
         await svc.delete_execution(session=session, execution_id=execution_id)
     except svc.NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
-
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete execution: {str(e)}",
+        )

@@ -30,7 +30,7 @@ class GraderBase(BaseModel):
 
 class GraderCreate(GraderBase):
     """Schema for creating a grader."""
-    pass
+    project_id: int = Field(..., description="ID of the project this grader belongs to")
 
 
 class GraderUpdate(BaseModel):
@@ -103,6 +103,7 @@ class GradeBase(BaseModel):
 class GradeTargetRequest(BaseModel):
     """Request schema for creating a grade (specifies target)."""
 
+    grader_id: int = Field(..., description="ID of the grader to use")
     trace_id: int | None = None
     execution_result_id: int | None = None
     test_case_id: int | None = None
@@ -176,7 +177,7 @@ class TestCaseBase(BaseModel):
 
 class TestCaseCreate(TestCaseBase):
     """Schema for creating a test case."""
-    pass
+    task_id: int = Field(..., description="ID of the task this test case belongs to")
 
 
 class TestCaseUpdate(BaseModel):
@@ -232,7 +233,7 @@ class EvaluationConfigBase(BaseModel):
 
 class EvaluationConfigCreate(EvaluationConfigBase):
     """Schema for creating evaluation configuration."""
-    pass
+    task_id: int = Field(..., description="ID of the task this evaluation config belongs to")
 
 
 class EvaluationConfigUpdate(BaseModel):
@@ -273,6 +274,12 @@ class EvaluationBase(BaseModel):
     cost_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Cost efficiency score (0-1, higher is better)")
     time_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Time efficiency score (0-1, higher is better)")
     final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0, description="Final weighted evaluation score")
+
+
+class EvaluationRunRequest(BaseModel):
+    """Schema for running an evaluation."""
+
+    implementation_id: int = Field(..., description="ID of the implementation to evaluate")
 
 
 class EvaluationCreate(BaseModel):

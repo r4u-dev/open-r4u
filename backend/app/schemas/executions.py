@@ -12,10 +12,14 @@ from app.schemas.traces import InputItem
 class ExecutionRequest(BaseModel):
     """Schema for task execution request."""
 
+    # Either task_id OR implementation_id must be provided
+    task_id: int | None = None
+    implementation_id: int | None = None
+    
     # Arguments for task execution - includes variables for prompt rendering and messages
     arguments: dict[str, Any] | None = None
     
-    # Optional overrides for implementation parameters
+    # Optional overrides for implementation parameters (only for task_id executions)
     model: str | None = None
     temperature: float | None = None
     max_output_tokens: int | None = None

@@ -93,17 +93,17 @@ class EvaluationService:
         return test_case
 
     async def list_test_cases(
-        self, session: AsyncSession, task_id: int
+        self, session: AsyncSession, task_id: int | None = None
     ) -> list[TestCase]:
-        """List all test cases for a task."""
-        # Verify task exists
-        await self._get_task(session, task_id)
+        """List all test cases, optionally filtered by task_id."""
+        query = select(TestCase)
         
-        query = (
-            select(TestCase)
-            .where(TestCase.task_id == task_id)
-            .order_by(TestCase.created_at.desc())
-        )
+        if task_id is not None:
+            # Verify task exists
+            await self._get_task(session, task_id)
+            query = query.where(TestCase.task_id == task_id)
+        
+        query = query.order_by(TestCase.created_at.desc())
         result = await session.execute(query)
         return list(result.scalars().all())
 
@@ -351,15 +351,15 @@ class EvaluationService:
         )
 
     async def list_evaluations(
-        self, session: AsyncSession, implementation_id: int
+        self, session: AsyncSession, implementation_id: int | None = None
     ) -> list[EvaluationListItem]:
-        """List all evaluations for an implementation with calculated scores."""
+        """List all evaluations, optionally filtered by implementation_id with calculated scores."""
         
-        query = (
-            select(Evaluation)
-            .where(Evaluation.implementation_id == implementation_id)
-            .order_by(Evaluation.created_at.desc())
-        )
+        query = select(Evaluation)
+        if implementation_id is not None:
+            query = query.where(Evaluation.implementation_id == implementation_id)
+        query = query.order_by(Evaluation.created_at.desc())
+        
         result = await session.execute(query)
         evaluations = list(result.scalars().all())
         

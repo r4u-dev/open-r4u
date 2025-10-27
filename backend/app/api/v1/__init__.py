@@ -13,7 +13,7 @@ from app.api.v1 import (
     traces,
 )
 
-api_router = APIRouter()
+api_router = APIRouter(prefix="/v1")
 api_router.include_router(projects.router)
 api_router.include_router(implementations.router)
 api_router.include_router(tasks.router)
