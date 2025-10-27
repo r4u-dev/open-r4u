@@ -655,7 +655,7 @@ async def test_list_grades_for_trace(grading_service, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_trace(test_session, trace.id)
+    grades = await grading_service.list_grades(test_session, trace_id=trace.id)
     assert len(grades) == 2
     
     # Check that both grades are present (order may vary due to timing)
@@ -716,7 +716,7 @@ async def test_list_grades_for_execution(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_execution(test_session, execution_result.id)
+    grades = await grading_service.list_grades(test_session, execution_result_id=execution_result.id)
     assert len(grades) == 1
     assert grades[0].score_boolean is False
 
@@ -758,7 +758,7 @@ async def test_list_grades_for_grader(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_grader(test_session, grader.id)
+    grades = await grading_service.list_grades(test_session, grader_id=grader.id)
     assert len(grades) == 1
     assert grades[0].score_float == 0.85
 

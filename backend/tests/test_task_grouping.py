@@ -117,7 +117,7 @@ async def test_trace_auto_matches_to_implementation(
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -165,7 +165,7 @@ async def test_multiple_traces_match_same_implementation(
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -212,7 +212,7 @@ async def test_traces_with_different_paths_match_different_implementations(
         "project": "Test Project",
         "path": "/api/greet",
     }
-    response1 = await client.post("/traces", json=payload1)
+    response1 = await client.post("/v1/traces", json=payload1)
     assert response1.status_code == 201
     assert response1.json()["implementation_id"] == impl1.id
 
@@ -227,7 +227,7 @@ async def test_traces_with_different_paths_match_different_implementations(
         "project": "Test Project",
         "path": "/api/weather",
     }
-    response2 = await client.post("/traces", json=payload2)
+    response2 = await client.post("/v1/traces", json=payload2)
     assert response2.status_code == 201
     assert response2.json()["implementation_id"] == impl2.id
 
@@ -262,7 +262,7 @@ async def test_placeholder_extraction_with_special_characters(
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -304,7 +304,7 @@ async def test_no_match_when_structure_differs(
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -363,7 +363,7 @@ Task: Review code""",
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -413,7 +413,7 @@ async def test_first_implementation_wins_when_multiple_match(
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -448,7 +448,7 @@ async def test_model_must_match_for_implementation_matching(
         "project": "Test Project",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -498,7 +498,7 @@ async def test_project_isolation_in_matching(
         "project": "Project 1",
     }
 
-    response = await client.post("/traces", json=payload)
+    response = await client.post("/v1/traces", json=payload)
     assert response.status_code == 201
 
     data = response.json()
@@ -524,7 +524,7 @@ async def test_api_group_endpoint_is_disabled(
     await test_session.commit()
 
     # The endpoint should still exist but not do anything
-    response = await client.post(f"/traces/{trace.id}/group")
+    response = await client.post(f"/v1/traces/{trace.id}/group")
     assert response.status_code == 200
 
     # Trace should not have implementation_id set by this endpoint

@@ -29,7 +29,7 @@ async def test_create_implementation_for_task(client: AsyncClient, test_session)
         "temperature": 0.7,
     }
 
-    response = await client.post(f"/implementations?task_id={task.id}", json=payload)
+    response = await client.post(f"/v1/implementations?task_id={task.id}", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -51,7 +51,7 @@ async def test_create_implementation_for_nonexistent_task(client: AsyncClient):
         "max_output_tokens": 1000,
     }
 
-    response = await client.post("/implementations?task_id=99999", json=payload)
+    response = await client.post("/v1/implementations?task_id=99999", json=payload)
     assert response.status_code == 404
 
 
@@ -85,7 +85,7 @@ async def test_list_implementations_by_task(client: AsyncClient, test_session):
     test_session.add_all([impl1, impl2])
     await test_session.commit()
 
-    response = await client.get(f"/implementations?task_id={task.id}")
+    response = await client.get(f"/v1/implementations?task_id={task.id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -124,7 +124,7 @@ async def test_list_all_implementations(client: AsyncClient, test_session):
     test_session.add_all([impl1, impl2])
     await test_session.commit()
 
-    response = await client.get("/implementations")
+    response = await client.get("/v1/implementations")
     assert response.status_code == 200
     data = response.json()
 
@@ -157,7 +157,7 @@ async def test_get_implementation(client: AsyncClient, test_session):
     test_session.add(implementation)
     await test_session.commit()
 
-    response = await client.get(f"/implementations/{implementation.id}")
+    response = await client.get(f"/v1/implementations/{implementation.id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -174,7 +174,7 @@ async def test_get_implementation(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_get_implementation_not_found(client: AsyncClient):
     """Test getting a non-existent implementation."""
-    response = await client.get("/implementations/99999")
+    response = await client.get("/v1/implementations/99999")
     assert response.status_code == 404
 
 
@@ -209,7 +209,7 @@ async def test_update_implementation(client: AsyncClient, test_session):
         "temperature": 0.8,
     }
     response = await client.put(
-        f"/implementations/{implementation.id}", json=update_payload,
+        f"/v1/implementations/{implementation.id}", json=update_payload,
     )
     assert response.status_code == 200
     data = response.json()
@@ -246,7 +246,7 @@ async def test_delete_implementation(client: AsyncClient, test_session):
     implementation_id = implementation.id
 
     # Delete the implementation
-    response = await client.delete(f"/implementations/{implementation_id}")
+    response = await client.delete(f"/v1/implementations/{implementation_id}")
     assert response.status_code == 204
 
     # Verify it's deleted
@@ -259,7 +259,7 @@ async def test_delete_implementation(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_delete_implementation_not_found(client: AsyncClient):
     """Test deleting a non-existent implementation."""
-    response = await client.delete("/implementations/99999")
+    response = await client.delete("/v1/implementations/99999")
     assert response.status_code == 404
 
 
@@ -298,7 +298,7 @@ async def test_set_production_version(client: AsyncClient, test_session):
     await test_session.commit()
 
     # Now set second as production via API
-    response = await client.post(f"/implementations/{impl2.id}/set-production")
+    response = await client.post(f"/v1/implementations/{impl2.id}/set-production")
     assert response.status_code == 200
 
     # Verify task's production version was updated
@@ -309,7 +309,7 @@ async def test_set_production_version(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_set_production_version_not_found(client: AsyncClient):
     """Test setting production version for non-existent implementation."""
-    response = await client.post("/implementations/99999/set-production")
+    response = await client.post("/v1/implementations/99999/set-production")
     assert response.status_code == 404
 
 
@@ -345,7 +345,7 @@ async def test_create_implementation_with_tools(client: AsyncClient, test_sessio
         "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
     }
 
-    response = await client.post(f"/implementations?task_id={task.id}", json=payload)
+    response = await client.post(f"/v1/implementations?task_id={task.id}", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -374,7 +374,7 @@ async def test_create_implementation_with_reasoning(client: AsyncClient, test_se
         "reasoning": {"effort": "high", "summary": "detailed"},
     }
 
-    response = await client.post(f"/implementations?task_id={task.id}", json=payload)
+    response = await client.post(f"/v1/implementations?task_id={task.id}", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -405,12 +405,12 @@ async def test_multiple_versions_for_task(client: AsyncClient, test_session):
             "max_output_tokens": 1000,
         }
         response = await client.post(
-            f"/implementations?task_id={task.id}", json=payload,
+            f"/v1/implementations?task_id={task.id}", json=payload,
         )
         assert response.status_code == 201
 
     # List all versions for this task
-    response = await client.get(f"/implementations?task_id={task.id}")
+    response = await client.get(f"/v1/implementations?task_id={task.id}")
     assert response.status_code == 200
     data = response.json()
 

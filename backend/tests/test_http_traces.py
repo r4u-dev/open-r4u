@@ -72,7 +72,7 @@ async def test_create_openai_http_trace(
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     if response.status_code != 201:
         print(f"Error: {response.status_code}")
@@ -158,7 +158,7 @@ async def test_create_anthropic_http_trace(
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -236,7 +236,7 @@ async def test_create_openai_responses_api_trace(
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     if response.status_code != 201:
         print(f"Error: {response.status_code}")
@@ -290,7 +290,7 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     assert response.status_code == 400
     assert "No parser found" in response.json()["detail"]
@@ -382,7 +382,7 @@ async def test_create_openai_tool_call_trace(
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -446,7 +446,7 @@ async def test_http_trace_persisted_on_parse_failure(
     }
 
     # Send the request - should fail with 400
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
     assert response.status_code == 400
     assert "No parser found" in response.json()["detail"]
 

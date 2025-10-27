@@ -177,11 +177,16 @@ class TestCaseBase(BaseModel):
 
 class TestCaseCreate(TestCaseBase):
     """Schema for creating a test case."""
+
+    __test__ = False
+
     task_id: int = Field(..., description="ID of the task this test case belongs to")
 
 
 class TestCaseUpdate(BaseModel):
     """Schema for updating a test case (all fields optional)."""
+
+    __test__ = False
 
     description: str | None = Field(None, max_length=500)
     arguments: dict[str, Any] | None = None
@@ -190,6 +195,8 @@ class TestCaseUpdate(BaseModel):
 
 class TestCaseRead(TestCaseBase):
     """Schema for test case response."""
+
+    __test__ = False
 
     id: int
     task_id: int
@@ -201,6 +208,8 @@ class TestCaseRead(TestCaseBase):
 
 class TestCaseListItem(BaseModel):
     """Lightweight schema for listing test cases."""
+
+    __test__ = False
 
     id: int
     task_id: int

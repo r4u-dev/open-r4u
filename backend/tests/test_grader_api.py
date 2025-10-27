@@ -31,7 +31,7 @@ async def test_create_grader(client: AsyncClient, test_session):
         "is_active": True,
     }
 
-    response = await client.post(f"/graders/projects/{project.id}/graders", json=payload)
+    response = await client.post("/v1/graders", json={**payload, "project_id": project.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -86,7 +86,7 @@ async def test_create_grader_with_reasoning_and_schema(client: AsyncClient, test
         "is_active": True,
     }
 
-    response = await client.post(f"/graders/projects/{project.id}/graders", json=payload)
+    response = await client.post("/v1/graders", json={**payload, "project_id": project.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -107,7 +107,7 @@ async def test_create_grader_missing_required_fields(client: AsyncClient, test_s
         # Missing required fields: prompt, score_type, model, max_output_tokens
     }
 
-    response = await client.post(f"/graders/projects/{project.id}/graders", json=payload)
+    response = await client.post("/v1/graders", json={**payload, "project_id": project.id})
     assert response.status_code == 422  # Validation error
 
 
@@ -142,7 +142,7 @@ async def test_list_graders(client: AsyncClient, test_session):
     test_session.add(grader2)
     await test_session.commit()
 
-    response = await client.get(f"/graders/projects/{project.id}/graders")
+    response = await client.get(f"/v1/graders?project_id={project.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -216,7 +216,7 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    response = await client.get(f"/graders/projects/{project.id}/graders")
+    response = await client.get(f"/v1/graders?project_id={project.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -243,7 +243,7 @@ async def test_get_grader(client: AsyncClient, test_session):
     test_session.add(grader)
     await test_session.commit()
 
-    response = await client.get(f"/graders/{grader.id}")
+    response = await client.get(f"/v1/graders/{grader.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -261,7 +261,7 @@ async def test_get_grader(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_get_grader_not_found(client: AsyncClient):
     """Test getting a non-existent grader."""
-    response = await client.get("/graders/999")
+    response = await client.get("/v1/graders/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -326,7 +326,7 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    response = await client.get(f"/graders/{grader.id}")
+    response = await client.get(f"/v1/graders/{grader.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -361,7 +361,7 @@ async def test_update_grader(client: AsyncClient, test_session):
         "is_active": False,
     }
 
-    response = await client.patch(f"/graders/{grader.id}", json=payload)
+    response = await client.patch(f"/v1/graders/{grader.id}", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -401,7 +401,7 @@ async def test_update_grader_partial(client: AsyncClient, test_session):
         "temperature": 0.7,
     }
 
-    response = await client.patch(f"/graders/{grader.id}", json=payload)
+    response = await client.patch(f"/v1/graders/{grader.id}", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -420,7 +420,7 @@ async def test_update_grader_not_found(client: AsyncClient):
         "name": "updated_name",
     }
 
-    response = await client.patch("/graders/999", json=payload)
+    response = await client.patch("/v1/graders/999", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -445,7 +445,7 @@ async def test_delete_grader(client: AsyncClient, test_session):
     test_session.add(grader)
     await test_session.commit()
 
-    response = await client.delete(f"/graders/{grader.id}")
+    response = await client.delete(f"/v1/graders/{grader.id}")
     assert response.status_code == 204
 
     # Verify grader is deleted
@@ -458,7 +458,7 @@ async def test_delete_grader(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_delete_grader_not_found(client: AsyncClient):
     """Test deleting a non-existent grader."""
-    response = await client.delete("/graders/999")
+    response = await client.delete("/v1/graders/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -523,7 +523,7 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    response = await client.delete(f"/graders/{grader.id}")
+    response = await client.delete(f"/v1/graders/{grader.id}")
     assert response.status_code == 204
 
     # Verify grader and grades are deleted
@@ -545,7 +545,7 @@ async def test_list_graders_empty_project(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.commit()
 
-    response = await client.get(f"/graders/projects/{project.id}/graders")
+    response = await client.get(f"/v1/graders?project_id={project.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -555,7 +555,7 @@ async def test_list_graders_empty_project(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_list_graders_nonexistent_project(client: AsyncClient):
     """Test listing graders for a non-existent project."""
-    response = await client.get("/graders/projects/999/graders")
+    response = await client.get("/v1/graders?project_id=999")
     assert response.status_code == 200  # Should return empty list, not error
     
     data = response.json()

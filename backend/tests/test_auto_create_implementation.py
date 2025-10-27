@@ -50,7 +50,7 @@ class TestAutoCreateImplementation:
                 "completed_at": "2025-10-17T10:00:01Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that a task and implementation were created
@@ -106,7 +106,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that NO task was created
@@ -147,7 +147,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that task was created
@@ -180,7 +180,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that a task WAS created (null paths can be grouped together)
@@ -233,7 +233,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Create 3 traces with actual path
@@ -252,7 +252,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that 2 separate tasks were created
@@ -311,7 +311,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that no task was created (can't infer template without system prompt)
@@ -344,7 +344,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Create 3 traces for path B
@@ -363,7 +363,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that 2 separate tasks were created
@@ -401,7 +401,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Create 3 traces with gpt-3.5-turbo
@@ -420,7 +420,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check implementations
@@ -476,7 +476,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that only 1 implementation exists (the original)
@@ -516,7 +516,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Test Project",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that implementation was created with template
@@ -565,7 +565,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Project A",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Create 3 traces in Project B (same path, same model)
@@ -584,7 +584,7 @@ class TestAutoCreateImplementation:
                 "started_at": "2025-10-17T10:00:00Z",
                 "project": "Project B",
             }
-            response = await client.post("/traces", json=payload)
+            response = await client.post("/v1/traces", json=payload)
             assert response.status_code == 201
 
         # Check that 2 separate tasks were created (one per project)
