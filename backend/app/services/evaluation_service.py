@@ -248,14 +248,19 @@ class EvaluationService:
                 grader = await self.grading_service.get_grader(session, grader_id)
                 scores = []
                 
-                for execution_result in execution_results:
-                    # Create grade for this execution result
+                # Iterate through execution results with matching test cases
+                for i, execution_result in enumerate(execution_results):
+                    # Get matching test case for this execution result
+                    test_case = test_cases[i] if i < len(test_cases) else None
+                    
+                    # Create grade for this execution result with test case
                     grade = await self.grading_service.execute_grading(
                         session=session,
                         grader_id=grader_id,
                         execution_result_id=execution_result.id,
+                        test_case_id=test_case.id if test_case else None,
                     )
-                    
+
                     # Extract score based on grader type
                     if grader.score_type == ScoreType.FLOAT:
                         if grade.score_float is not None:

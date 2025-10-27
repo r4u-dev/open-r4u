@@ -41,6 +41,7 @@ async def create_grade(
             grader_id=grader_id,
             trace_id=payload.trace_id,
             execution_result_id=payload.execution_result_id,
+            test_case_id=payload.test_case_id,
         )
         
         return GradeRead.model_validate(grade)

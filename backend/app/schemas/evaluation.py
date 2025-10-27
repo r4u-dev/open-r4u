@@ -105,6 +105,7 @@ class GradeTargetRequest(BaseModel):
 
     trace_id: int | None = None
     execution_result_id: int | None = None
+    test_case_id: int | None = None
 
     @field_validator("trace_id", "execution_result_id")
     @classmethod
