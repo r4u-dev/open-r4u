@@ -170,15 +170,13 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-auto">
-                <Section title="Prompt" section="prompt">
-                    <div className="whitespace-pre-wrap break-words text-foreground">
-                        {trace.prompt || (
-                            <span className="text-muted-foreground italic">
-                                No system instructions
-                            </span>
-                        )}
-                    </div>
-                </Section>
+                {trace.prompt && (
+                    <Section title="Prompt" section="prompt">
+                        <div className="whitespace-pre-wrap break-words text-foreground">
+                            {trace.prompt}
+                        </div>
+                    </Section>
+                )}
 
                 <Section title="Input Messages" section="inputMessages">
                     <div className="space-y-2">

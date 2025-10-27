@@ -10,7 +10,7 @@ export interface Trace {
     latency: number;
     cost: number;
     taskVersion?: string;
-    prompt: string;
+    prompt: string | null;
     inputMessages: Array<{ role: string; content: string }>;
     modelSettings: Record<string, string | number | boolean>;
     metrics: Record<string, number>;

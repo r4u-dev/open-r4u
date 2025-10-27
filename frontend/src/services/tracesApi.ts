@@ -63,37 +63,11 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
             content: item.data.content || "",
         }));
 
-    // Extract system messages for prompt
-    // Prompt can come from:
-    // 1. trace.instructions field
-    // 2. trace.prompt field
-    // 3. input items with role=system
-    const systemMessages: string[] = [];
+    // Prompt comes only from the trace.prompt field
+    const prompt = backendTrace.prompt || "";
 
-    if (backendTrace.instructions) {
-        systemMessages.push(backendTrace.instructions);
-    }
-    if (
-        backendTrace.prompt &&
-        backendTrace.prompt !== backendTrace.instructions
-    ) {
-        systemMessages.push(backendTrace.prompt);
-    }
-
-    // Add system messages from input items
-    allMessages
-        .filter((msg) => msg.role === "system")
-        .forEach((msg) => {
-            if (msg.content && msg.content.trim()) {
-                systemMessages.push(msg.content);
-            }
-        });
-
-    // Concatenate system messages with 2 newlines
-    const prompt = systemMessages.join("\n\n");
-
-    // Input messages are all non-system messages
-    const inputMessages = allMessages.filter((msg) => msg.role !== "system");
+    // All messages (including system messages) should be shown as input messages
+    const inputMessages = allMessages;
 
     // Calculate latency if we have both timestamps
     let latency = 0;
