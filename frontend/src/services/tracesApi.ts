@@ -139,7 +139,8 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         status,
         errorMessage: backendTrace.error || undefined,
         type,
-        endpoint: backendTrace.path || "/api/v1/chat/completions",
+        endpoint: "/api/v1/chat/completions", // Default endpoint
+        path: backendTrace.path,
         provider,
         model: backendTrace.model,
         latency,

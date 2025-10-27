@@ -9,6 +9,7 @@ const createMockTrace = (overrides?: Partial<Trace>): Trace => ({
     status: "success",
     type: "text",
     endpoint: "/api/v1/chat/completions",
+    path: null,
     provider: "openai",
     model: "gpt-4",
     latency: 1000,

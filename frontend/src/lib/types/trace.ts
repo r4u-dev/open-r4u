@@ -5,6 +5,7 @@ export interface Trace {
     errorMessage?: string;
     type: "text" | "image" | "audio";
     endpoint: string;
+    path: string | null;
     provider: string;
     model: string;
     latency: number;

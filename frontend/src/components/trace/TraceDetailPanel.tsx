@@ -146,12 +146,12 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                     </span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Endpoint:</span>
+                    <span className="text-muted-foreground">Path:</span>
                     <span
                         className="font-mono text-foreground truncate max-w-[200px]"
-                        title={trace.endpoint}
+                        title={trace.path || "-"}
                     >
-                        {trace.endpoint}
+                        {trace.path || "-"}
                     </span>
                 </div>
                 <div className="flex justify-between">
