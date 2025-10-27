@@ -474,9 +474,8 @@ class EvaluationService:
             # Use IQR-based outlier detection for robust results
             # This is more statistically sound than simple percentile trimming
             outlier_query = """
-            WITH cost_iqr AS (
+            WITH cost_stats AS (
                 SELECT 
-                    cost,
                     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY cost) as q1,
                     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY cost) as q3
                 FROM execution_result 
@@ -484,14 +483,12 @@ class EvaluationService:
             ),
             cost_bounds AS (
                 SELECT 
-                    cost,
                     q1 - 1.5 * (q3 - q1) as lower_bound,
                     q3 + 1.5 * (q3 - q1) as upper_bound
-                FROM cost_iqr
+                FROM cost_stats
             ),
-            time_iqr AS (
+            time_stats AS (
                 SELECT 
-                    EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000 as time_ms,
                     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) as q1,
                     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) as q3
                 FROM execution_result 
@@ -499,20 +496,26 @@ class EvaluationService:
             ),
             time_bounds AS (
                 SELECT 
-                    time_ms,
                     q1 - 1.5 * (q3 - q1) as lower_bound,
                     q3 + 1.5 * (q3 - q1) as upper_bound
-                FROM time_iqr
+                FROM time_stats
             ),
             filtered_costs AS (
-                SELECT MIN(cost) as best_cost
-                FROM cost_bounds 
-                WHERE cost BETWEEN lower_bound AND upper_bound
+                SELECT MIN(er.cost) as best_cost
+                FROM execution_result er
+                CROSS JOIN cost_bounds cb
+                WHERE er.task_id = :task_id 
+                    AND er.cost IS NOT NULL
+                    AND er.cost BETWEEN cb.lower_bound AND cb.upper_bound
             ),
             filtered_times AS (
-                SELECT MIN(time_ms) as best_time_ms
-                FROM time_bounds 
-                WHERE time_ms BETWEEN lower_bound AND upper_bound
+                SELECT MIN(EXTRACT(EPOCH FROM (er.completed_at - er.started_at)) * 1000) as best_time_ms
+                FROM execution_result er
+                CROSS JOIN time_bounds tb
+                WHERE er.task_id = :task_id 
+                    AND er.completed_at IS NOT NULL 
+                    AND er.started_at IS NOT NULL
+                    AND EXTRACT(EPOCH FROM (er.completed_at - er.started_at)) * 1000 BETWEEN tb.lower_bound AND tb.upper_bound
             )
             SELECT 
                 fc.best_cost,
@@ -584,12 +587,18 @@ class EvaluationService:
         
         cost_efficiency_score = None
         time_efficiency_score = None
-        
+
         if target_metrics.cost is not None and evaluation.avg_cost is not None:
-            cost_efficiency_score = target_metrics.cost / evaluation.avg_cost
+            # Calculate efficiency as target/actual, clamped to max 1.0
+            # Score of 1.0 means equal to or better than target
+            # Score < 1.0 means worse than target (proportionally)
+            cost_efficiency_score = min(1.0, target_metrics.cost / evaluation.avg_cost)
         
         if target_metrics.time_ms is not None and evaluation.avg_execution_time_ms is not None:
-            time_efficiency_score = target_metrics.time_ms / evaluation.avg_execution_time_ms
+            # Calculate efficiency as target/actual, clamped to max 1.0
+            # Score of 1.0 means equal to or better than target
+            # Score < 1.0 means worse than target (proportionally)
+            time_efficiency_score = min(1.0, target_metrics.time_ms / evaluation.avg_execution_time_ms)
         
         return cost_efficiency_score, time_efficiency_score
 
