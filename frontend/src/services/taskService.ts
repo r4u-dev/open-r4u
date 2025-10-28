@@ -368,26 +368,157 @@ const mockTasks: TaskListItem[] = [
 // Import the detailed task data
 import { mockTaskDetails } from "@/lib/mock-data/taskDetails";
 
+import { getTasksByProjectId as fetchTasksFromApi } from "@/lib/api/tasks";
+
 /**
  * Service for managing task data
  */
 export class TaskService {
   /**
-   * Get all tasks for a project (simulated)
+   * Get all tasks for a project - fetches real tasks from API first, then adds mocks
    */
   static async getTasksByProjectId(projectId: string): Promise<TaskListItem[]> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockTasks;
+    try {
+      // Fetch real tasks from API
+      const realTasks = await fetchTasksFromApi(projectId);
+      // Return real tasks followed by mock tasks
+      return [...realTasks, ...mockTasks];
+    } catch (error) {
+      console.error("Failed to fetch tasks from API, falling back to mocks:", error);
+      // If API fails, return mock tasks with simulated delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return mockTasks;
+    }
   }
 
   /**
    * Get a specific task by ID with full details
    */
   static async getTaskById(taskId: string): Promise<TaskDetail | null> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return mockTaskDetails[taskId] || null;
+    // First check if it's a mock task
+    if (mockTaskDetails[taskId]) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return mockTaskDetails[taskId];
+    }
+
+    // Otherwise, try to fetch from API
+    try {
+      const { getTask, getImplementation } = await import("@/lib/api/tasks");
+      const backendTask = await getTask(taskId);
+      
+      // Fetch implementation if available
+      let implementation = null;
+      let toolNames: string[] = [];
+      let config: any = {};
+      let implementation_type: "functional" | "reasoning" | "workflow" = "functional";
+      
+      if (backendTask.production_version_id) {
+        try {
+          implementation = await getImplementation(backendTask.production_version_id);
+          
+          // Extract tool names from tools array
+          if (implementation.tools) {
+            toolNames = implementation.tools
+              .map((tool: Record<string, unknown>) => {
+                // Tool has format { type: "function", function: { name: "...", ... } }
+                const func = tool.function as Record<string, unknown>;
+                return func.name as string;
+              })
+              .filter(Boolean);
+          }
+          
+          // Build configuration based on implementation type
+          const reasoning = implementation.reasoning as Record<string, unknown> | null;
+          if (reasoning) {
+            // This is a reasoning implementation
+            implementation_type = "reasoning";
+            config = {
+              model: implementation.model,
+              prompt_template: implementation.prompt,
+              message_template: null,
+              temperature: implementation.temperature?.toString() || "0.7",
+              max_tokens: implementation.max_output_tokens,
+              reasoning_effort: reasoning.effort as string || "medium",
+              tools: toolNames,
+            };
+          } else if (toolNames.length > 0 || implementation.tool_choice) {
+            // This is a reasoning implementation with tools but no reasoning config
+            implementation_type = "reasoning";
+            config = {
+              model: implementation.model,
+              prompt_template: implementation.prompt,
+              message_template: null,
+              temperature: implementation.temperature?.toString() || "0.7",
+              max_tokens: implementation.max_output_tokens,
+              reasoning_effort: "medium",
+              tools: toolNames,
+            };
+          } else {
+            // This is a functional implementation
+            implementation_type = "functional";
+            config = {
+              implementation_details: {
+                prompt: implementation.prompt,
+                model: implementation.model,
+                temperature: implementation.temperature,
+                max_output_tokens: implementation.max_output_tokens,
+              },
+            };
+          }
+        } catch (implError) {
+          console.error("Failed to fetch implementation:", implError);
+        }
+      }
+      
+      // Convert backend task to TaskDetail format
+      const taskDetail: TaskDetail = {
+        id: backendTask.id.toString(),
+        name: backendTask.path || `task-${backendTask.id}`,
+        description: `Task ${backendTask.id} from project ${backendTask.project_id}`,
+        project_id: backendTask.project_id.toString(),
+        production_version: implementation?.version || "0.1",
+        contract: {
+          input_schema: null,
+          output_schema: backendTask.response_schema,
+        },
+        score_weights: null,
+        created_at: backendTask.created_at,
+        updated_at: backendTask.updated_at,
+        implementation: {
+          task_id: backendTask.id.toString(),
+          version: implementation?.version || "0.1",
+          implementation_type,
+          config: config as any,
+          created_at: backendTask.created_at,
+        },
+        versions: implementation ? [
+          {
+            id: implementation.id.toString(),
+            version: implementation.version,
+            model: implementation.model,
+            settings: {
+              temperature: implementation.temperature,
+              max_output_tokens: implementation.max_output_tokens,
+            },
+            prompt: implementation.prompt,
+            tools: toolNames,
+            createdAt: implementation.created_at,
+          },
+        ] : [],
+        traces: [],
+        executions: [],
+        testCases: [],
+        avgLatency: 0,
+        avgCost: 0,
+        avgQuality: 0,
+        traceCount: 0,
+      };
+      
+      return taskDetail;
+    } catch (error) {
+      console.error("Failed to fetch task from API:", error);
+      return null;
+    }
   }
 
   /**

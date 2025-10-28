@@ -28,9 +28,8 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   // Static default project
   const defaultProject: Project = {
-    id: "default-project-id",
+    id: "1",
     name: "Default",
-    description: "Default project",
     owner_id: "default-user-id",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
