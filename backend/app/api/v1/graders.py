@@ -21,13 +21,8 @@ def get_grading_service(settings: Settings = Depends(get_settings)) -> GradingSe
     return GradingService(settings)
 
 
-@router.post(
-    "/projects/{project_id}/graders",
-    response_model=GraderRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=GraderRead, status_code=status.HTTP_201_CREATED)
 async def create_grader(
-    project_id: int,
     payload: GraderCreate,
     session: AsyncSession = Depends(get_session),
     grading_service: GradingService = Depends(get_grading_service),
@@ -36,7 +31,7 @@ async def create_grader(
     try:
         grader = await grading_service.create_grader(
             session=session,
-            project_id=project_id,
+            project_id=payload.project_id,
             name=payload.name,
             description=payload.description,
             prompt=payload.prompt,
@@ -49,10 +44,7 @@ async def create_grader(
             is_active=payload.is_active,
         )
         
-        # Add grade_count for response
-        grader_dict = GraderRead.model_validate(grader).model_dump()
-        grader_dict["grade_count"] = 0
-        return GraderRead(**grader_dict)
+        return GraderRead.model_validate(grader)
     
     except Exception as e:
         raise HTTPException(
@@ -61,7 +53,7 @@ async def create_grader(
         )
 
 
-@router.get("/projects/{project_id}/graders", response_model=list[GraderListItem])
+@router.get("/projects/{project_id}", response_model=list[GraderListItem])
 async def list_graders(
     project_id: int,
     session: AsyncSession = Depends(get_session),
@@ -69,15 +61,8 @@ async def list_graders(
 ) -> list[GraderListItem]:
     """List all graders for a project."""
     try:
-        graders_with_counts = await grading_service.list_graders(session, project_id)
-        
-        result = []
-        for grader, grade_count in graders_with_counts:
-            grader_dict = GraderListItem.model_validate(grader).model_dump()
-            grader_dict["grade_count"] = grade_count
-            result.append(GraderListItem(**grader_dict))
-        
-        return result
+        graders = await grading_service.list_graders(session, project_id)
+        return [GraderListItem.model_validate(grader) for grader in graders]
     
     except Exception as e:
         raise HTTPException(
@@ -95,13 +80,7 @@ async def get_grader(
     """Get a specific grader by ID."""
     try:
         grader = await grading_service.get_grader(session, grader_id)
-        
-        # Get grade count
-        grades = await grading_service.list_grades_for_grader(session, grader_id)
-        
-        grader_dict = GraderRead.model_validate(grader).model_dump()
-        grader_dict["grade_count"] = len(grades)
-        return GraderRead(**grader_dict)
+        return GraderRead.model_validate(grader)
     
     except NotFoundError as e:
         raise HTTPException(
@@ -133,12 +112,7 @@ async def update_grader(
             **updates,
         )
         
-        # Get grade count
-        grades = await grading_service.list_grades_for_grader(session, grader_id)
-        
-        grader_dict = GraderRead.model_validate(grader).model_dump()
-        grader_dict["grade_count"] = len(grades)
-        return GraderRead(**grader_dict)
+        return GraderRead.model_validate(grader)
     
     except NotFoundError as e:
         raise HTTPException(

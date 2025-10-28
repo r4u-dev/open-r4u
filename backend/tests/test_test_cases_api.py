@@ -28,7 +28,7 @@ async def test_create_test_case(client: AsyncClient, test_session):
         "expected_output": "4"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -65,7 +65,7 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
         "expected_output": "Expected result"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -79,11 +79,12 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
 async def test_create_test_case_task_not_found(client: AsyncClient):
     """Test creating a test case for non-existent task."""
     payload = {
+        "task_id": 999,
         "description": "Test case",
         "expected_output": "Expected result"
     }
 
-    response = await client.post("/test-cases/tasks/999/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -106,7 +107,7 @@ async def test_create_test_case_validation_error(client: AsyncClient, test_sessi
         # Missing required expected_output
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 422  # Validation error
 
 
@@ -140,7 +141,7 @@ async def test_list_test_cases(client: AsyncClient, test_session):
 
     await test_session.commit()
 
-    response = await client.get(f"/test-cases/tasks/{task.id}/test-cases")
+    response = await client.get(f"/v1/test-cases?task_id={task.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -170,7 +171,7 @@ async def test_list_test_cases_empty(client: AsyncClient, test_session):
     test_session.add(task)
     await test_session.flush()
 
-    response = await client.get(f"/test-cases/tasks/{task.id}/test-cases")
+    response = await client.get(f"/v1/test-cases?task_id={task.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -180,7 +181,7 @@ async def test_list_test_cases_empty(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_list_test_cases_task_not_found(client: AsyncClient):
     """Test listing test cases for non-existent task."""
-    response = await client.get("/test-cases/tasks/999/test-cases")
+    response = await client.get("/v1/test-cases?task_id=999")
     assert response.status_code == 404
     
     data = response.json()
@@ -207,7 +208,7 @@ async def test_get_test_case(client: AsyncClient, test_session):
     test_session.add(test_case)
     await test_session.commit()
 
-    response = await client.get(f"/test-cases/test-cases/{test_case.id}")
+    response = await client.get(f"/v1/test-cases/{test_case.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -223,7 +224,7 @@ async def test_get_test_case(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_get_test_case_not_found(client: AsyncClient):
     """Test getting a non-existent test case."""
-    response = await client.get("/test-cases/test-cases/999")
+    response = await client.get("/v1/test-cases/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -255,7 +256,7 @@ async def test_update_test_case(client: AsyncClient, test_session):
         "expected_output": "Updated expected output"
     }
 
-    response = await client.patch(f"/test-cases/test-cases/{test_case.id}", json=payload)
+    response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -289,7 +290,7 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
         "description": "Updated description only"
     }
 
-    response = await client.patch(f"/test-cases/test-cases/{test_case.id}", json=payload)
+    response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -305,7 +306,7 @@ async def test_update_test_case_not_found(client: AsyncClient):
         "description": "Updated description"
     }
 
-    response = await client.patch("/test-cases/test-cases/999", json=payload)
+    response = await client.patch("/v1/test-cases/999", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -332,7 +333,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
     test_session.add(test_case)
     await test_session.commit()
 
-    response = await client.delete(f"/test-cases/test-cases/{test_case.id}")
+    response = await client.delete(f"/v1/test-cases/{test_case.id}")
     assert response.status_code == 204
 
     # Verify test case is deleted
@@ -345,7 +346,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_delete_test_case_not_found(client: AsyncClient):
     """Test deleting a non-existent test case."""
-    response = await client.delete("/test-cases/test-cases/999")
+    response = await client.delete("/v1/test-cases/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -386,7 +387,7 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
         "expected_output": "4"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -412,7 +413,7 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
         "expected_output": "Expected result"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 422
     
     data = response.json()
@@ -437,7 +438,7 @@ async def test_test_case_with_empty_arguments(client: AsyncClient, test_session)
         "expected_output": "Expected result"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
     
     data = response.json()
@@ -461,7 +462,7 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
         "expected_output": "Expected result"
     }
 
-    response = await client.post(f"/test-cases/tasks/{task.id}/test-cases", json=payload)
+    response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
     
     data = response.json()

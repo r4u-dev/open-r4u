@@ -30,7 +30,7 @@ class GraderBase(BaseModel):
 
 class GraderCreate(GraderBase):
     """Schema for creating a grader."""
-    pass
+    project_id: int = Field(..., description="ID of the project this grader belongs to")
 
 
 class GraderUpdate(BaseModel):
@@ -55,7 +55,6 @@ class GraderRead(GraderBase):
     project_id: int
     created_at: datetime
     updated_at: datetime
-    grade_count: int = Field(0, description="Number of grades produced by this grader")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,7 +69,6 @@ class GraderListItem(BaseModel):
     score_type: ScoreType
     is_active: bool
     created_at: datetime
-    grade_count: int = Field(0, description="Number of grades produced by this grader")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,6 +101,7 @@ class GradeBase(BaseModel):
 class GradeTargetRequest(BaseModel):
     """Request schema for creating a grade (specifies target)."""
 
+    grader_id: int = Field(..., description="ID of the grader to use")
     trace_id: int | None = None
     execution_result_id: int | None = None
     test_case_id: int | None = None
@@ -176,11 +175,16 @@ class TestCaseBase(BaseModel):
 
 class TestCaseCreate(TestCaseBase):
     """Schema for creating a test case."""
-    pass
+
+    __test__ = False
+
+    task_id: int = Field(..., description="ID of the task this test case belongs to")
 
 
 class TestCaseUpdate(BaseModel):
     """Schema for updating a test case (all fields optional)."""
+
+    __test__ = False
 
     description: str | None = Field(None, max_length=500)
     arguments: dict[str, Any] | None = None
@@ -189,6 +193,8 @@ class TestCaseUpdate(BaseModel):
 
 class TestCaseRead(TestCaseBase):
     """Schema for test case response."""
+
+    __test__ = False
 
     id: int
     task_id: int
@@ -200,6 +206,8 @@ class TestCaseRead(TestCaseBase):
 
 class TestCaseListItem(BaseModel):
     """Lightweight schema for listing test cases."""
+
+    __test__ = False
 
     id: int
     task_id: int
@@ -273,6 +281,12 @@ class EvaluationBase(BaseModel):
     cost_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Cost efficiency score (0-1, higher is better)")
     time_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Time efficiency score (0-1, higher is better)")
     final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0, description="Final weighted evaluation score")
+
+
+class EvaluationRunRequest(BaseModel):
+    """Schema for running an evaluation."""
+
+    implementation_id: int = Field(..., description="ID of the implementation to evaluate")
 
 
 class EvaluationCreate(BaseModel):

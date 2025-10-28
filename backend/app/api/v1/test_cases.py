@@ -1,6 +1,6 @@
 """API endpoints for Test Case management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
@@ -21,13 +21,8 @@ def get_evaluation_service(settings: Settings = Depends(get_settings)) -> Evalua
     return EvaluationService(settings)
 
 
-@router.post(
-    "/tasks/{task_id}/test-cases",
-    response_model=TestCaseRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=TestCaseRead, status_code=status.HTTP_201_CREATED)
 async def create_test_case(
-    task_id: int,
     payload: TestCaseCreate,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
@@ -36,7 +31,7 @@ async def create_test_case(
     try:
         test_case = await evaluation_service.create_test_case(
             session=session,
-            task_id=task_id,
+            task_id=payload.task_id,
             description=payload.description,
             arguments=payload.arguments,
             expected_output=payload.expected_output,
@@ -54,16 +49,13 @@ async def create_test_case(
     return TestCaseRead.model_validate(test_case)
 
 
-@router.get(
-    "/tasks/{task_id}/test-cases",
-    response_model=list[TestCaseListItem],
-)
+@router.get("", response_model=list[TestCaseListItem])
 async def list_test_cases(
-    task_id: int,
+    task_id: int | None = Query(None, description="Filter by task ID"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> list[TestCaseListItem]:
-    """List all test cases for a task."""
+    """List test cases, optionally filtered by task_id."""
     try:
         test_cases = await evaluation_service.list_test_cases(session=session, task_id=task_id)
     except NotFoundError as e:
@@ -78,7 +70,7 @@ async def list_test_cases(
 
 
 @router.get(
-    "/test-cases/{test_case_id}",
+    "/{test_case_id}",
     response_model=TestCaseRead,
 )
 async def get_test_case(
@@ -101,7 +93,7 @@ async def get_test_case(
 
 
 @router.patch(
-    "/test-cases/{test_case_id}",
+    "/{test_case_id}",
     response_model=TestCaseRead,
 )
 async def update_test_case(
@@ -134,7 +126,7 @@ async def update_test_case(
 
 
 @router.delete(
-    "/test-cases/{test_case_id}",
+    "/{test_case_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_test_case(

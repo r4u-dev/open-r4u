@@ -270,9 +270,10 @@ class TestExecutor:
             mock_executor_class.return_value = mock_executor
 
             response = await client.post(
-                f"/executions/tasks/{task.id}/execute",
+                "/v1/executions",
                 json={
-                    "variables": {"text": "test"},
+                    "task_id": task.id,
+                    "arguments": {"text": "test"},
                     "model": "gpt-3.5-turbo",
                     "temperature": 0.5,
                 },
@@ -389,8 +390,8 @@ class TestExecutionAPI:
             mock_execute.return_value = mock_result
 
             response = await client.post(
-                f"/executions/implementations/{implementation.id}/execute",
-                json={"arguments": {"text": "Hello world"}},
+                "/v1/executions",
+                json={"implementation_id": implementation.id, "arguments": {"text": "Hello world"}},
             )
 
             assert response.status_code == 201
@@ -437,8 +438,8 @@ class TestExecutionAPI:
             mock_execute.return_value = mock_result
 
             response = await client.post(
-                f"/executions/implementations/{test_implementation.id}/execute",
-                json={"variables": {"text": "What's the weather?"}},
+                "/v1/executions",
+                json={"implementation_id": test_implementation.id, "arguments": {"text": "What's the weather?"}},
             )
 
             assert response.status_code == 201
@@ -459,7 +460,7 @@ class TestExecutionAPI:
     async def test_execute_implementation_not_found(self, client: AsyncClient):
         """Test executing non-existent implementation returns 404."""
         response = await client.post(
-            "/executions/implementations/99999/execute", json={"variables": {}}
+            "/v1/executions", json={"implementation_id": 999, "arguments": {}}
         )
 
         assert response.status_code == 404
@@ -496,7 +497,7 @@ class TestExecutionAPI:
         test_session.add_all([execution1, execution2])
         await test_session.commit()
 
-        response = await client.get(f"/executions/tasks/{task.id}/executions")
+        response = await client.get(f"/v1/executions?task_id={task.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -534,7 +535,7 @@ class TestExecutionAPI:
         test_session.add_all([execution1, execution2])
         await test_session.commit()
 
-        response = await client.get(f"/executions/implementations/{implementation.id}/executions")
+        response = await client.get(f"/v1/executions?implementation_id={implementation.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -564,7 +565,7 @@ class TestExecutionAPI:
         await test_session.commit()
         await test_session.refresh(execution)
 
-        response = await client.get(f"/executions/{execution.id}")
+        response = await client.get(f"/v1/executions/{execution.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -576,7 +577,7 @@ class TestExecutionAPI:
     @pytest.mark.asyncio
     async def test_get_execution_not_found(self, client: AsyncClient):
         """Test getting non-existent execution returns 404."""
-        response = await client.get("/executions/99999")
+        response = await client.get("/v1/executions/99999")
 
         assert response.status_code == 404
 
@@ -601,7 +602,7 @@ class TestExecutionAPI:
         test_session.add(execution)
         await test_session.commit()
 
-        response = await client.get("/executions")
+        response = await client.get("/v1/executions")
 
         assert response.status_code == 200
         data = response.json()
@@ -630,7 +631,7 @@ class TestExecutionAPI:
         await test_session.commit()
         await test_session.refresh(execution)
 
-        response = await client.delete(f"/executions/{execution.id}")
+        response = await client.delete(f"/v1/executions/{execution.id}")
 
         assert response.status_code == 204
 
@@ -642,7 +643,7 @@ class TestExecutionAPI:
     @pytest.mark.asyncio
     async def test_delete_execution_not_found(self, client: AsyncClient):
         """Test deleting non-existent execution returns 404."""
-        response = await client.delete("/executions/99999")
+        response = await client.delete("/v1/executions/99999")
 
         assert response.status_code == 404
 

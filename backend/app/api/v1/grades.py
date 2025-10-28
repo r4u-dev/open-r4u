@@ -1,6 +1,6 @@
 """API endpoints for Grade management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
@@ -20,25 +20,20 @@ def get_grading_service(settings: Settings = Depends(get_settings)) -> GradingSe
     return GradingService(settings)
 
 
-@router.post(
-    "/graders/{grader_id}/grade",
-    response_model=GradeRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=GradeRead, status_code=status.HTTP_201_CREATED)
 async def create_grade(
-    grader_id: int,
     payload: GradeTargetRequest,
     session: AsyncSession = Depends(get_session),
     grading_service: GradingService = Depends(get_grading_service),
 ) -> GradeRead:
     """Execute grading for a trace or execution result.
     
-    The request body must specify either trace_id or execution_result_id.
+    The request body must specify grader_id and either trace_id or execution_result_id.
     """
     try:
         grade = await grading_service.execute_grading(
             session=session,
-            grader_id=grader_id,
+            grader_id=payload.grader_id,
             trace_id=payload.trace_id,
             execution_result_id=payload.execution_result_id,
             test_case_id=payload.test_case_id,
@@ -56,6 +51,39 @@ async def create_grade(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("", response_model=list[GradeListItem])
+async def list_grades(
+    grader_id: int | None = Query(None, description="Filter by grader ID"),
+    trace_id: int | None = Query(None, description="Filter by trace ID"),
+    execution_result_id: int | None = Query(None, description="Filter by execution result ID"),
+    session: AsyncSession = Depends(get_session),
+    grading_service: GradingService = Depends(get_grading_service),
+) -> list[GradeListItem]:
+    """List grades with optional filters.
+    
+    Returns grades filtered by any combination of:
+    - grader_id: Filter by specific grader
+    - trace_id: Filter by specific trace
+    - execution_result_id: Filter by specific execution result
+    
+    All parameters are optional. If none are provided, returns all grades.
+    """
+    try:
+        grades = await grading_service.list_grades(
+            session=session,
+            grader_id=grader_id,
+            trace_id=trace_id,
+            execution_result_id=execution_result_id,
+        )
+        return [GradeListItem.model_validate(grade) for grade in grades]
+    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -86,62 +114,6 @@ async def get_grade(
         )
 
 
-@router.get("/traces/{trace_id}/grades", response_model=list[GradeListItem])
-async def list_grades_for_trace(
-    trace_id: int,
-    session: AsyncSession = Depends(get_session),
-    grading_service: GradingService = Depends(get_grading_service),
-) -> list[GradeListItem]:
-    """List all grades for a trace."""
-    try:
-        grades = await grading_service.list_grades_for_trace(session, trace_id)
-        return [GradeListItem.model_validate(grade) for grade in grades]
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
-
-
-@router.get("/executions/{execution_result_id}/grades", response_model=list[GradeListItem])
-async def list_grades_for_execution(
-    execution_result_id: int,
-    session: AsyncSession = Depends(get_session),
-    grading_service: GradingService = Depends(get_grading_service),
-) -> list[GradeListItem]:
-    """List all grades for an execution result."""
-    try:
-        grades = await grading_service.list_grades_for_execution(
-            session, execution_result_id
-        )
-        return [GradeListItem.model_validate(grade) for grade in grades]
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
-
-
-@router.get("/graders/{grader_id}/grades", response_model=list[GradeListItem])
-async def list_grades_for_grader(
-    grader_id: int,
-    session: AsyncSession = Depends(get_session),
-    grading_service: GradingService = Depends(get_grading_service),
-) -> list[GradeListItem]:
-    """List all grades produced by a grader."""
-    try:
-        grades = await grading_service.list_grades_for_grader(session, grader_id)
-        return [GradeListItem.model_validate(grade) for grade in grades]
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
-
-
 @router.delete("/{grade_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_grade(
     grade_id: int,
@@ -151,7 +123,6 @@ async def delete_grade(
     """Delete a grade."""
     try:
         await grading_service.delete_grade(session, grade_id)
-    
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -162,4 +133,3 @@ async def delete_grade(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
-

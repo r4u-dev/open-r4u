@@ -94,27 +94,16 @@ class GradingService:
 
     async def list_graders(
         self, session: AsyncSession, project_id: int
-    ) -> list[tuple[Grader, int]]:
-        """List all graders for a project with grade counts.
-        
-        Returns:
-            List of tuples (grader, grade_count)
-        """
+    ) -> list[Grader]:
+        """List all graders for a project."""
         query = (
-            select(
-                Grader,
-                func.count(Grade.id).label("grade_count")
-            )
-            .outerjoin(Grade, Grade.grader_id == Grader.id)
+            select(Grader)
             .where(Grader.project_id == project_id)
-            .group_by(Grader.id)
             .order_by(Grader.created_at.desc())
         )
         
         result = await session.execute(query)
-        rows = result.all()
-        
-        return [(row[0], row[1]) for row in rows]
+        return list(result.scalars().all())
 
     async def update_grader(
         self,
@@ -375,41 +364,35 @@ class GradingService:
         
         return grade
 
-    async def list_grades_for_trace(
-        self, session: AsyncSession, trace_id: int
+    async def list_grades(
+        self,
+        session: AsyncSession,
+        trace_id: int | None = None,
+        execution_result_id: int | None = None,
+        grader_id: int | None = None,
     ) -> list[Grade]:
-        """List all grades for a trace."""
-        query = (
-            select(Grade)
-            .where(Grade.trace_id == trace_id)
-            .order_by(Grade.created_at.desc())
-        )
-        result = await session.execute(query)
-        grades: Sequence[Grade] = result.scalars().all()
-        return list(grades)
-
-    async def list_grades_for_execution(
-        self, session: AsyncSession, execution_result_id: int
-    ) -> list[Grade]:
-        """List all grades for an execution result."""
-        query = (
-            select(Grade)
-            .where(Grade.execution_result_id == execution_result_id)
-            .order_by(Grade.created_at.desc())
-        )
-        result = await session.execute(query)
-        grades: Sequence[Grade] = result.scalars().all()
-        return list(grades)
-
-    async def list_grades_for_grader(
-        self, session: AsyncSession, grader_id: int
-    ) -> list[Grade]:
-        """List all grades produced by a grader."""
-        query = (
-            select(Grade)
-            .where(Grade.grader_id == grader_id)
-            .order_by(Grade.created_at.desc())
-        )
+        """List grades with optional filters.
+        
+        Args:
+            session: Database session
+            trace_id: Optional filter by trace ID
+            execution_result_id: Optional filter by execution result ID
+            grader_id: Optional filter by grader ID
+            
+        Returns:
+            List of grades matching the filters
+        """
+        query = select(Grade)
+        
+        if trace_id is not None:
+            query = query.where(Grade.trace_id == trace_id)
+        if execution_result_id is not None:
+            query = query.where(Grade.execution_result_id == execution_result_id)
+        if grader_id is not None:
+            query = query.where(Grade.grader_id == grader_id)
+        
+        query = query.order_by(Grade.created_at.desc())
+        
         result = await session.execute(query)
         grades: Sequence[Grade] = result.scalars().all()
         return list(grades)

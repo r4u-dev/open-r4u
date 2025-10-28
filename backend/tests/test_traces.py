@@ -31,7 +31,7 @@ class TestTraceEndpoints:
             "project": "Default Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -65,7 +65,7 @@ class TestTraceEndpoints:
             "project": "Custom Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -94,7 +94,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:02Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -131,7 +131,7 @@ class TestTraceEndpoints:
             ],
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -173,7 +173,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:03Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -191,7 +191,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -209,7 +209,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -228,10 +228,10 @@ class TestTraceEndpoints:
                 "started_at": f"2025-10-15T10:0{i}:00Z",
                 "completed_at": f"2025-10-15T10:0{i}:01Z",
             }
-            await client.post("/traces", json=payload)
+            await client.post("/v1/traces", json=payload)
 
         # List all traces
-        response = await client.get("/traces")
+        response = await client.get("/v1/traces")
         assert response.status_code == 200
 
         data = response.json()
@@ -243,7 +243,7 @@ class TestTraceEndpoints:
 
     async def test_list_traces_empty(self, client: AsyncClient):
         """Test listing traces when none exist."""
-        response = await client.get("/traces")
+        response = await client.get("/v1/traces")
         assert response.status_code == 200
         assert response.json() == []
 
@@ -260,10 +260,10 @@ class TestTraceEndpoints:
                 "started_at": f"2025-10-15T10:{i:02d}:00Z",
                 "completed_at": f"2025-10-15T10:{i:02d}:01Z",
             }
-            await client.post("/traces", json=payload)
+            await client.post("/v1/traces", json=payload)
 
         # Test default pagination (limit=25, offset=0)
-        response = await client.get("/traces")
+        response = await client.get("/v1/traces")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 25
@@ -272,7 +272,7 @@ class TestTraceEndpoints:
         assert data[24]["model"] == "model-25"
 
         # Test with custom limit
-        response = await client.get("/traces?limit=10")
+        response = await client.get("/v1/traces?limit=10")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 10
@@ -280,7 +280,7 @@ class TestTraceEndpoints:
         assert data[9]["model"] == "model-40"
 
         # Test with offset
-        response = await client.get("/traces?limit=10&offset=10")
+        response = await client.get("/v1/traces?limit=10&offset=10")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 10
@@ -288,7 +288,7 @@ class TestTraceEndpoints:
         assert data[9]["model"] == "model-30"
 
         # Test with larger offset
-        response = await client.get("/traces?limit=10&offset=40")
+        response = await client.get("/v1/traces?limit=10&offset=40")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 10
@@ -296,7 +296,7 @@ class TestTraceEndpoints:
         assert data[9]["model"] == "model-0"
 
         # Test offset beyond available traces
-        response = await client.get("/traces?limit=10&offset=50")
+        response = await client.get("/v1/traces?limit=10&offset=50")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 0
@@ -313,29 +313,29 @@ class TestTraceEndpoints:
                 "result": f"Result {i}",
                 "started_at": f"2025-10-15T10:0{i}:00Z",
             }
-            await client.post("/traces", json=payload)
+            await client.post("/v1/traces", json=payload)
 
         # Test limit=1 (minimum)
-        response = await client.get("/traces?limit=1")
+        response = await client.get("/v1/traces?limit=1")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
 
         # Test limit=100 (maximum)
-        response = await client.get("/traces?limit=100")
+        response = await client.get("/v1/traces?limit=100")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 5  # Only 5 traces available
 
         # Test invalid limit (should fail validation)
-        response = await client.get("/traces?limit=0")
+        response = await client.get("/v1/traces?limit=0")
         assert response.status_code == 422  # Validation error
 
-        response = await client.get("/traces?limit=101")
+        response = await client.get("/v1/traces?limit=101")
         assert response.status_code == 422  # Validation error
 
         # Test invalid offset (should fail validation)
-        response = await client.get("/traces?offset=-1")
+        response = await client.get("/v1/traces?offset=-1")
         assert response.status_code == 422  # Validation error
 
     async def test_create_trace_minimal(self, client: AsyncClient):
@@ -346,7 +346,7 @@ class TestTraceEndpoints:
             "started_at": "2025-10-15T10:00:00Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -370,7 +370,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Shared Project",
         }
-        response1 = await client.post("/traces", json=payload1)
+        response1 = await client.post("/v1/traces", json=payload1)
         assert response1.status_code == 201
         project_id_1 = response1.json()["project_id"]
 
@@ -383,7 +383,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:01:01Z",
             "project": "Shared Project",
         }
-        response2 = await client.post("/traces", json=payload2)
+        response2 = await client.post("/v1/traces", json=payload2)
         assert response2.status_code == 201
         project_id_2 = response2.json()["project_id"]
 
@@ -407,7 +407,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -475,7 +475,7 @@ class TestTraceEndpoints:
             "trace_metadata": metadata,
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -505,7 +505,7 @@ class TestTraceEndpoints:
             "total_tokens": 100,  # Only total_tokens provided
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -563,7 +563,7 @@ class TestTraceEndpoints:
             "implementation_id": implementation.id,
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -587,7 +587,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -637,7 +637,7 @@ class TestTraceEndpoints:
             "finish_reason": "stop",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -682,7 +682,7 @@ class TestTraceEndpoints:
             "finish_reason": "stop",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -718,7 +718,7 @@ class TestTraceEndpoints:
             "temperature": 1.0,
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -760,7 +760,7 @@ class TestTraceEndpoints:
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
         trace_data = response.json()
         trace_id = trace_data["id"]
@@ -772,7 +772,7 @@ class TestTraceEndpoints:
         await test_session.commit()
 
         # Fetch the HTTP trace via the endpoint
-        response = await client.get(f"/traces/{trace_id}/http-trace")
+        response = await client.get(f"/v1/traces/{trace_id}/http-trace")
         assert response.status_code == 200
 
         data = response.json()
@@ -791,7 +791,7 @@ class TestTraceEndpoints:
 
     async def test_get_trace_http_trace_not_found(self, client: AsyncClient):
         """Test fetching HTTP trace for non-existent trace."""
-        response = await client.get("/traces/99999/http-trace")
+        response = await client.get("/v1/traces/99999/http-trace")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -808,12 +808,12 @@ class TestTraceEndpoints:
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
         trace_id = response.json()["id"]
 
         # Try to fetch HTTP trace
-        response = await client.get(f"/traces/{trace_id}/http-trace")
+        response = await client.get(f"/v1/traces/{trace_id}/http-trace")
         assert response.status_code == 404
         assert "no associated http trace" in response.json()["detail"].lower()
 
@@ -842,7 +842,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -886,7 +886,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -907,7 +907,7 @@ class TestTraceEndpoints:
             "completed_at": "2025-10-15T10:00:01Z",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()

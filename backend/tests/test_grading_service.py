@@ -120,16 +120,12 @@ async def test_list_graders(grading_service, test_session):
         max_output_tokens=300,
     )
 
-    graders_with_counts = await grading_service.list_graders(test_session, project.id)
-    assert len(graders_with_counts) == 2
+    graders = await grading_service.list_graders(test_session, project.id)
+    assert len(graders) == 2
     
-    grader_names = [grader.name for grader, _ in graders_with_counts]
+    grader_names = [grader.name for grader in graders]
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
-    
-    # Check grade counts (should be 0 for new graders)
-    for grader, count in graders_with_counts:
-        assert count == 0
 
 
 @pytest.mark.asyncio
@@ -655,7 +651,7 @@ async def test_list_grades_for_trace(grading_service, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_trace(test_session, trace.id)
+    grades = await grading_service.list_grades(test_session, trace_id=trace.id)
     assert len(grades) == 2
     
     # Check that both grades are present (order may vary due to timing)
@@ -716,7 +712,7 @@ async def test_list_grades_for_execution(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_execution(test_session, execution_result.id)
+    grades = await grading_service.list_grades(test_session, execution_result_id=execution_result.id)
     assert len(grades) == 1
     assert grades[0].score_boolean is False
 
@@ -758,7 +754,7 @@ async def test_list_grades_for_grader(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_grader(test_session, grader.id)
+    grades = await grading_service.list_grades(test_session, grader_id=grader.id)
     assert len(grades) == 1
     assert grades[0].score_float == 0.85
 

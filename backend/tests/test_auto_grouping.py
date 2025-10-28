@@ -47,7 +47,7 @@ async def test_auto_match_trace_to_existing_task(
 
     # Create a trace via API (should auto-match to the task)
     response = await client.post(
-        "/traces",
+        "/v1/traces",
         json={
             "project": "Auto Match Test",
             "model": "gpt-4",
@@ -102,7 +102,7 @@ async def test_no_auto_match_when_no_similar_task(
 
     # Create a trace with different instructions (should NOT match)
     response = await client.post(
-        "/traces",
+        "/v1/traces",
         json={
             "project": "No Match Test",
             "model": "gpt-4",
@@ -157,7 +157,7 @@ async def test_auto_match_respects_similarity_threshold(
 
     # Create a trace with VERY different instructions (should NOT match)
     response = await client.post(
-        "/traces",
+        "/v1/traces",
         json={
             "project": "Similarity Test",
             "model": "gpt-4",
@@ -212,7 +212,7 @@ async def test_auto_match_with_system_message_instructions(
 
     # Create a trace with instructions in system message (should auto-match)
     response = await client.post(
-        "/traces",
+        "/v1/traces",
         json={
             "project": "System Message Test",
             "model": "gpt-4",
@@ -253,7 +253,7 @@ async def test_batch_grouping_creates_tasks_for_ungrouped_traces(
     # Create multiple similar traces (no existing tasks to match)
     for name in ["Alice", "Bob", "Charlie"]:
         response = await client.post(
-            "/traces",
+            "/v1/traces",
             json={
                 "project": "Batch Test",
                 "model": "gpt-4",
@@ -270,7 +270,7 @@ async def test_batch_grouping_creates_tasks_for_ungrouped_traces(
         assert response.json()["task_id"] is None
 
     # Run batch grouping
-    response = await client.post("/tasks/group-traces?min_cluster_size=2")
+    response = await client.post("/v1/tasks/group-traces?min_cluster_size=2")
     assert response.status_code == 201
     tasks_data = response.json()
 
@@ -305,7 +305,7 @@ async def test_subsequent_traces_auto_match_after_batch_grouping(
     # Create initial traces
     for name in ["Alice", "Bob"]:
         await client.post(
-            "/traces",
+            "/v1/traces",
             json={
                 "project": "Sequential Test",
                 "model": "gpt-4",
@@ -319,7 +319,7 @@ async def test_subsequent_traces_auto_match_after_batch_grouping(
         )
 
     # Run batch grouping to create task
-    response = await client.post("/tasks/group-traces?min_cluster_size=2")
+    response = await client.post("/v1/tasks/group-traces?min_cluster_size=2")
     assert response.status_code == 201
     tasks = response.json()
     assert len(tasks) >= 1
@@ -327,7 +327,7 @@ async def test_subsequent_traces_auto_match_after_batch_grouping(
 
     # Create a new similar trace (should auto-match to the created task)
     response = await client.post(
-        "/traces",
+        "/v1/traces",
         json={
             "project": "Sequential Test",
             "model": "gpt-4",
