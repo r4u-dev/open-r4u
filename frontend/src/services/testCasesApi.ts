@@ -56,7 +56,7 @@ export interface GenerateTestCasesResponse {
 }
 
 class TestCasesApiService {
-    private baseEndpoint = "/test-cases";
+    private baseEndpoint = "/v1/test-cases";
 
     async getTestCasesByTask(
         taskId: string,

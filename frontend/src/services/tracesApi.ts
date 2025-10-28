@@ -169,7 +169,7 @@ export const tracesApi = {
         });
 
         const response = await apiClient.get<BackendTrace[]>(
-            `/traces?${queryParams.toString()}`,
+            `/v1/traces?${queryParams.toString()}`,
         );
 
         return response.data.map(mapBackendTraceToFrontend);
@@ -196,7 +196,7 @@ export const tracesApi = {
     async fetchHTTPTrace(traceId: string): Promise<HTTPTrace | null> {
         try {
             const response = await apiClient.get<HTTPTrace>(
-                `/traces/${traceId}/http-trace`,
+                `/v1/traces/${traceId}/http-trace`,
             );
             return response.data;
         } catch (error) {
