@@ -189,10 +189,10 @@ class EvaluationService:
         return result.scalar_one_or_none()
 
     # Evaluation Execution
-    async def run_evaluation(
+    async def create_evaluation(
         self, session: AsyncSession, implementation_id: int
     ) -> Evaluation:
-        """Run evaluation for an implementation."""
+        """Create an evaluation record and return it immediately."""
         # Load implementation and task
         implementation = await self._get_implementation(session, implementation_id)
         task = implementation.task
@@ -229,89 +229,120 @@ class EvaluationService:
         await session.commit()
         await session.refresh(evaluation)
         
-        try:
-            # Execute test cases and collect results
-            execution_results = []
-            for test_case in test_cases:
-                # Execute implementation with test case arguments
-                execution_result = await execute_task(
-                    session=session,
-                    settings=self.settings,
-                    implementation_id=implementation_id,
-                    arguments=test_case.arguments,
-                )
-                execution_results.append(execution_result)
-            
-            # Grade execution results
-            grader_scores = {}
-            for grader_id in config.grader_ids:
-                grader = await self.grading_service.get_grader(session, grader_id)
-                scores = []
-                
-                # Iterate through execution results with matching test cases
-                for i, execution_result in enumerate(execution_results):
-                    # Get matching test case for this execution result
-                    test_case = test_cases[i] if i < len(test_cases) else None
-                    
-                    # Create grade for this execution result with test case
-                    grade = await self.grading_service.execute_grading(
-                        session=session,
-                        grader_id=grader_id,
-                        execution_result_id=execution_result.id,
-                        test_case_id=test_case.id if test_case else None,
-                    )
+        return evaluation
 
-                    # Extract score based on grader type
-                    if grader.score_type == ScoreType.FLOAT:
-                        if grade.score_float is not None:
-                            scores.append(grade.score_float)
-                    elif grader.score_type == ScoreType.BOOLEAN:
-                        if grade.score_boolean is not None:
-                            scores.append(1.0 if grade.score_boolean else 0.0)
+    async def execute_evaluation_in_background(
+        self, evaluation_id: int
+    ) -> None:
+        """Execute evaluation logic in the background."""
+        from app.database import AsyncSessionMaker
+        
+        # Create a new session for the background task
+        async with AsyncSessionMaker() as session:
+            try:
+                # Load evaluation
+                query = select(Evaluation).where(Evaluation.id == evaluation_id)
+                result = await session.execute(query)
+                evaluation = result.scalar_one_or_none()
                 
-                # Calculate average score for this grader
-                if scores:
-                    grader_scores[str(grader_id)] = statistics.mean(scores)
-            
-            # Calculate metrics
-            quality_score = statistics.mean(grader_scores.values()) if grader_scores else None
-            
-            # Calculate average cost (handle empty list)
-            cost_values = [r.cost for r in execution_results if r.cost is not None]
-            avg_cost = statistics.mean(cost_values) if cost_values else None
-            
-            # Calculate average execution time (handle empty list)
-            time_values = [
-                (r.completed_at - r.started_at).total_seconds() * 1000
-                for r in execution_results
-                if r.completed_at and r.started_at
-            ]
-            avg_time_ms = statistics.mean(time_values) if time_values else None
-            
-            # Update evaluation with stored metrics (efficiency scores calculated on-demand)
-            evaluation.status = EvaluationStatus.COMPLETED
-            evaluation.completed_at = datetime.now(timezone.utc)
-            evaluation.grader_scores = grader_scores
-            evaluation.quality_score = quality_score
-            evaluation.avg_cost = avg_cost
-            evaluation.avg_execution_time_ms = avg_time_ms
-            
-            # Update target metrics if this evaluation shows better performance
-            await self.calculate_target_metrics(session, task.id)
-            
-            await session.commit()
-            await session.refresh(evaluation)
-            
-            return evaluation
-            
-        except Exception as e:
-            # Mark evaluation as failed
-            evaluation.status = EvaluationStatus.FAILED
-            evaluation.completed_at = datetime.now(timezone.utc)
-            evaluation.error = str(e)
-            await session.commit()
-            await session.refresh(evaluation)
-            raise
+                if not evaluation:
+                    return
+                
+                # Load associated data
+                implementation = await self._get_implementation(session, evaluation.implementation_id)
+                task = implementation.task
+                
+                # Load evaluation config
+                config = await self.get_evaluation_config(session, task.id)
+                if not config:
+                    config = await self.create_or_update_evaluation_config(session, task.id)
+                
+                # Load test cases
+                test_cases = await self.list_test_cases(session, task.id)
+                
+                try:
+                    # Execute test cases and collect results
+                    execution_results = []
+                    for test_case in test_cases:
+                        # Execute implementation with test case arguments
+                        execution_result = await execute_task(
+                            session=session,
+                            settings=self.settings,
+                            implementation_id=evaluation.implementation_id,
+                            arguments=test_case.arguments,
+                        )
+                        execution_results.append(execution_result)
+                    
+                    # Grade execution results
+                    grader_scores = {}
+                    for grader_id in config.grader_ids:
+                        grader = await self.grading_service.get_grader(session, grader_id)
+                        scores = []
+                        
+                        # Iterate through execution results with matching test cases
+                        for i, execution_result in enumerate(execution_results):
+                            # Get matching test case for this execution result
+                            test_case = test_cases[i] if i < len(test_cases) else None
+                            
+                            # Create grade for this execution result with test case
+                            grade = await self.grading_service.execute_grading(
+                                session=session,
+                                grader_id=grader_id,
+                                execution_result_id=execution_result.id,
+                                test_case_id=test_case.id if test_case else None,
+                            )
+
+                            # Extract score based on grader type
+                            if grader.score_type == ScoreType.FLOAT:
+                                if grade.score_float is not None:
+                                    scores.append(grade.score_float)
+                            elif grader.score_type == ScoreType.BOOLEAN:
+                                if grade.score_boolean is not None:
+                                    scores.append(1.0 if grade.score_boolean else 0.0)
+                        
+                        # Calculate average score for this grader
+                        if scores:
+                            grader_scores[str(grader_id)] = statistics.mean(scores)
+                    
+                    # Calculate metrics
+                    quality_score = statistics.mean(grader_scores.values()) if grader_scores else None
+                    
+                    # Calculate average cost (handle empty list)
+                    cost_values = [r.cost for r in execution_results if r.cost is not None]
+                    avg_cost = statistics.mean(cost_values) if cost_values else None
+                    
+                    # Calculate average execution time (handle empty list)
+                    time_values = [
+                        (r.completed_at - r.started_at).total_seconds() * 1000
+                        for r in execution_results
+                        if r.completed_at and r.started_at
+                    ]
+                    avg_time_ms = statistics.mean(time_values) if time_values else None
+                    
+                    # Update evaluation with stored metrics (efficiency scores calculated on-demand)
+                    evaluation.status = EvaluationStatus.COMPLETED
+                    evaluation.completed_at = datetime.now(timezone.utc)
+                    evaluation.grader_scores = grader_scores
+                    evaluation.quality_score = quality_score
+                    evaluation.avg_cost = avg_cost
+                    evaluation.avg_execution_time_ms = avg_time_ms
+                    
+                    # Update target metrics if this evaluation shows better performance
+                    await self.calculate_target_metrics(session, task.id)
+                    
+                    await session.commit()
+                    await session.refresh(evaluation)
+                    
+                except Exception as e:
+                    # Mark evaluation as failed
+                    evaluation.status = EvaluationStatus.FAILED
+                    evaluation.completed_at = datetime.now(timezone.utc)
+                    evaluation.error = str(e)
+                    await session.commit()
+                    await session.refresh(evaluation)
+                    
+            except Exception:
+                await session.rollback()
 
     async def get_evaluation(self, session: AsyncSession, evaluation_id: int) -> EvaluationRead:
         """Get an evaluation by ID with calculated scores."""
