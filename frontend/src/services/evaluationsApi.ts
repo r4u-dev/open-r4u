@@ -1,150 +1,96 @@
 import { apiClient, ApiResponse } from "@/services/api";
-
-export type EvaluationStatus = "pending" | "running" | "completed" | "failed";
-
-export type TestSelectionStrategy = "all_applicable" | "priority" | "stable";
-
-export interface ScoreWeights {
-    accuracy: number;
-    time_efficiency: number;
-    cost_efficiency: number;
-}
-
-export interface CreateEvaluationRequest {
-    task_id: string;
-    task_version?: string;
-    accuracy_threshold?: number;
-    timeout_seconds?: number;
-    test_selection_strategy?: TestSelectionStrategy;
-    score_weights?: ScoreWeights;
-}
-
-export interface EvaluationConfig {
-    accuracy_threshold: number;
-    timeout_seconds: number;
-    retry_attempts: number;
-    test_selection_strategy: TestSelectionStrategy;
-    score_weights: ScoreWeights;
-    ai_evaluator_config: unknown | null;
-}
-
-export interface EvaluationSummary {
-    id: string;
-    task_id: string;
-    task_version: string;
-    test_ids: string[];
-    config: EvaluationConfig;
-    created_at: string;
-    started_at: string | null;
-    completed_at: string | null;
-    status: EvaluationStatus;
-}
-
-export interface EvaluationDetail extends EvaluationSummary {
-    total_test_cases?: number;
-    passed_test_cases?: number;
-    failed_test_cases?: number;
-    metrics?: {
-        accuracy: number;
-        time: number;
-        cost: number;
-    };
-    efficiency?: {
-        accuracy: number;
-        cost: number;
-        time: number;
-    };
-    score?: number;
-}
-
-export interface EvaluationResultItem {
-    id: string;
-    test_id: string;
-    evaluation_id: string;
-    status: "PASSED" | "FAILED" | "SKIPPED";
-    metrics: {
-        accuracy: number | null;
-        time: number | null;
-        cost: number | null;
-    };
-    token_usage?: {
-        input_tokens: number;
-        cached_input_tokens?: number;
-        output_tokens: number;
-        reasoning_tokens: number;
-        total_tokens: number;
-        cost?: number;
-        model?: string;
-    };
-    evaluation_cost?: number;
-    executed_at: string;
-    actual_output?: Record<string, unknown> | null;
-    expected_output?: Record<string, unknown> | null;
-    comparison_details?: Record<string, unknown> | null;
-}
+import { EvaluationRead, EvaluationListItem } from "@/lib/types/evaluation";
 
 class EvaluationsApiService {
-    private baseEndpoint = "/evaluations";
+    private baseEndpoint = "/v1/evaluations";
 
-    async createEvaluation(
-        data: CreateEvaluationRequest,
-    ): Promise<ApiResponse<EvaluationSummary>> {
-        return apiClient.post<EvaluationSummary>(this.baseEndpoint, data);
+    async listEvaluations(params?: {
+        implementation_id?: number;
+        task_id?: number;
+    }): Promise<ApiResponse<EvaluationListItem[]>> {
+        const query = new URLSearchParams();
+        if (params?.implementation_id)
+            query.set("implementation_id", String(params.implementation_id));
+        if (params?.task_id) query.set("task_id", String(params.task_id));
+        const qs = query.toString();
+        const url = qs ? `${this.baseEndpoint}?${qs}` : this.baseEndpoint;
+        return apiClient.get<EvaluationListItem[]>(url);
     }
 
     async getEvaluation(
-        evaluationId: string,
-    ): Promise<ApiResponse<EvaluationDetail>> {
-        return apiClient.get<EvaluationDetail>(
+        evaluationId: number,
+    ): Promise<ApiResponse<EvaluationRead>> {
+        return apiClient.get<EvaluationRead>(
             `${this.baseEndpoint}/${evaluationId}`,
         );
     }
 
-    async listEvaluations(params?: {
-        status?: EvaluationStatus;
-        task_id?: string;
-        limit?: number;
-        offset?: number;
-    }): Promise<ApiResponse<EvaluationSummary[]>> {
-        const query = new URLSearchParams();
-        if (params?.status) query.set("status", params.status);
-        if (params?.task_id) query.set("task_id", params.task_id);
-        if (typeof params?.limit === "number")
-            query.set("limit", String(params.limit));
-        if (typeof params?.offset === "number")
-            query.set("offset", String(params.offset));
-        const qs = query.toString();
-        const url = qs ? `${this.baseEndpoint}?${qs}` : this.baseEndpoint;
-        return apiClient.get<EvaluationSummary[]>(url);
-    }
-
-    async listEvaluationResults(
-        evaluationId: string,
-    ): Promise<ApiResponse<EvaluationResultItem[]>> {
-        return apiClient.get<EvaluationResultItem[]>(
-            `${this.baseEndpoint}/${evaluationId}/results`,
-        );
+    async runEvaluation(
+        implementationId: number,
+    ): Promise<ApiResponse<EvaluationRead>> {
+        return apiClient.post<EvaluationRead>(this.baseEndpoint, {
+            implementation_id: implementationId,
+        });
     }
 
     async deleteEvaluation(
-        evaluationId: string,
+        evaluationId: number,
     ): Promise<ApiResponse<void | null>> {
         return apiClient.delete<void | null>(
             `${this.baseEndpoint}/${evaluationId}`,
         );
     }
 
-    async getTaskEvaluationMetrics(taskId: string): Promise<
+    async getEvaluationConfig(taskId: number): Promise<
         ApiResponse<{
-            average_accuracy: number;
-            average_cost: number;
-            average_time: number;
-            total_evaluations: number;
+            id: number;
+            task_id: number;
+            quality_weight: number;
+            cost_weight: number;
+            time_weight: number;
+            grader_ids: number[];
+            created_at: string;
+            updated_at: string;
+        } | null>
+    > {
+        return apiClient.get(
+            `${this.baseEndpoint}/tasks/${taskId}/config`,
+        );
+    }
+
+    async createOrUpdateEvaluationConfig(
+        taskId: number,
+        config: {
+            quality_weight?: number;
+            cost_weight?: number;
+            time_weight?: number;
+            grader_ids?: number[];
+        },
+    ): Promise<
+        ApiResponse<{
+            id: number;
+            task_id: number;
+            quality_weight: number;
+            cost_weight: number;
+            time_weight: number;
+            grader_ids: number[];
+            created_at: string;
+            updated_at: string;
         }>
     > {
-        const query = new URLSearchParams({ task_id: taskId });
-        return apiClient.get(
-            `${this.baseEndpoint}/metrics?${query.toString()}`,
+        // backend exposes POST /v1/evaluations/tasks/{task_id}/config for create/update
+        // and PATCH for partial update; here we use POST to create or replace
+        return apiClient.post(
+            `${this.baseEndpoint}/tasks/${taskId}/config`,
+            config,
+        );
+    }
+
+    async recalculateTargetMetrics(taskId: number): Promise<
+        ApiResponse<{ message: string }>
+    > {
+        return apiClient.post(
+            `${this.baseEndpoint}/tasks/${taskId}/recalculate-target-metrics`,
         );
     }
 }
