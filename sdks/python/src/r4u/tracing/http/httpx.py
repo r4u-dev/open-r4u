@@ -188,7 +188,7 @@ def _build_trace_context(request: httpx.Request) -> dict:
     headers_dict = dict(request.headers)
 
     # Extract call path
-    call_path, _ = extract_call_path()
+    call_path_with_no = extract_call_path()
 
     return {
         "method": request.method.upper(),
@@ -196,7 +196,7 @@ def _build_trace_context(request: httpx.Request) -> dict:
         "started_at": started_at,
         "request_bytes": request.content or b"",
         "request_headers": headers_dict,
-        "path": call_path,
+        "path": call_path_with_no[0] if call_path_with_no else None,
     }
 
 

@@ -73,9 +73,4 @@ def extract_call_path(max_depth: int = 100) -> tuple[str, int] | None:
 
         return (call_path, line_number)
 
-    # Fallback if no non-library file found
-    if len(stack) > 1:
-        frame_info = stack[1]
-        return (f"{frame_info.filename}::{frame_info.function}", frame_info.lineno)
-
     return None

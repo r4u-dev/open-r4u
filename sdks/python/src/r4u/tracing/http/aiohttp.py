@@ -186,8 +186,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
         elif not isinstance(request_payload, bytes):
             request_payload = b""
 
-        # Extract call path
-        call_path, _ = extract_call_path()
+        call_path_and_no = extract_call_path()
 
         trace_ctx = {
             "method": str(method).upper(),
@@ -195,7 +194,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
             "started_at": started_at,
             "request_bytes": request_payload,
             "request_headers": dict(kwargs.get("headers", {})),
-            "path": call_path,
+            "path": call_path_and_no[0] if call_path_and_no else None,
         }
 
         response = None
@@ -234,7 +233,8 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
 
 
 def trace_async_client(
-    session: aiohttp.ClientSession, tracer: AbstractTracer | None = None,
+    session: aiohttp.ClientSession,
+    tracer: AbstractTracer | None = None,
 ) -> None:
     """Trace an aiohttp ClientSession.
 
@@ -250,7 +250,9 @@ def trace_async_client(
 
 
 def _create_aiohttp_constructor_wrapper(
-    original_init: Callable, session_class: type, tracer: AbstractTracer | None,
+    original_init: Callable,
+    session_class: type,
+    tracer: AbstractTracer | None,
 ):
     """Create a wrapper for aiohttp session constructors."""
 
@@ -263,7 +265,8 @@ def _create_aiohttp_constructor_wrapper(
         try:
             if isinstance(self, session_class):
                 if hasattr(self, "_request") and not hasattr(
-                    self._request, "_r4u_patched",
+                    self._request,
+                    "_r4u_patched",
                 ):
                     trace_async_client(self, tracer)
         except Exception as e:
@@ -303,7 +306,9 @@ def trace_all(tracer: AbstractTracer) -> None:
 
     # Create constructor wrapper
     aiohttp.ClientSession.__init__ = _create_aiohttp_constructor_wrapper(
-        aiohttp.ClientSession.__init__, aiohttp.ClientSession, tracer,
+        aiohttp.ClientSession.__init__,
+        aiohttp.ClientSession,
+        tracer,
     )
 
     # Mark as patched

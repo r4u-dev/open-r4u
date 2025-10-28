@@ -50,7 +50,6 @@ async def create_http_trace(
         if isinstance(payload.response, bytes)
         else payload.response
     )
-    logger.debug(payload.model_dump_json())
 
     # Create and persist HTTPTrace first
     http_trace = HTTPTrace(

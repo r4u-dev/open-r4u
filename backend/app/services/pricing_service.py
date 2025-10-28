@@ -100,7 +100,7 @@ class PricingService:
         providers = self._pricing_data["providers"]
         if provider not in providers:
             return None
-        
+
         provider_data = providers[provider]
         if "models" not in provider_data:
             return None
@@ -218,9 +218,6 @@ class PricingService:
             output_cost = (completion_tokens * output_rate) / 1_000_000
 
             total_cost = input_cost + cached_cost + output_cost
-            logger.debug(
-                f"Cost calculation for {model}: input={input_cost:.6f}, cached={cached_cost:.6f}, output={output_cost:.6f}, total={total_cost:.6f}",
-            )
 
             return total_cost
 

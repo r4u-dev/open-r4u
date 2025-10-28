@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "r4u"
-version = "0.1.2"
+version = "0.1.5"
 description = "Observability SDK for LLM applications"
 readme = "README.md"
 authors = [{name = "R4U Team"}]
