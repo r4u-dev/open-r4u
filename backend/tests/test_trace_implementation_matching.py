@@ -67,7 +67,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -115,7 +115,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -171,7 +171,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -213,7 +213,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -265,7 +265,7 @@ class TestTraceImplementationMatching:
             "implementation_id": impl2.id,  # Explicitly set
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -316,7 +316,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -353,7 +353,7 @@ class TestTraceImplementationMatching:
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -403,7 +403,7 @@ Please assist with their requests.""",
             "project": "Test Project",
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()
@@ -449,7 +449,7 @@ Please assist with their requests.""",
             "project": "Different Project",  # Different project
         }
 
-        response = await client.post("/traces", json=payload)
+        response = await client.post("/v1/traces", json=payload)
         assert response.status_code == 201
 
         data = response.json()

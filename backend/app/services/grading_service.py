@@ -94,27 +94,16 @@ class GradingService:
 
     async def list_graders(
         self, session: AsyncSession, project_id: int
-    ) -> list[tuple[Grader, int]]:
-        """List all graders for a project with grade counts.
-        
-        Returns:
-            List of tuples (grader, grade_count)
-        """
+    ) -> list[Grader]:
+        """List all graders for a project."""
         query = (
-            select(
-                Grader,
-                func.count(Grade.id).label("grade_count")
-            )
-            .outerjoin(Grade, Grade.grader_id == Grader.id)
+            select(Grader)
             .where(Grader.project_id == project_id)
-            .group_by(Grader.id)
             .order_by(Grader.created_at.desc())
         )
         
         result = await session.execute(query)
-        rows = result.all()
-        
-        return [(row[0], row[1]) for row in rows]
+        return list(result.scalars().all())
 
     async def update_grader(
         self,
@@ -139,76 +128,6 @@ class GradingService:
         grader = await self.get_grader(session, grader_id)
         await session.delete(grader)
         await session.commit()
-
-    async def _prepare_target_context(
-        self,
-        session: AsyncSession,
-        trace: Trace | None = None,
-        execution_result: ExecutionResult | None = None,
-    ) -> str:
-        """Prepare context string from trace or execution result for grading."""
-        if trace:
-            context_parts = [
-                f"Model: {trace.model}",
-                f"Path: {trace.path or 'N/A'}",
-                f"Result: {trace.result or 'N/A'}",
-            ]
-            
-            if trace.error:
-                context_parts.append(f"Error: {trace.error}")
-            
-            if trace.prompt:
-                context_parts.append(f"Prompt: {trace.prompt}")
-            
-            # Add input items if available
-            # Load the input_items relationship
-            await session.refresh(trace, ["input_items"])
-            if trace.input_items:
-                context_parts.append("\nInput History:")
-                for item in trace.input_items:
-                    item_data = item.data
-                    if item.type.value == "message":
-                        role = item_data.get("role", "unknown")
-                        content = item_data.get("content", "")
-                        context_parts.append(f"  [{role}]: {content}")
-            
-            return "\n".join(context_parts)
-        
-        elif execution_result:
-            context_parts = [
-                f"Task ID: {execution_result.task_id}",
-                f"Implementation ID: {execution_result.implementation_id}",
-                f"Rendered Prompt: {execution_result.prompt_rendered}",
-            ]
-            
-            if execution_result.result_text:
-                context_parts.append(f"Result: {execution_result.result_text}")
-            
-            if execution_result.result_json:
-                context_parts.append(f"Result JSON: {json.dumps(execution_result.result_json)}")
-            
-            if execution_result.error:
-                context_parts.append(f"Error: {execution_result.error}")
-            
-            if execution_result.arguments:
-                context_parts.append(f"Arguments: {json.dumps(execution_result.arguments)}")
-            
-            return "\n".join(context_parts)
-        
-        return ""
-
-    def _render_grading_prompt(self, grader: Grader, context: str) -> str:
-        """Render grading prompt with target context.
-        
-        The prompt can use {{context}} placeholder for the target data.
-        """
-        try:
-            formatted_prompt = grader.prompt.replace("{{", "{").replace("}}", "}")
-            return formatted_prompt.format(context=context)
-        except KeyError as e:
-            raise ValueError(f"Missing variable in grading prompt template: {e}")
-        except Exception as e:
-            raise ValueError(f"Error rendering grading prompt: {e}")
 
     def _parse_grading_response(
         self,
@@ -268,6 +187,7 @@ class GradingService:
         grader_id: int,
         trace_id: int | None = None,
         execution_result_id: int | None = None,
+        test_case_id: int | None = None,
     ) -> Grade:
         """Execute grading for a trace or execution result.
         
@@ -276,6 +196,7 @@ class GradingService:
             grader_id: ID of the grader to use
             trace_id: ID of trace to grade (mutually exclusive with execution_result_id)
             execution_result_id: ID of execution result to grade (mutually exclusive with trace_id)
+            test_case_id: Optional ID of test case to get expected output from
         
         Returns:
             Grade object with results
@@ -290,52 +211,85 @@ class GradingService:
         if not grader.is_active:
             raise BadRequestError(f"Grader {grader_id} is not active")
         
-        # Load target
+        # Load target with relationships
         trace = None
         execution_result = None
         
         if trace_id:
-            query = select(Trace).where(Trace.id == trace_id)
+            from sqlalchemy.orm import selectinload
+            from app.models.tasks import Implementation as ImpModel
+            query = (
+                select(Trace)
+                .options(
+                    selectinload(Trace.implementation).selectinload(ImpModel.task)
+                )
+                .where(Trace.id == trace_id)
+            )
             result = await session.execute(query)
             trace = result.scalar_one_or_none()
             if not trace:
                 raise NotFoundError(f"Trace with id {trace_id} not found")
         else:
-            query = select(ExecutionResult).where(ExecutionResult.id == execution_result_id)
+            from sqlalchemy.orm import selectinload
+            from app.models.tasks import Implementation as ImpModel, Task as TaskModel
+            query = (
+                select(ExecutionResult)
+                .options(
+                    selectinload(ExecutionResult.implementation).selectinload(ImpModel.task),
+                    selectinload(ExecutionResult.task)
+                )
+                .where(ExecutionResult.id == execution_result_id)
+            )
             result = await session.execute(query)
             execution_result = result.scalar_one_or_none()
             if not execution_result:
                 raise NotFoundError(f"ExecutionResult with id {execution_result_id} not found")
         
-        # Prepare context and render prompt
-        context = await self._prepare_target_context(session, trace, execution_result)
+        # Extract grading data from trace or execution result
+        grading_variables = {}
         
-        started_at = datetime.now(timezone.utc)
+        if trace:
+            # Get task_prompt from implementation
+            if trace.implementation:
+                grading_variables["task_prompt"] = trace.implementation.prompt
+            else:
+                grading_variables["task_prompt"] = trace.prompt or ""
+            
+            # Get task_arguments from trace
+            grading_variables["task_arguments"] = json.dumps(trace.prompt_variables) if trace.prompt_variables else "{}"
+            
+            # Get actual_output from trace
+            grading_variables["actual_output"] = trace.result or trace.error or ""
+        else:
+            # Use rendered prompt from execution result (already rendered with variables)
+            grading_variables["task_prompt"] = execution_result.prompt_rendered or ""
+            
+            # Get task_arguments from execution result
+            grading_variables["task_arguments"] = json.dumps(execution_result.arguments) if execution_result.arguments else "{}"
+            
+            # Get actual_output from execution result
+            if execution_result.result_json:
+                grading_variables["actual_output"] = json.dumps(execution_result.result_json)
+            else:
+                grading_variables["actual_output"] = execution_result.result_text or execution_result.error or ""
         
-        try:
-            rendered_prompt = self._render_grading_prompt(grader, context)
-        except ValueError as e:
-            # Create grade with error
-            grade = Grade(
-                grader_id=grader_id,
-                trace_id=trace_id,
-                execution_result_id=execution_result_id,
-                grading_started_at=started_at,
-                grading_completed_at=datetime.now(timezone.utc),
-                error=str(e),
-            )
-            session.add(grade)
-            await session.commit()
-            await session.refresh(grade)
-            return grade
-        
+        # Get expected_output from test case if provided
+        grading_variables["expected_output"] = ""
+        if test_case_id:
+            from app.models.evaluation import TestCase
+            query = select(TestCase).where(TestCase.id == test_case_id)
+            result = await session.execute(query)
+            test_case = result.scalar_one_or_none()
+            if test_case:
+                grading_variables["expected_output"] = test_case.expected_output or ""
+
         # Create a temporary implementation-like object for executor
         from app.models.tasks import Implementation, Task
         
         temp_impl = Implementation(
             task_id=0,  # Dummy value, won't be persisted
             version="grader",
-            prompt=rendered_prompt,
+            prompt=grader.prompt,
             model=grader.model,
             temperature=grader.temperature,
             reasoning=grader.reasoning,
@@ -350,10 +304,12 @@ class GradingService:
             response_schema=grader.response_schema,
         )
         temp_impl.task = temp_task
+
+        started_at = datetime.now(timezone.utc)
         
-        # Execute grading using LLM executor
+        # Execute grading using LLM executor with extracted variables
         executor = LLMExecutor(self.settings)
-        execution_result_base = await executor.execute(temp_impl, variables=None, input=None)
+        execution_result_base = await executor.execute(temp_impl, variables=grading_variables, input=None)
         
         completed_at = datetime.now(timezone.utc)
         
@@ -408,41 +364,35 @@ class GradingService:
         
         return grade
 
-    async def list_grades_for_trace(
-        self, session: AsyncSession, trace_id: int
+    async def list_grades(
+        self,
+        session: AsyncSession,
+        trace_id: int | None = None,
+        execution_result_id: int | None = None,
+        grader_id: int | None = None,
     ) -> list[Grade]:
-        """List all grades for a trace."""
-        query = (
-            select(Grade)
-            .where(Grade.trace_id == trace_id)
-            .order_by(Grade.created_at.desc())
-        )
-        result = await session.execute(query)
-        grades: Sequence[Grade] = result.scalars().all()
-        return list(grades)
-
-    async def list_grades_for_execution(
-        self, session: AsyncSession, execution_result_id: int
-    ) -> list[Grade]:
-        """List all grades for an execution result."""
-        query = (
-            select(Grade)
-            .where(Grade.execution_result_id == execution_result_id)
-            .order_by(Grade.created_at.desc())
-        )
-        result = await session.execute(query)
-        grades: Sequence[Grade] = result.scalars().all()
-        return list(grades)
-
-    async def list_grades_for_grader(
-        self, session: AsyncSession, grader_id: int
-    ) -> list[Grade]:
-        """List all grades produced by a grader."""
-        query = (
-            select(Grade)
-            .where(Grade.grader_id == grader_id)
-            .order_by(Grade.created_at.desc())
-        )
+        """List grades with optional filters.
+        
+        Args:
+            session: Database session
+            trace_id: Optional filter by trace ID
+            execution_result_id: Optional filter by execution result ID
+            grader_id: Optional filter by grader ID
+            
+        Returns:
+            List of grades matching the filters
+        """
+        query = select(Grade)
+        
+        if trace_id is not None:
+            query = query.where(Grade.trace_id == trace_id)
+        if execution_result_id is not None:
+            query = query.where(Grade.execution_result_id == execution_result_id)
+        if grader_id is not None:
+            query = query.where(Grade.grader_id == grader_id)
+        
+        query = query.order_by(Grade.created_at.desc())
+        
         result = await session.execute(query)
         grades: Sequence[Grade] = result.scalars().all()
         return list(grades)
@@ -475,25 +425,24 @@ class GradingService:
             project_id=project_id,
             name="Accuracy",
             description="Default accuracy grader that compares actual output with expected output",
-            prompt="""Compare the actual output with the expected output. 
+            prompt="""Compare the actual output with the expected output.
+Task Prompt: {{task_prompt}}
+Task Arguments: {{task_arguments}}
+Actual Output: {{actual_output}}
+Expected Output: {{expected_output}}
+""",
 
-Actual Output: {actual_output}
-Expected Output: {expected_output}
-
-Respond with JSON: {{"score": true/false, "reasoning": "explanation"}}
-
-Return true if the outputs match or are equivalent, false otherwise.""",
-            score_type=ScoreType.BOOLEAN,
+            score_type=ScoreType.FLOAT,
             model="gpt-4o-mini",
             temperature=0.0,
             max_output_tokens=500,
             response_schema={
                 "type": "object",
                 "properties": {
-                    "score": {"type": "boolean"},
+                    "score": {"type": "number", "description": "Score from 0.0 to 1.0"},
                     "reasoning": {"type": "string"}
                 },
+                "additionalProperties": False,
                 "required": ["score", "reasoning"]
             },
         )
-

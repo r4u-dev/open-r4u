@@ -62,7 +62,7 @@ async def test_create_grade_for_trace(client: AsyncClient, test_session):
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
         assert response.status_code == 201
 
     data = response.json()
@@ -144,7 +144,7 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
         mock_executor_class.return_value = mock_executor
 
         payload = {"execution_result_id": execution_result.id}
-        response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
         assert response.status_code == 201
 
     data = response.json()
@@ -177,7 +177,7 @@ async def test_create_grade_no_target(client: AsyncClient, test_session):
 
     payload = {}  # No trace_id or execution_result_id
 
-    response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+    response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 400
 
     data = response.json()
@@ -207,7 +207,7 @@ async def test_create_grade_both_targets(client: AsyncClient, test_session):
         "execution_result_id": 1,
     }
 
-    response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+    response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 422
 
     data = response.json()
@@ -217,9 +217,9 @@ async def test_create_grade_both_targets(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_create_grade_grader_not_found(client: AsyncClient):
     """Test creating a grade with non-existent grader."""
-    payload = {"trace_id": 1}
+    payload = {"grader_id": 999, "trace_id": 1}
 
-    response = await client.post("/grades/graders/999/grade", json=payload)
+    response = await client.post("/v1/grades", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -246,7 +246,7 @@ async def test_create_grade_trace_not_found(client: AsyncClient, test_session):
 
     payload = {"trace_id": 999}
 
-    response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+    response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 404
     
     data = response.json()
@@ -273,7 +273,7 @@ async def test_create_grade_execution_result_not_found(client: AsyncClient, test
 
     payload = {"execution_result_id": 999}
 
-    response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+    response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 404
     
     data = response.json()
@@ -311,7 +311,7 @@ async def test_create_grade_inactive_grader(client: AsyncClient, test_session):
 
     payload = {"trace_id": trace.id}
 
-    response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+    response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 400
 
     data = response.json()
@@ -360,7 +360,7 @@ async def test_create_grade_executor_error(client: AsyncClient, test_session):
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
         assert response.status_code == 201  # Grade is still created with error
 
     data = response.json()
@@ -413,7 +413,7 @@ async def test_get_grade(client: AsyncClient, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    response = await client.get(f"/grades/{grade.id}")
+    response = await client.get(f"/v1/grades/{grade.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -433,7 +433,7 @@ async def test_get_grade(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_get_grade_not_found(client: AsyncClient):
     """Test getting a non-existent grade."""
-    response = await client.get("/grades/999")
+    response = await client.get("/v1/grades/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -488,7 +488,7 @@ async def test_list_grades_for_trace(client: AsyncClient, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    response = await client.get(f"/grades/traces/{trace.id}/grades")
+    response = await client.get(f"/v1/grades?trace_id={trace.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -553,7 +553,7 @@ async def test_list_grades_for_execution_result(client: AsyncClient, test_sessio
     test_session.add(grade)
     await test_session.commit()
 
-    response = await client.get(f"/grades/executions/{execution_result.id}/grades")
+    response = await client.get(f"/v1/grades?execution_result_id={execution_result.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -600,7 +600,7 @@ async def test_list_grades_for_grader(client: AsyncClient, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    response = await client.get(f"/grades/graders/{grader.id}/grades")
+    response = await client.get(f"/v1/grades?grader_id={grader.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -612,7 +612,7 @@ async def test_list_grades_for_grader(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_list_grades_empty(client: AsyncClient, test_session):
     """Test listing grades when none exist."""
-    response = await client.get("/grades/traces/999/grades")
+    response = await client.get("/v1/grades?trace_id=999")
     assert response.status_code == 200
     
     data = response.json()
@@ -657,7 +657,7 @@ async def test_delete_grade(client: AsyncClient, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    response = await client.delete(f"/grades/{grade.id}")
+    response = await client.delete(f"/v1/grades/{grade.id}")
     assert response.status_code == 204
 
     # Verify grade is deleted
@@ -670,7 +670,7 @@ async def test_delete_grade(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_delete_grade_not_found(client: AsyncClient):
     """Test deleting a non-existent grade."""
-    response = await client.delete("/grades/999")
+    response = await client.delete("/v1/grades/999")
     assert response.status_code == 404
     
     data = response.json()
@@ -733,7 +733,7 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post(f"/grades/graders/{grader.id}/grade", json=payload)
+        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
         assert response.status_code == 201
 
     data = response.json()

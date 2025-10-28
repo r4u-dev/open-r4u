@@ -120,16 +120,12 @@ async def test_list_graders(grading_service, test_session):
         max_output_tokens=300,
     )
 
-    graders_with_counts = await grading_service.list_graders(test_session, project.id)
-    assert len(graders_with_counts) == 2
+    graders = await grading_service.list_graders(test_session, project.id)
+    assert len(graders) == 2
     
-    grader_names = [grader.name for grader, _ in graders_with_counts]
+    grader_names = [grader.name for grader in graders]
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
-    
-    # Check grade counts (should be 0 for new graders)
-    for grader, count in graders_with_counts:
-        assert count == 0
 
 
 @pytest.mark.asyncio
@@ -185,98 +181,6 @@ async def test_delete_grader(grading_service, test_session):
     # Verify grader is deleted
     with pytest.raises(NotFoundError):
         await grading_service.get_grader(test_session, grader.id)
-
-
-@pytest.mark.asyncio
-async def test_prepare_target_context_trace(grading_service, test_session):
-    """Test preparing context from a trace."""
-    # Create a project first
-    project = Project(name="Test Project")
-    test_session.add(project)
-    await test_session.flush()
-    
-    trace = Trace(
-        project_id=project.id,
-        model="gpt-4",
-        path="/api/chat",
-        result="Hello, how can I help you?",
-        error=None,
-        prompt="You are a helpful assistant",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
-    )
-    test_session.add(trace)
-    await test_session.flush()
-
-    context = await grading_service._prepare_target_context(test_session, trace=trace)
-    
-    assert "Model: gpt-4" in context
-    assert "Path: /api/chat" in context
-    assert "Result: Hello, how can I help you?" in context
-    assert "Prompt: You are a helpful assistant" in context
-
-
-@pytest.mark.asyncio
-async def test_prepare_target_context_execution_result(grading_service, test_session):
-    """Test preparing context from an execution result."""
-    execution_result = ExecutionResult(
-        id=1,
-        task_id=1,
-        implementation_id=1,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
-        prompt_rendered="You are a helpful assistant. User: Hello",
-        result_text="Hello! How can I assist you today?",
-        result_json={"response": "Hello! How can I assist you today?"},
-        error=None,
-        arguments={"user_input": "Hello"},
-    )
-
-    context = await grading_service._prepare_target_context(test_session, execution_result=execution_result)
-    
-    assert "Task ID: 1" in context
-    assert "Implementation ID: 1" in context
-    assert "Rendered Prompt: You are a helpful assistant. User: Hello" in context
-    assert "Result: Hello! How can I assist you today?" in context
-    assert "Result JSON:" in context
-    assert "Arguments:" in context
-
-
-@pytest.mark.asyncio
-async def test_render_grading_prompt(grading_service):
-    """Test rendering grading prompt with context."""
-    grader = Grader(
-        id=1,
-        project_id=1,
-        name="accuracy",
-        prompt="Evaluate the accuracy of this response:\n\n{{context}}\n\nProvide a score from 0.0 to 1.0.",
-        score_type=ScoreType.FLOAT,
-        model="gpt-4",
-        max_output_tokens=500,
-    )
-
-    context = "User: What is 2+2?\nAssistant: 2+2 equals 4."
-    rendered = grading_service._render_grading_prompt(grader, context)
-    
-    expected = "Evaluate the accuracy of this response:\n\nUser: What is 2+2?\nAssistant: 2+2 equals 4.\n\nProvide a score from 0.0 to 1.0."
-    assert rendered == expected
-
-
-@pytest.mark.asyncio
-async def test_render_grading_prompt_missing_context(grading_service):
-    """Test rendering grading prompt with missing context placeholder."""
-    grader = Grader(
-        id=1,
-        project_id=1,
-        name="accuracy",
-        prompt="Evaluate this response: {{missing_context}}",
-        score_type=ScoreType.FLOAT,
-        model="gpt-4",
-        max_output_tokens=500,
-    )
-
-    with pytest.raises(ValueError, match="Missing variable in grading prompt template"):
-        grading_service._render_grading_prompt(grader, "test context")
 
 
 @pytest.mark.asyncio
@@ -747,7 +651,7 @@ async def test_list_grades_for_trace(grading_service, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_trace(test_session, trace.id)
+    grades = await grading_service.list_grades(test_session, trace_id=trace.id)
     assert len(grades) == 2
     
     # Check that both grades are present (order may vary due to timing)
@@ -808,7 +712,7 @@ async def test_list_grades_for_execution(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_execution(test_session, execution_result.id)
+    grades = await grading_service.list_grades(test_session, execution_result_id=execution_result.id)
     assert len(grades) == 1
     assert grades[0].score_boolean is False
 
@@ -850,7 +754,7 @@ async def test_list_grades_for_grader(grading_service, test_session):
     test_session.add(grade)
     await test_session.commit()
 
-    grades = await grading_service.list_grades_for_grader(test_session, grader.id)
+    grades = await grading_service.list_grades(test_session, grader_id=grader.id)
     assert len(grades) == 1
     assert grades[0].score_float == 0.85
 

@@ -23,7 +23,7 @@ async def test_create_task(client: AsyncClient, test_session):
         },
     }
 
-    response = await client.post("/tasks", json=payload)
+    response = await client.post("/v1/tasks", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -71,7 +71,7 @@ async def test_create_task_with_tools(client: AsyncClient, test_session):
         },
     }
 
-    response = await client.post("/tasks", json=payload)
+    response = await client.post("/v1/tasks", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -127,7 +127,7 @@ async def test_list_tasks(client: AsyncClient, test_session):
 
     await test_session.commit()
 
-    response = await client.get("/tasks")
+    response = await client.get("/v1/tasks")
     assert response.status_code == 200
     data = response.json()
 
@@ -165,7 +165,7 @@ async def test_list_tasks_by_project(client: AsyncClient, test_session):
     task2.production_version_id = impl2.id
     await test_session.commit()
 
-    response = await client.get(f"/tasks?project_id={project1.id}")
+    response = await client.get(f"/v1/tasks?project_id={project1.id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -202,7 +202,7 @@ async def test_get_task(client: AsyncClient, test_session):
     task.production_version_id = implementation.id
     await test_session.commit()
 
-    response = await client.get(f"/tasks/{task.id}")
+    response = await client.get(f"/v1/tasks/{task.id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -214,7 +214,7 @@ async def test_get_task(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_get_task_not_found(client: AsyncClient):
     """Test getting a non-existent task."""
-    response = await client.get("/tasks/99999")
+    response = await client.get("/v1/tasks/99999")
     assert response.status_code == 404
 
 
@@ -246,7 +246,7 @@ async def test_delete_task(client: AsyncClient, test_session):
     impl_id = implementation.id
 
     # Delete the task
-    response = await client.delete(f"/tasks/{task_id}")
+    response = await client.delete(f"/v1/tasks/{task_id}")
     assert response.status_code == 204
 
     # Verify task is deleted
@@ -265,7 +265,7 @@ async def test_delete_task(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_delete_task_not_found(client: AsyncClient):
     """Test deleting a non-existent task."""
-    response = await client.delete("/tasks/99999")
+    response = await client.delete("/v1/tasks/99999")
     assert response.status_code == 404
 
 
@@ -284,7 +284,7 @@ async def test_create_task_with_reasoning(client: AsyncClient):
         },
     }
 
-    response = await client.post("/tasks", json=payload)
+    response = await client.post("/v1/tasks", json=payload)
     assert response.status_code == 201
     data = response.json()
 
@@ -313,7 +313,7 @@ async def test_create_task_with_response_schema(client: AsyncClient, test_sessio
         },
     }
 
-    response = await client.post("/tasks", json=payload)
+    response = await client.post("/v1/tasks", json=payload)
     assert response.status_code == 201
     data = response.json()
 
