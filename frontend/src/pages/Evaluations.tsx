@@ -330,27 +330,35 @@ const Evaluations = () => {
 
     if (!activeProject) {
         return (
-            <div className="flex h-screen flex-col bg-background font-sans">
-                <div className="p-4">
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                            No project selected. Please select a project from
-                            the dropdown above.
-                        </AlertDescription>
-                    </Alert>
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Evaluations</h1>
+                    <p className="text-muted-foreground">Monitor and analyze your AI evaluation results</p>
                 </div>
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                        Please select a project to view evaluations.
+                    </AlertDescription>
+                </Alert>
             </div>
         );
     }
 
     return (
-        <div className="flex h-screen flex-col bg-background font-sans">
+        <div className="flex flex-col -m-6 h-[calc(100vh-6rem)]">
+            <div className="px-6 pt-6 pb-6">
+                {/* Page Header */}
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Evaluations</h1>
+                    <p className="text-muted-foreground">Monitor and analyze your AI evaluation results</p>
+                </div>
+            </div>
             <EvaluationHeader onRefresh={handleRefresh} isRefreshing={isLoading} />
             <div ref={containerRef} className="flex flex-1 overflow-hidden">
                 {/* Main Table */}
                 <div
-                    className="flex flex-col border-r border-border"
+                    className="flex flex-col border-r border-border pl-6"
                     style={{ width: `${splitterPosition}%` }}
                 >
                     <div className="flex-1 overflow-auto">
@@ -402,7 +410,7 @@ const Evaluations = () => {
                 {/* Detail Panel */}
                 {selectedEvaluationData && (
                     <div
-                        className="overflow-auto border-l border-border"
+                        className="overflow-auto border-l border-border pr-6"
                         style={{ width: `${100 - splitterPosition}%` }}
                     >
                         <EvaluationDetailPanel
