@@ -299,7 +299,14 @@ const Traces = () => {
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
     return (
-        <div className="flex h-screen flex-col bg-background font-sans">
+        <div className="flex flex-col -m-6 h-[calc(100vh-6rem)]">
+            <div className="px-6 pt-6 pb-6">
+                {/* Page Header */}
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Traces</h1>
+                    <p className="text-muted-foreground">Monitor and debug your AI system traces</p>
+                </div>
+            </div>
             <TraceHeader
                 timePeriod={timePeriod}
                 onTimePeriodChange={handleTimePeriodChange}
@@ -307,7 +314,7 @@ const Traces = () => {
             <div ref={containerRef} className="flex flex-1 overflow-hidden">
                 {/* Main Table */}
                 <div
-                    className="flex flex-col border-r border-border"
+                    className="flex flex-col border-r border-border pl-6"
                     style={{ width: `${splitterPosition}%` }}
                 >
                     <div className="flex-1 overflow-auto">
@@ -359,7 +366,7 @@ const Traces = () => {
                 {/* Detail Panel */}
                 {selectedTraceData && (
                     <div
-                        className="overflow-auto border-l border-border"
+                        className="overflow-auto border-l border-border pr-6"
                         style={{ width: `${100 - splitterPosition}%` }}
                     >
                         <TraceDetailPanel trace={selectedTraceData} />

@@ -16,7 +16,7 @@ export function TraceHeader({ timePeriod, onTimePeriodChange }: TraceHeaderProps
   ];
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-border bg-card px-4 gap-4">
+    <header className="flex h-12 items-center justify-between border-t border-border px-4 gap-4">
       {/* Left: Search */}
       <div className="flex items-center gap-2 flex-1 max-w-md">
         <div className="relative flex-1">
