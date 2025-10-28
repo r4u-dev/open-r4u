@@ -7,6 +7,7 @@ from various HTTP libraries without requiring manual patching of individual inst
 
 from contextlib import suppress
 from typing import List, Optional
+from async_trace import disable_tracing, enable_tracing
 
 from r4u.client import AbstractTracer, get_r4u_client
 from r4u.tracing.http.filters import URLFilter, get_global_filter, set_global_filter
@@ -49,6 +50,7 @@ def trace_all_http(
         >>> aiohttp_session = aiohttp.ClientSession()
     """
 
+    enable_tracing()
     tracer = tracer or get_r4u_client()
 
     # Configure URL filter if patterns are provided
@@ -79,6 +81,7 @@ def untrace_all_http() -> None:
     This function removes monkey patching from all supported HTTP libraries,
     restoring their original behavior.
     """
+    disable_tracing()
     with suppress(Exception):
         from .httpx import untrace_all as untrace_httpx_all
         untrace_httpx_all()

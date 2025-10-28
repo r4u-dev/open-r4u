@@ -178,6 +178,15 @@ wheels = [
 ]
 
 [[package]]
+name = "async-trace"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/e9/bbb16d5672b07b36fe207d97e1cca1b34152a5f901e0ef79b542a1a1a9b3/async_trace-0.1.0.tar.gz", hash = "sha256:7e3dcb6d8fdb158be5a7f7612c0ef8cfeab89d8d72cdc5218aabfbb654f4ae1b", size = 11247, upload-time = "2025-10-28T19:40:16.497Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/4e/28e385ec1b2566ebbb95180c5b7a4bdd2646b6de91b689689b754f95f765/async_trace-0.1.0-py3-none-any.whl", hash = "sha256:8f6f414b41f33db7678cd35e9ece3342901384419193f306ea21d0fe8122022a", size = 8090, upload-time = "2025-10-28T19:40:14.688Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1094,6 +1103,7 @@ name = "r4u"
 version = "0.1.5"
 source = { editable = "." }
 dependencies = [
+    { name = "async-trace" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
@@ -1121,6 +1131,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
+    { name = "async-trace", specifier = ">=0.1.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.12.2" },
     { name = "requests", marker = "extra == 'requests'", specifier = ">=2.25.0" },

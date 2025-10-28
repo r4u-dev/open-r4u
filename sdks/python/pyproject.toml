@@ -11,6 +11,7 @@ authors = [{name = "R4U Team"}]
 license = {text = "Apache 2.0"}
 requires-python = ">=3.10"
 dependencies = [
+    "async-trace>=0.1.0",
     "httpx>=0.28.1",
     "pydantic>=2.12.2",
 ]
