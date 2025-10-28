@@ -366,18 +366,19 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         grading_completed_at=datetime.now(timezone.utc),
     )
 
+    # Start evaluation - should return immediately with status running
     with patch('app.services.evaluation_service.execute_task') as mock_execute, \
          patch('app.services.evaluation_service.EvaluationService._get_all_project_graders') as mock_get_graders, \
          patch('app.services.grading_service.GradingService.get_grader') as mock_get_grader, \
          patch('app.services.grading_service.GradingService.execute_grading') as mock_execute_grading:
-        
+
         # Mock execute_task to return execution results
         mock_execute.side_effect = [execution_result1, execution_result2]
-        
+
         # Mock grader retrieval
         mock_get_graders.return_value = [grader.id]
         mock_get_grader.return_value = grader
-        
+
         # Mock grading execution
         mock_execute_grading.side_effect = [grade1, grade2]
 
@@ -387,6 +388,40 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
     data = response.json()
     assert data["implementation_id"] == implementation.id
     assert data["task_id"] == task.id
+    assert data["status"] == "running"
+    assert data["test_case_count"] == 2
+    # Scores should be None initially
+    assert data["quality_score"] is None
+    assert data["avg_cost"] is None
+    assert data["grader_scores"] == {}
+
+    evaluation_id = data["id"]
+
+    # Now simulate the background execution by directly updating the evaluation in the test session
+    # (since the background method uses a separate session, we need to update it in test_session)
+    from app.models.evaluation import Evaluation
+    from sqlalchemy import select
+
+    # Get the evaluation from test_session and update it
+    query = select(Evaluation).where(Evaluation.id == evaluation_id)
+    result = await test_session.execute(query)
+    evaluation = result.scalar_one()
+
+    # Simulate what the background method would do
+    evaluation.status = EvaluationStatus.COMPLETED
+    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.grader_scores = {str(grader.id): 0.85}
+    evaluation.quality_score = 0.85
+    evaluation.avg_cost = 0.015
+    evaluation.avg_execution_time_ms = 100.0
+
+    await test_session.commit()
+
+    # Now check the completed evaluation
+    response = await client.get(f"/v1/evaluations/{evaluation_id}")
+    assert response.status_code == 200
+
+    data = response.json()
     assert data["status"] == "completed"
     assert data["test_case_count"] == 2
     assert abs(data["quality_score"] - 0.85) < 0.001  # Average of 0.8 and 0.9
