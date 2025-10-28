@@ -180,7 +180,12 @@ const TaskDetail = () => {
   ];
 
   return (
-    <div className="flex flex-col bg-background font-sans">
+    <div className="flex flex-col -m-6 bg-background font-sans">
+      {/* Page Header */}
+      <div className="px-6 pt-6 pb-6">
+        <h1 className="text-2xl font-bold text-foreground">{task.name}</h1>
+        <p className="text-muted-foreground">{task.description}</p>
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-border bg-card px-4 flex gap-4 text-sm">
@@ -205,12 +210,6 @@ const TaskDetail = () => {
           {/* Overview Tab */}
           {activeTab === "overview" && (
             <div className="space-y-4 p-4">
-              {/* Task Description */}
-              <div className="border border-border rounded-lg p-4">
-                <h2 className="text-lg font-semibold mb-2">Description</h2>
-                <p className="text-muted-foreground">{task.description}</p>
-              </div>
-
               {/* Contracts */}
               <div className="border border-border rounded-lg p-4">
                 <button

@@ -50,7 +50,7 @@ const Tasks = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">AI Tasks</h1>
+          <h1 className="text-2xl font-bold text-foreground">AI Tasks</h1>
           <p className="text-muted-foreground">Manage and monitor your AI task workflows</p>
         </div>
         <Alert variant="destructive">
@@ -64,29 +64,33 @@ const Tasks = () => {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background font-sans">
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">AI Tasks</h1>
+        <p className="text-muted-foreground">Manage and monitor your AI task workflows</p>
+      </div>
+
       {/* Error State */}
       {error && (
-        <div className="p-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Loading State */}
       {isLoading && (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
 
       {/* Main Content */}
       {!isLoading && !error && (
-        <div className="flex-1 overflow-auto">
+        <div>
           {tasks.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-1">
                   No tasks yet
@@ -97,7 +101,7 @@ const Tasks = () => {
               </div>
             </div>
           ) : (
-                    <TasksTable tasks={tasks} />
+            <TasksTable tasks={tasks} />
           )}
         </div>
       )}

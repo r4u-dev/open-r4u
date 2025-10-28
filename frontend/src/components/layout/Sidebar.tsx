@@ -10,7 +10,8 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
-  Rocket
+  Rocket,
+  X
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 
@@ -90,22 +91,36 @@ const Sidebar = ({ isCollapsed, onToggle, className, isMobile = false, onMobileM
             </div>
             <span className="font-medium text-foreground whitespace-nowrap">R4U</span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggle}
-            className={cn(
-              "hidden lg:flex h-10 w-10 flex-shrink-0",
-              isCollapsed ? "-ml-1" : "",
-              isMobile ? "hidden" : ""
+          <div className="flex items-center gap-2">
+            {/* Mobile close button */}
+            {isMobile && onMobileMenuClose && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onMobileMenuClose}
+                className="lg:hidden h-10 w-10"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             )}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
+            {/* Desktop collapse/expand button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggle}
+              className={cn(
+                "hidden lg:flex h-10 w-10 flex-shrink-0",
+                isCollapsed ? "-ml-1" : "",
+                isMobile ? "hidden" : ""
+              )}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
