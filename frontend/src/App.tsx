@@ -10,6 +10,8 @@ import Tasks from "./pages/Tasks";
 import TaskDetail from "./pages/TaskDetail";
 import Evaluations from "./pages/Evaluations";
 import EvaluationDetail from "./pages/EvaluationDetail";
+import TestCaseDetail from "./pages/TestCaseDetail";
+import TestCaseCreate from "./pages/TestCaseCreate";
 import Optimizations from "./pages/Optimizations";
 import CreateTask from "./pages/CreateTask";
 import Traces from "./pages/Traces";
@@ -46,6 +48,14 @@ const App = () => (
                                     <Route
                                         path="tasks/:taskId"
                                         element={<TaskDetail />}
+                                    />
+                                    <Route
+                                        path="tasks/:taskId/test-cases/:testCaseId"
+                                        element={<TestCaseDetail />}
+                                    />
+                                    <Route
+                                        path="tasks/:taskId/test-cases/new"
+                                        element={<TestCaseCreate />}
                                     />
                                     <Route
                                         path="tasks/new"

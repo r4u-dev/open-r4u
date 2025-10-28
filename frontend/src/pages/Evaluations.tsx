@@ -262,6 +262,20 @@ const Evaluations = () => {
         }
     }, [activeProject?.id, generateMockEvaluations]);
 
+    // Background polling while there are active evaluations
+    const hasActive = useMemo(
+        () => evaluations.some((e) => e.status === "pending" || e.status === "running"),
+        [evaluations],
+    );
+
+    useEffect(() => {
+        if (!hasActive) return;
+        const id = setInterval(() => {
+            handleRefresh();
+        }, 4000);
+        return () => clearInterval(id);
+    }, [hasActive, handleRefresh]);
+
     // Splitter drag handlers
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault();

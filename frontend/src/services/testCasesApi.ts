@@ -7,8 +7,8 @@ export interface TestCase {
     created_at: string;
     updated_at: string;
     task_id: string;
-    input_data: Record<string, unknown>;
-    expected_output: Record<string, unknown> | null;
+    arguments: Record<string, unknown>;
+    expected_output: string | null;
     subtask_responses: Record<string, Record<string, unknown>>;
     comparison_method: ComparisonMethod;
 }
@@ -22,16 +22,16 @@ export enum ComparisonMethod {
 export interface CreateTestCaseRequest {
     description: string;
     task_id: string;
-    input_data: Record<string, unknown>;
-    expected_output?: Record<string, unknown>;
+    arguments: Record<string, unknown>;
+    expected_output?: string;
     subtask_responses?: Record<string, Record<string, unknown>>;
     comparison_method?: ComparisonMethod;
 }
 
 export interface UpdateTestCaseRequest {
     description?: string;
-    input_data?: Record<string, unknown>;
-    expected_output?: Record<string, unknown>;
+    arguments?: Record<string, unknown>;
+    expected_output?: string;
     subtask_responses?: Record<string, Record<string, unknown>>;
     comparison_method?: ComparisonMethod;
 }
@@ -81,6 +81,16 @@ class TestCasesApiService {
         data: UpdateTestCaseRequest,
     ): Promise<ApiResponse<TestCase>> {
         return apiClient.put<TestCase>(
+            `${this.baseEndpoint}/${testCaseId}`,
+            data,
+        );
+    }
+
+    async patchTestCase(
+        testCaseId: string,
+        data: Partial<UpdateTestCaseRequest>,
+    ): Promise<ApiResponse<TestCase>> {
+        return apiClient.patch<TestCase>(
             `${this.baseEndpoint}/${testCaseId}`,
             data,
         );

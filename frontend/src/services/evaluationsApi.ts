@@ -89,9 +89,8 @@ class EvaluationsApiService {
     async recalculateTargetMetrics(taskId: number): Promise<
         ApiResponse<{ message: string }>
     > {
-        return apiClient.post(
-            `${this.baseEndpoint}/tasks/${taskId}/recalculate-target-metrics`,
-        );
+        // Temporarily disabled from frontend usage
+        throw new Error('recalculateTargetMetrics is not available in the UI');
     }
 }
 
