@@ -34,7 +34,9 @@ class StreamingResponseWrapper:
 
     # Override streaming methods to track content
     def iter_content(
-        self, chunk_size: int | None = None, decode_unicode: bool = False,
+        self,
+        chunk_size: int | None = None,
+        decode_unicode: bool = False,
     ):
         """Iterate over response content in chunks."""
         try:
@@ -59,7 +61,9 @@ class StreamingResponseWrapper:
         """Iterate over response content line by line."""
         try:
             for line in self._response.iter_lines(
-                chunk_size, decode_unicode, delimiter,
+                chunk_size,
+                decode_unicode,
+                delimiter,
             ):
                 if isinstance(line, str):
                     self._content_collected += line.encode("utf-8") + b"\n"
@@ -179,7 +183,7 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
         request_payload = request_payload.encode("utf-8")
 
     # Extract call path
-    call_path, _ = extract_call_path()
+    call_path_and_no = extract_call_path()
 
     return {
         "method": request.method.upper(),
@@ -187,12 +191,14 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
         "started_at": started_at,
         "request_bytes": request_payload,
         "request_headers": dict(request.headers),
-        "path": call_path,
+        "path": call_path_and_no[0] if call_path_and_no else None,
     }
 
 
 def _finalize_trace(
-    trace_ctx: dict, response: requests.Response, error: str = None,
+    trace_ctx: dict,
+    response: requests.Response,
+    error: str = None,
 ) -> HTTPTrace:
     """Create final HTTPTrace from context and response."""
     completed_at = datetime.now(timezone.utc)
@@ -258,7 +264,8 @@ def _create_send_wrapper(original: Callable, tracer: AbstractTracer | None = Non
 
 
 def trace_session(
-    session: requests.Session, tracer: AbstractTracer | None = None,
+    session: requests.Session,
+    tracer: AbstractTracer | None = None,
 ) -> None:
     """Trace a requests.Session.
 
@@ -289,7 +296,9 @@ def trace_session(
 
 
 def _create_requests_constructor_wrapper(
-    original_init: Callable, session_class: type, tracer: AbstractTracer | None,
+    original_init: Callable,
+    session_class: type,
+    tracer: AbstractTracer | None,
 ):
     """Create a wrapper for requests session constructors."""
 
@@ -339,7 +348,9 @@ def trace_all(tracer: AbstractTracer) -> None:
 
     # Create constructor wrapper
     requests.Session.__init__ = _create_requests_constructor_wrapper(
-        requests.Session.__init__, requests.Session, tracer,
+        requests.Session.__init__,
+        requests.Session,
+        tracer,
     )
 
     # Mark as patched
