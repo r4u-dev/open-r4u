@@ -85,7 +85,7 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
         <div className="border-b border-border">
             <button
                 onClick={() => toggleSection(section)}
-                className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition-colors"
             >
                 <span className="text-xs font-medium text-foreground">
                     {title}
