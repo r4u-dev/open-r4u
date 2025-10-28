@@ -351,13 +351,15 @@ class EvaluationService:
         )
 
     async def list_evaluations(
-        self, session: AsyncSession, implementation_id: int | None = None
+        self, session: AsyncSession, implementation_id: int | None = None, task_id: int | None = None
     ) -> list[EvaluationListItem]:
-        """List all evaluations, optionally filtered by implementation_id with calculated scores."""
+        """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
         
         query = select(Evaluation)
         if implementation_id is not None:
             query = query.where(Evaluation.implementation_id == implementation_id)
+        if task_id is not None:
+            query = query.where(Evaluation.task_id == task_id)
         query = query.order_by(Evaluation.created_at.desc())
         
         result = await session.execute(query)

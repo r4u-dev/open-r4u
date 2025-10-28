@@ -94,27 +94,16 @@ class GradingService:
 
     async def list_graders(
         self, session: AsyncSession, project_id: int
-    ) -> list[tuple[Grader, int]]:
-        """List all graders for a project with grade counts.
-        
-        Returns:
-            List of tuples (grader, grade_count)
-        """
+    ) -> list[Grader]:
+        """List all graders for a project."""
         query = (
-            select(
-                Grader,
-                func.count(Grade.id).label("grade_count")
-            )
-            .outerjoin(Grade, Grade.grader_id == Grader.id)
+            select(Grader)
             .where(Grader.project_id == project_id)
-            .group_by(Grader.id)
             .order_by(Grader.created_at.desc())
         )
         
         result = await session.execute(query)
-        rows = result.all()
-        
-        return [(row[0], row[1]) for row in rows]
+        return list(result.scalars().all())
 
     async def update_grader(
         self,

@@ -55,7 +55,6 @@ class GraderRead(GraderBase):
     project_id: int
     created_at: datetime
     updated_at: datetime
-    grade_count: int = Field(0, description="Number of grades produced by this grader")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,7 +69,6 @@ class GraderListItem(BaseModel):
     score_type: ScoreType
     is_active: bool
     created_at: datetime
-    grade_count: int = Field(0, description="Number of grades produced by this grader")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -242,7 +240,7 @@ class EvaluationConfigBase(BaseModel):
 
 class EvaluationConfigCreate(EvaluationConfigBase):
     """Schema for creating evaluation configuration."""
-    task_id: int = Field(..., description="ID of the task this evaluation config belongs to")
+    pass
 
 
 class EvaluationConfigUpdate(BaseModel):

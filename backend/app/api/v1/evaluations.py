@@ -24,8 +24,9 @@ def get_evaluation_service(settings: Settings = Depends(get_settings)) -> Evalua
 
 
 # Evaluation Configuration Endpoints
-@router.post("/config", response_model=EvaluationConfigRead, status_code=status.HTTP_201_CREATED)
+@router.post("/tasks/{task_id}/config", response_model=EvaluationConfigRead, status_code=status.HTTP_201_CREATED)
 async def create_or_update_evaluation_config(
+    task_id: int,
     payload: EvaluationConfigCreate,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
@@ -34,7 +35,7 @@ async def create_or_update_evaluation_config(
     try:
         config = await evaluation_service.create_or_update_evaluation_config(
             session=session,
-            task_id=payload.task_id,
+            task_id=task_id,
             quality_weight=payload.quality_weight,
             cost_weight=payload.cost_weight,
             time_weight=payload.time_weight,
@@ -53,9 +54,9 @@ async def create_or_update_evaluation_config(
     return EvaluationConfigRead.model_validate(config)
 
 
-@router.get("/config", response_model=EvaluationConfigRead | None)
+@router.get("/tasks/{task_id}/config", response_model=EvaluationConfigRead | None)
 async def get_evaluation_config(
-    task_id: int = Query(..., description="ID of the task"),
+    task_id: int,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationConfigRead | None:
@@ -73,10 +74,10 @@ async def get_evaluation_config(
     return EvaluationConfigRead.model_validate(config) if config else None
 
 
-@router.patch("/config", response_model=EvaluationConfigRead)
+@router.patch("/tasks/{task_id}/config", response_model=EvaluationConfigRead)
 async def update_evaluation_config(
+    task_id: int,
     payload: EvaluationConfigUpdate,
-    task_id: int = Query(..., description="ID of the task"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationConfigRead:
@@ -147,14 +148,16 @@ async def run_evaluation(
 @router.get("", response_model=list[EvaluationListItem])
 async def list_evaluations(
     implementation_id: int | None = Query(None, description="Filter by implementation ID"),
+    task_id: int | None = Query(None, description="Filter by task ID"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> list[EvaluationListItem]:
-    """List evaluations, optionally filtered by implementation_id."""
+    """List evaluations, optionally filtered by implementation_id or task_id."""
     try:
         evaluations = await evaluation_service.list_evaluations(
             session=session,
             implementation_id=implementation_id,
+            task_id=task_id,
         )
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
@@ -211,13 +214,13 @@ async def delete_evaluation(
         )
 
 
-@router.post("/tasks/{task_id}/recalculate-normalization-targets", status_code=status.HTTP_202_ACCEPTED)
-async def recalculate_normalization_targets(
+@router.post("/tasks/{task_id}/recalculate-target-metrics", status_code=status.HTTP_202_ACCEPTED)
+async def recalculate_target_metrics(
     task_id: int,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> dict[str, str]:
-    """Recalculate normalization targets for a task."""
+    """Recalculate target metrics for a task."""
     try:
         await evaluation_service.calculate_target_metrics(
             session=session,
@@ -228,7 +231,7 @@ async def recalculate_normalization_targets(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to recalculate normalization targets: {str(e)}",
+            detail=f"Failed to recalculate target metrics: {str(e)}",
         )
 
-    return {"message": "Normalization targets recalculated successfully"}
+    return {"message": "Target metrics recalculated successfully"}
