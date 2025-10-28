@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { evaluationsApi, EvaluationDetail, EvaluationResultItem } from '@/services/evaluationsApi';
+import { evaluationsApi, EvaluationRead, EvaluationResultItem } from '@/services/evaluationsApi';
 import { formatAccuracy } from '@/lib/utils';
 
 interface EvaluationsResultsDialogProps {
@@ -14,7 +14,7 @@ interface EvaluationsResultsDialogProps {
 }
 
 const EvaluationsResultsDialog = ({ isOpen, onClose, evaluationId }: EvaluationsResultsDialogProps) => {
-  const [detail, setDetail] = useState<EvaluationDetail | null>(null);
+  const [detail, setDetail] = useState<EvaluationRead | null>(null);
   const [results, setResults] = useState<EvaluationResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +26,8 @@ const EvaluationsResultsDialog = ({ isOpen, onClose, evaluationId }: Evaluations
         setLoading(true);
         setError(null);
         const [d, r] = await Promise.all([
-          evaluationsApi.getEvaluation(evaluationId),
-          evaluationsApi.listEvaluationResults(evaluationId),
+          evaluationsApi.getEvaluation(parseInt(evaluationId)),
+          evaluationsApi.listEvaluationResults(parseInt(evaluationId)),
         ]);
         setDetail(d.data);
         setResults(r.data || []);
@@ -60,30 +60,31 @@ const EvaluationsResultsDialog = ({ isOpen, onClose, evaluationId }: Evaluations
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Score</CardTitle>
+                  <CardTitle className="text-sm">Final Score</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-semibold">{detail.score ?? '-'}</div>
+                  <div className="text-2xl font-semibold">
+                    {detail.final_evaluation_score !== null ? detail.final_evaluation_score.toFixed(3) : '-'}
+                  </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Metrics</CardTitle>
+                  <CardTitle className="text-sm">Quality Score</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm">Acc: {formatAccuracy(detail.metrics?.accuracy)}</div>
-                  <div className="text-sm">Time: {detail.metrics?.time ?? '-'}</div>
-                  <div className="text-sm">Cost: {detail.metrics?.cost ?? '-'}</div>
+                  <div className="text-2xl font-semibold">
+                    {detail.quality_score !== null ? detail.quality_score.toFixed(3) : '-'}
+                  </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Results</CardTitle>
+                  <CardTitle className="text-sm">Test Cases</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm">Passed: {detail.passed_test_cases ?? '-'}</div>
-                  <div className="text-sm">Failed: {detail.failed_test_cases ?? '-'}</div>
-                  <div className="text-sm">Total: {detail.total_test_cases ?? results.length}</div>
+                  <div className="text-2xl font-semibold">{detail.test_case_count ?? results.length}</div>
+                  <div className="text-xs text-muted-foreground mt-1">Total: {results.length}</div>
                 </CardContent>
               </Card>
             </div>
@@ -99,21 +100,21 @@ const EvaluationsResultsDialog = ({ isOpen, onClose, evaluationId }: Evaluations
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Test ID</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Accuracy</TableHead>
-                        <TableHead>Time</TableHead>
+                        <TableHead>Test Case</TableHead>
+                        <TableHead>Tokens</TableHead>
                         <TableHead>Cost</TableHead>
+                        <TableHead>Grades</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {results.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="text-xs">{r.test_id}</TableCell>
-                          <TableCell className="text-xs">{r.status}</TableCell>
-                          <TableCell className="text-xs">{formatAccuracy(r.metrics?.accuracy)}</TableCell>
-                          <TableCell className="text-xs">{r.metrics?.time ?? '-'}</TableCell>
-                          <TableCell className="text-xs">{r.metrics?.cost ?? '-'}</TableCell>
+                        <TableRow key={r.execution_result_id}>
+                          <TableCell className="text-xs">
+                            {r.test_case_description || `Test ${r.test_case_id}`}
+                          </TableCell>
+                          <TableCell className="text-xs">{r.total_tokens}</TableCell>
+                          <TableCell className="text-xs">${r.cost.toFixed(6)}</TableCell>
+                          <TableCell className="text-xs">{r.grades.length}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

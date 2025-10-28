@@ -21,12 +21,18 @@ from app.models.evaluation import (
     Evaluation,
     EvaluationConfig,
     Grader,
+    Grade,
     TargetTaskMetrics,
     TestCase,
 )
 from app.models.executions import ExecutionResult
 from app.models.tasks import Implementation, Task
-from app.schemas.evaluation import EvaluationRead, EvaluationListItem
+from app.schemas.evaluation import (
+    EvaluationRead,
+    EvaluationListItem,
+    EvaluationResultItem,
+    EvaluationResultGradeItem,
+)
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
 
@@ -271,7 +277,13 @@ class EvaluationService:
                             implementation_id=evaluation.implementation_id,
                             arguments=test_case.arguments,
                         )
+                        # Associate execution with this evaluation and test case
+                        execution_result.evaluation_id = evaluation.id
+                        execution_result.test_case_id = test_case.id
+                        session.add(execution_result)
                         execution_results.append(execution_result)
+                    # Persist associations before grading
+                    await session.commit()
                     
                     # Grade execution results
                     grader_scores = {}
@@ -380,6 +392,71 @@ class EvaluationService:
             created_at=evaluation.created_at,
             updated_at=evaluation.updated_at,
         )
+
+    async def list_evaluation_results(
+        self, session: AsyncSession, evaluation_id: int
+    ) -> list[dict[str, Any]]:
+        """List per-execution results for an evaluation with grades.
+
+        Returns a list of dicts shaped like EvaluationResultItem.
+        """
+        # Verify evaluation exists and get task/impl
+        eval_q = select(Evaluation).where(Evaluation.id == evaluation_id)
+        eval_res = await session.execute(eval_q)
+        evaluation = eval_res.scalar_one_or_none()
+        if not evaluation:
+            raise NotFoundError(f"Evaluation with id {evaluation_id} not found")
+
+        # Get execution results linked to this evaluation_id
+        exec_q = (
+            select(ExecutionResult)
+            .where(ExecutionResult.evaluation_id == evaluation_id)
+            .options(
+                selectinload(ExecutionResult.grades).selectinload(Grade.grader),
+                selectinload(ExecutionResult.test_case),
+            )
+            .order_by(ExecutionResult.created_at.asc())
+        )
+        exec_res = await session.execute(exec_q)
+        executions = list(exec_res.scalars().all())
+
+        items: list[EvaluationResultItem] = []
+        for er in executions:
+            items.append(EvaluationResultItem(
+                execution_result_id=er.id,
+                test_case_id=er.test_case_id,
+                test_case_description=er.test_case.description if er.test_case else None,
+                arguments=er.arguments,
+                expected_output=er.test_case.expected_output if er.test_case else None,
+                result_text=er.result_text,
+                result_json=er.result_json,
+                error=er.error,
+                started_at=er.started_at,
+                completed_at=er.completed_at,
+                prompt_tokens=er.prompt_tokens,
+                cached_tokens=er.cached_tokens,
+                completion_tokens=er.completion_tokens,
+                reasoning_tokens=er.reasoning_tokens,
+                total_tokens=er.total_tokens,
+                cost=er.cost,
+                grades=[
+                    EvaluationResultGradeItem(
+                        id=g.id,
+                        grader_id=g.grader_id,
+                        grader_name=g.grader.name if g.grader else None,
+                        score_float=g.score_float,
+                        score_boolean=g.score_boolean,
+                        reasoning=g.reasoning,
+                        confidence=g.confidence,
+                        grading_started_at=g.grading_started_at,
+                        grading_completed_at=g.grading_completed_at,
+                        error=g.error,
+                        created_at=g.created_at,
+                    )
+                    for g in (er.grades or [])
+                ],
+            ))
+        return items
 
     async def list_evaluations(
         self, session: AsyncSession, implementation_id: int | None = None, task_id: int | None = None

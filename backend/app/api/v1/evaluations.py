@@ -12,6 +12,7 @@ from app.schemas.evaluation import (
     EvaluationRead,
     EvaluationListItem,
     EvaluationRunRequest,
+    EvaluationResultItem,
 )
 from app.services.evaluation_service import EvaluationService, NotFoundError, BadRequestError
 
@@ -212,6 +213,29 @@ async def get_evaluation(
         )
 
     return evaluation
+
+
+@router.get("/{evaluation_id}/results", response_model=list[EvaluationResultItem])
+async def list_evaluation_results(
+    evaluation_id: int,
+    session: AsyncSession = Depends(get_session),
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
+) -> list[EvaluationResultItem]:
+    """List per-execution results (with grades) for an evaluation."""
+    try:
+        items = await evaluation_service.list_evaluation_results(
+            session=session,
+            evaluation_id=evaluation_id,
+        )
+        # Pydantic validation to ensure shape
+        return [EvaluationResultItem.model_validate(item) for item in items]
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list evaluation results: {str(e)}",
+        )
 
 
 @router.delete("/{evaluation_id}", status_code=status.HTTP_204_NO_CONTENT)

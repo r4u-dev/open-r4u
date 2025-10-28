@@ -45,3 +45,39 @@ export interface EvaluationConfigRead {
     updated_at: string;
 }
 
+export interface Grade {
+    id: number;
+    grader_id: number;
+    grader_name: string;
+    trace_id: number | null;
+    execution_result_id: number;
+    score_float: number | null;
+    score_boolean: boolean | null;
+    reasoning: string | null;
+    confidence: number | null;
+    grading_started_at: string;
+    grading_completed_at: string;
+    error: string | null;
+    created_at: string;
+}
+
+export interface EvaluationResultItem {
+    execution_result_id: number;
+    test_case_id: number;
+    test_case_description: string;
+    arguments: Record<string, unknown>;
+    expected_output: string;
+    result_text: string | null;
+    result_json: Record<string, unknown> | null;
+    error: string | null;
+    started_at: string;
+    completed_at: string;
+    prompt_tokens: number;
+    cached_tokens: number;
+    completion_tokens: number;
+    reasoning_tokens: number;
+    total_tokens: number;
+    cost: number;
+    grades: Grade[];
+}
+

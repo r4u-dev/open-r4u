@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { EvaluationRead } from "@/lib/types/evaluation";
+import { evaluationsApi } from "@/services/evaluationsApi";
+import type { EvaluationResultItem, Grade } from "@/lib/types/evaluation";
 
 interface EvaluationDetailPanelProps {
     evaluation: EvaluationRead;
@@ -14,7 +16,57 @@ export function EvaluationDetailPanel({
         metrics: true,
         graderScores: true,
         errors: false,
+        results: false,
     });
+
+    const [results, setResults] = useState<EvaluationResultItem[]>([]);
+    const [resultsLoading, setResultsLoading] = useState<boolean>(false);
+    const [resultsError, setResultsError] = useState<string | null>(null);
+    const [expandedResultIds, setExpandedResultIds] = useState<Set<number>>(new Set());
+    const [expandedGradeIds, setExpandedGradeIds] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        let isCancelled = false;
+        const load = async () => {
+            try {
+                setResultsLoading(true);
+                setResultsError(null);
+                const r = await evaluationsApi.listEvaluationResults(
+                    evaluationData.id,
+                );
+                if (!isCancelled) setResults(r.data || []);
+            } catch (e) {
+                if (!isCancelled)
+                    setResultsError(
+                        e instanceof Error ? e.message : "Failed to load results",
+                    );
+            } finally {
+                if (!isCancelled) setResultsLoading(false);
+            }
+        };
+        load();
+        return () => {
+            isCancelled = true;
+        };
+    }, [evaluationData.id]);
+
+    const toggleResult = (executionResultId: number) => {
+        setExpandedResultIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(executionResultId)) next.delete(executionResultId);
+            else next.add(executionResultId);
+            return next;
+        });
+    };
+
+    const toggleGrade = (gradeId: number) => {
+        setExpandedGradeIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(gradeId)) next.delete(gradeId);
+            else next.add(gradeId);
+            return next;
+        });
+    };
 
     const toggleSection = (section: keyof typeof expandedSections) => {
         setExpandedSections((prev) => ({
@@ -246,6 +298,124 @@ export function EvaluationDetailPanel({
                                 </div>
                             </Section>
                         )}
+
+                        <Section title="Test Case Results" section="results">
+                            {resultsLoading ? (
+                                <div className="text-muted-foreground">Loading results…</div>
+                            ) : resultsError ? (
+                                <div className="text-destructive">{resultsError}</div>
+                            ) : results.length === 0 ? (
+                                <div className="text-muted-foreground">No results.</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {results.map((r) => {
+                                        const isOpen = expandedResultIds.has(r.execution_result_id);
+                                        return (
+                                            <div
+                                                key={r.execution_result_id}
+                                                className="border border-border rounded-md overflow-hidden"
+                                            >
+                                                <button
+                                                    className="w-full px-3 py-2 bg-muted/50 flex items-center justify-between hover:bg-muted transition-colors"
+                                                    onClick={() => toggleResult(r.execution_result_id)}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        {isOpen ? (
+                                                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                                                        ) : (
+                                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                                        )}
+                                                        <div className="text-xs font-medium">
+                                                            {r.test_case_description || `Test ${r.test_case_id}`}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                        <span>Total tokens: <span className="text-foreground font-mono">{r.total_tokens}</span></span>
+                                                        <span>Cost: <span className="text-foreground font-mono">${r.cost.toFixed(6)}</span></span>
+                                                    </div>
+                                                </button>
+                                                {isOpen && (
+                                                    <div className="p-3 space-y-3">
+                                                        <div className="grid grid-cols-1 gap-3">
+                                                            <div>
+                                                                <div className="text-[10px] text-muted-foreground mb-1">Arguments</div>
+                                                                <pre className="text-[11px] whitespace-pre-wrap bg-muted/30 rounded-sm p-2 border border-border">{JSON.stringify(r.arguments, null, 2)}</pre>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 gap-3">
+                                                            <div>
+                                                                <div className="text-[10px] text-muted-foreground mb-1">Expected Output</div>
+                                                                <pre className="text-[11px] whitespace-pre-wrap bg-muted/30 rounded-sm p-2 border border-border">{r.expected_output || "-"}</pre>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] text-muted-foreground mb-1">Actual Output</div>
+                                                                <pre className="text-[11px] whitespace-pre-wrap bg-muted/30 rounded-sm p-2 border border-border">{r.result_text || (r.result_json ? JSON.stringify(r.result_json, null, 2) : "-")}</pre>
+                                                            </div>
+                                                        </div>
+                                                        {r.error && (
+                                                            <div className="text-destructive text-[11px] whitespace-pre-wrap break-words">
+                                                                {r.error}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="text-[10px] text-muted-foreground mb-1">Grades ({r.grades.length})</div>
+                                                            {r.grades.length === 0 ? (
+                                                                <div className="text-[11px] text-muted-foreground">No grades</div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    {r.grades.map((g: Grade) => {
+                                                                        const gradeOpen = expandedGradeIds.has(g.id);
+                                                                        return (
+                                                                            <div key={g.id} className={`border border-border rounded-sm overflow-hidden ${g.error ? 'border-destructive' : ''}`}>
+                                                                                <button
+                                                                                    className="w-full px-2 py-1 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                                                                                    onClick={() => toggleGrade(g.id)}
+                                                                                >
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        {gradeOpen ? (
+                                                                                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                                                                                        ) : (
+                                                                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                                                                        )}
+                                                                                        <div className="text-xs font-medium">{g.grader_name}</div>
+                                                                                    </div>
+                                                                                    <div className="text-[11px]">
+                                                                                        {g.error ? (
+                                                                                            <span className="text-destructive">Error</span>
+                                                                                        ) : g.score_float !== null ? (
+                                                                                            <span className="font-mono">{g.score_float.toFixed(2)}</span>
+                                                                                        ) : g.score_boolean !== null ? (
+                                                                                            <span className="font-mono">{String(g.score_boolean)}</span>
+                                                                                        ) : (
+                                                                                            <span className="text-muted-foreground">-</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </button>
+                                                                                {gradeOpen && (
+                                                                                    <div className="px-2 pb-2">
+                                                                                        {g.reasoning && (
+                                                                                            <div className="mt-1 text-[11px] whitespace-pre-wrap">{g.reasoning}</div>
+                                                                                        )}
+                                                                                        {g.error && (
+                                                                                            <div className="mt-1 text-[11px] text-destructive whitespace-pre-wrap break-words">{g.error}</div>
+                                                                                        )}
+                                                                                        <div className="mt-1 text-[10px] text-muted-foreground">Graded: {new Date(g.grading_completed_at).toLocaleString()}</div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Section>
             </div>
 
         </div>

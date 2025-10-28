@@ -43,6 +43,16 @@ class ExecutionResult(Base):
         ForeignKey("implementation.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # Link to the evaluation this execution belongs to (nullable for legacy rows)
+    evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("evaluation.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    # Link to the test case used for this execution (nullable if ad-hoc execution)
+    test_case_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_case.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -80,6 +90,8 @@ class ExecutionResult(Base):
     # Relationships
     task: Mapped["Task"] = relationship("Task")  # type: ignore
     implementation: Mapped["Implementation"] = relationship("Implementation")  # type: ignore
+    evaluation: Mapped["Evaluation | None"] = relationship("Evaluation")  # type: ignore
+    test_case: Mapped["TestCase | None"] = relationship("TestCase")  # type: ignore
     grades: Mapped[list["Grade"]] = relationship(
         "Grade",
         foreign_keys="Grade.execution_result_id",
