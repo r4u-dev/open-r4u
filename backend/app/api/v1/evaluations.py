@@ -1,6 +1,6 @@
 """API endpoints for Evaluation and Evaluation Configuration management."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, Settings
@@ -117,14 +117,43 @@ async def update_evaluation_config(
 @router.post("", response_model=EvaluationRead, status_code=status.HTTP_201_CREATED)
 async def run_evaluation(
     payload: EvaluationRunRequest,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> EvaluationRead:
-    """Run evaluation for an implementation."""
+    """Create and start an evaluation for an implementation. Returns immediately."""
     try:
-        evaluation = await evaluation_service.run_evaluation(
+        # Create the evaluation record
+        evaluation = await evaluation_service.create_evaluation(
             session=session,
             implementation_id=payload.implementation_id,
+        )
+        
+        # Add background task to execute the evaluation
+        background_tasks.add_task(
+            evaluation_service.execute_evaluation_in_background,
+            evaluation_id=evaluation.id,
+        )
+        
+        # Return the initial evaluation
+        return EvaluationRead(
+            id=evaluation.id,
+            implementation_id=evaluation.implementation_id,
+            task_id=evaluation.task_id,
+            status=evaluation.status,
+            started_at=evaluation.started_at,
+            completed_at=evaluation.completed_at,
+            test_case_count=evaluation.test_case_count,
+            error=evaluation.error,
+            grader_scores=evaluation.grader_scores,
+            quality_score=evaluation.quality_score,
+            avg_cost=evaluation.avg_cost,
+            avg_execution_time_ms=evaluation.avg_execution_time_ms,
+            cost_efficiency_score=None,
+            time_efficiency_score=None,
+            final_evaluation_score=None,
+            created_at=evaluation.created_at,
+            updated_at=evaluation.updated_at,
         )
     except BadRequestError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
@@ -133,16 +162,8 @@ async def run_evaluation(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to run evaluation: {str(e)}",
+            detail=f"Failed to create evaluation: {str(e)}",
         )
-
-    # Get the evaluation with calculated scores
-    evaluation_with_scores = await evaluation_service.get_evaluation(
-        session=session,
-        evaluation_id=evaluation.id,
-    )
-
-    return evaluation_with_scores
 
 
 @router.get("", response_model=list[EvaluationListItem])
