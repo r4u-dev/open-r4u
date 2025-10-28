@@ -8,7 +8,9 @@ import {
   Activity,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  BarChart3,
+  Rocket
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 
@@ -27,14 +29,24 @@ const navigationItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Traces",
+    href: "/traces",
+    icon: Activity,
+  },
+  {
     title: "Tasks",
     href: "/tasks",
     icon: CheckSquare,
   },
   {
-    title: "Traces",
-    href: "/traces",
-    icon: Activity,
+    title: "Evaluations",
+    href: "/evaluations",
+    icon: BarChart3,
+  },
+  {
+    title: "Optimizations",
+    href: "/optimizations",
+    icon: Rocket,
   },
 ];
 

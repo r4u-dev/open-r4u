@@ -168,6 +168,7 @@ class GradeListItem(BaseModel):
 class TestCaseBase(BaseModel):
     """Base schema for test case details."""
 
+    __test__ = False
     description: str | None = Field(None, max_length=500, description="Optional description of the test case")
     arguments: dict[str, Any] | None = Field(None, description="Arguments containing variables for prompt rendering and optional 'messages' key")
     expected_output: str = Field(..., description="Expected output for accuracy comparison (JSON stored as string)")

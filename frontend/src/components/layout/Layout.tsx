@@ -71,7 +71,7 @@ const Layout = () => {
     }
 
     // Handle evaluation detail page with optional task_id back-link
-    if (pathname.startsWith('/evaluations/')) {
+    if (pathname.match(/^\/evaluations\/[^/]+$/)) {
       const taskId = search.get('task_id');
       const crumbs = [] as Array<{ label: string; to?: string; isCurrentPage?: boolean }>;
       if (taskId) {
@@ -86,8 +86,14 @@ const Layout = () => {
     switch (pathname) {
       case '/':
         return [{ label: 'Dashboard', isCurrentPage: true }];
+      case '/traces':
+        return [{ label: 'Traces', isCurrentPage: true }];
       case '/tasks':
         return [{ label: 'Tasks', isCurrentPage: true }];
+      case '/evaluations':
+        return [{ label: 'Evaluations', isCurrentPage: true }];
+      case '/optimizations':
+        return [{ label: 'Optimizations', isCurrentPage: true }];
       case '/settings':
         return [{ label: 'Settings', isCurrentPage: true }];
       default: {

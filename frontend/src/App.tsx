@@ -8,7 +8,9 @@ import Dashboard from "./pages/Dashboard";
 import MetricDetails from "./pages/MetricDetails";
 import Tasks from "./pages/Tasks";
 import TaskDetail from "./pages/TaskDetail";
+import Evaluations from "./pages/Evaluations";
 import EvaluationDetail from "./pages/EvaluationDetail";
+import Optimizations from "./pages/Optimizations";
 import CreateTask from "./pages/CreateTask";
 import Traces from "./pages/Traces";
 import Settings from "./pages/Settings";
@@ -39,27 +41,23 @@ const App = () => (
                                         path="metrics/:metricId"
                                         element={<MetricDetails />}
                                     />
+                                    <Route path="traces" element={<Traces />} />
                                     <Route path="tasks" element={<Tasks />} />
                                     <Route
                                         path="tasks/:taskId"
                                         element={<TaskDetail />}
                                     />
                                     <Route
-                                        path="evaluations/:evaluationId"
-                                        element={<EvaluationDetail />}
-                                    />
-                                    <Route
                                         path="tasks/new"
                                         element={<CreateTask />}
                                     />
+                                    <Route path="evaluations" element={<Evaluations />} />
                                     <Route
-                                        path="traces"
-                                        element={<Traces />}
+                                        path="evaluations/:evaluationId"
+                                        element={<EvaluationDetail />}
                                     />
-                                    <Route
-                                        path="settings"
-                                        element={<Settings />}
-                                    />
+                                    <Route path="optimizations" element={<Optimizations />} />
+                                    <Route path="settings" element={<Settings />} />
                                 </Route>
                                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                                 <Route path="*" element={<NotFound />} />
