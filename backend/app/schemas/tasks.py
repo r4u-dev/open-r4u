@@ -1,5 +1,6 @@
 """Task schemas for API requests and responses."""
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -26,6 +27,8 @@ class ImplementationRead(ImplementationCreate):
 
     id: int
     task_id: int
+    created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -49,4 +52,6 @@ class TaskRead(TaskBase):
     id: int
     project_id: int
     production_version_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

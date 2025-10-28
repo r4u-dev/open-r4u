@@ -40,17 +40,49 @@ export const createTask = async (
  * Fetches a specific task by ID.
  * @param taskId - The ID of the task
  * @param version - Optional version string (e.g., '1.5'); omit for production version
- * @returns A promise that resolves to the task
+ * @returns A promise that resolves to the backend task
  */
 export const getTask = async (
   taskId: string,
   version?: string
-): Promise<Task> => {
-  const response = await apiClient.get<Task>(`/v1/tasks/${taskId}`, {
+): Promise<BackendTaskRead> => {
+  const response = await apiClient.get<BackendTaskRead>(`/v1/tasks/${taskId}`, {
     params: version ? { version } : undefined,
   });
   return response.data;
 };
+
+/**
+ * Backend API response type for tasks
+ */
+export interface BackendTaskRead {
+  id: number;
+  project_id: number;
+  path: string | null;
+  response_schema: Record<string, unknown> | null;
+  production_version_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Backend API response type for implementations
+ */
+export interface BackendImplementationRead {
+  id: number;
+  task_id: number;
+  version: string;
+  prompt: string;
+  model: string;
+  temperature: number | null;
+  reasoning: Record<string, unknown> | null;
+  tools: Array<Record<string, unknown>> | null;
+  tool_choice: string | Record<string, unknown> | null;
+  max_output_tokens: number;
+  temp: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Simplified task type for list views (without implementation details).
@@ -75,6 +107,25 @@ export interface TaskListItem {
 }
 
 /**
+ * Converts backend task to frontend task list item
+ */
+function mapBackendTaskToFrontend(task: BackendTaskRead): TaskListItem {
+  return {
+    id: task.id.toString(),
+    name: task.path || `task-${task.id}`,
+    description: `Task ${task.id} from project ${task.project_id}`,
+    production_version: task.production_version_id?.toString() || "0.1",
+    contract: {
+      input_schema: null,
+      output_schema: task.response_schema,
+    },
+    score_weights: null,
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+  };
+}
+
+/**
  * Fetches all tasks for a specific project.
  * @param projectId - The ID of the project
  * @returns A promise that resolves to an array of tasks (without implementations)
@@ -82,8 +133,25 @@ export interface TaskListItem {
 export const getTasksByProjectId = async (
   projectId: string
 ): Promise<TaskListItem[]> => {
-  const response = await apiClient.get<TaskListItem[]>(
-    `/v1/projects/${projectId}/tasks`
+  const response = await apiClient.get<BackendTaskRead[]>(
+    `/v1/tasks`,
+    {
+      params: { project_id: projectId },
+    }
+  );
+  return response.data.map(mapBackendTaskToFrontend);
+};
+
+/**
+ * Fetches a specific implementation by ID.
+ * @param implementationId - The ID of the implementation
+ * @returns A promise that resolves to the implementation
+ */
+export const getImplementation = async (
+  implementationId: number
+): Promise<BackendImplementationRead> => {
+  const response = await apiClient.get<BackendImplementationRead>(
+    `/v1/implementations/${implementationId}`
   );
   return response.data;
 };

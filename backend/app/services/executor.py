@@ -226,7 +226,7 @@ class LLMExecutor:
 
         # Execute the request using LiteLLM
         try:
-            response = await acompletion(**request_params)
+            response = await acompletion(**request_params, drop_params=True)
             completed_at = datetime.now(timezone.utc)
 
             # Parse the response
