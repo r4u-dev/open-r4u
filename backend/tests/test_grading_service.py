@@ -120,16 +120,12 @@ async def test_list_graders(grading_service, test_session):
         max_output_tokens=300,
     )
 
-    graders_with_counts = await grading_service.list_graders(test_session, project.id)
-    assert len(graders_with_counts) == 2
+    graders = await grading_service.list_graders(test_session, project.id)
+    assert len(graders) == 2
     
-    grader_names = [grader.name for grader, _ in graders_with_counts]
+    grader_names = [grader.name for grader in graders]
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
-    
-    # Check grade counts (should be 0 for new graders)
-    for grader, count in graders_with_counts:
-        assert count == 0
 
 
 @pytest.mark.asyncio

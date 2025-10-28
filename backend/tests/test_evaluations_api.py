@@ -34,7 +34,7 @@ async def test_create_evaluation_config(client: AsyncClient, test_session):
         "grader_ids": [1, 2, 3]
     }
 
-    response = await client.post("/v1/evaluations/config", json={**payload, "task_id": task.id})
+    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 201
     
     data = response.json()
@@ -71,7 +71,7 @@ async def test_create_evaluation_config_default_weights(client: AsyncClient, tes
         "grader_ids": [1, 2]
     }
 
-    response = await client.post("/v1/evaluations/config", json={**payload, "task_id": task.id})
+    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 201
     
     data = response.json()
@@ -99,7 +99,7 @@ async def test_create_evaluation_config_invalid_weights(client: AsyncClient, tes
         "grader_ids": []
     }
 
-    response = await client.post("/v1/evaluations/config", json={**payload, "task_id": task.id})
+    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 422
     
     data = response.json()
@@ -116,7 +116,7 @@ async def test_create_evaluation_config_task_not_found(client: AsyncClient):
         "grader_ids": []
     }
 
-    response = await client.post("/v1/evaluations/config", json={**payload, "task_id": 999})
+    response = await client.post(f"/v1/evaluations/tasks/999/config", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -145,7 +145,7 @@ async def test_get_evaluation_config(client: AsyncClient, test_session):
     test_session.add(config)
     await test_session.commit()
 
-    response = await client.get(f"/v1/evaluations/config?task_id={task.id}")
+    response = await client.get(f"/v1/evaluations/tasks/{task.id}/config")
     assert response.status_code == 200
     
     data = response.json()
@@ -167,7 +167,7 @@ async def test_get_evaluation_config_not_found(client: AsyncClient, test_session
     test_session.add(task)
     await test_session.flush()
 
-    response = await client.get(f"/v1/evaluations/config?task_id={task.id}")
+    response = await client.get(f"/v1/evaluations/tasks/{task.id}/config")
     assert response.status_code == 200
     
     data = response.json()
@@ -203,7 +203,7 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
         "grader_ids": [1, 2, 3, 4]
     }
 
-    response = await client.patch(f"/v1/evaluations/config?task_id={task.id}", json=payload)
+    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -241,7 +241,7 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
         "time_weight": 0.1
     }
 
-    response = await client.patch(f"/v1/evaluations/config?task_id={task.id}", json=payload)
+    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 200
     
     data = response.json()
@@ -266,7 +266,7 @@ async def test_update_evaluation_config_not_found(client: AsyncClient, test_sess
         "quality_weight": 0.8
     }
 
-    response = await client.patch(f"/v1/evaluations/config?task_id={task.id}", json=payload)
+    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
     assert response.status_code == 404
     
     data = response.json()
@@ -715,12 +715,12 @@ async def test_evaluation_config_validation_weights_sum(client: AsyncClient, tes
     ]
 
     for i, payload in enumerate(invalid_payloads[:-1]):  # Skip the valid one
-        response = await client.post("/v1/evaluations/config", json={**payload, "task_id": task.id})
+        response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
         if i < 2:  # First two should fail
             assert response.status_code == 422
             data = response.json()
             assert "Quality, cost, and time weights must sum to 1.0" in str(data["detail"])
 
     # Test the valid one
-    response = await client.post("/v1/evaluations/config", json={**invalid_payloads[-1], "task_id": task.id})
+    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=invalid_payloads[-1])
     assert response.status_code == 201

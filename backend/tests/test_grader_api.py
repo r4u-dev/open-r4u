@@ -44,7 +44,6 @@ async def test_create_grader(client: AsyncClient, test_session):
     assert data["max_output_tokens"] == 500
     assert data["is_active"] is True
     assert data["project_id"] == project.id
-    assert data["grade_count"] == 0
     assert "id" in data
     assert "created_at" in data
     assert "updated_at" in data
@@ -142,7 +141,7 @@ async def test_list_graders(client: AsyncClient, test_session):
     test_session.add(grader2)
     await test_session.commit()
 
-    response = await client.get(f"/v1/graders?project_id={project.id}")
+    response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -152,10 +151,6 @@ async def test_list_graders(client: AsyncClient, test_session):
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
     
-    # Check that grade_count is included
-    for grader in data:
-        assert "grade_count" in grader
-        assert grader["grade_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -216,12 +211,11 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
     test_session.add(grade2)
     await test_session.commit()
 
-    response = await client.get(f"/v1/graders?project_id={project.id}")
+    response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
     
     data = response.json()
     assert len(data) == 1
-    assert data[0]["grade_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -255,7 +249,6 @@ async def test_get_grader(client: AsyncClient, test_session):
     assert data["model"] == "gpt-4"
     assert data["max_output_tokens"] == 500
     assert data["project_id"] == project.id
-    assert data["grade_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -330,7 +323,6 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
     assert response.status_code == 200
     
     data = response.json()
-    assert data["grade_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -545,7 +537,7 @@ async def test_list_graders_empty_project(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.commit()
 
-    response = await client.get(f"/v1/graders?project_id={project.id}")
+    response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
     
     data = response.json()
@@ -555,7 +547,7 @@ async def test_list_graders_empty_project(client: AsyncClient, test_session):
 @pytest.mark.asyncio
 async def test_list_graders_nonexistent_project(client: AsyncClient):
     """Test listing graders for a non-existent project."""
-    response = await client.get("/v1/graders?project_id=999")
+    response = await client.get("/v1/graders/projects/999")
     assert response.status_code == 200  # Should return empty list, not error
     
     data = response.json()
