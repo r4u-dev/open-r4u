@@ -168,6 +168,7 @@ class GradeListItem(BaseModel):
 class TestCaseBase(BaseModel):
     """Base schema for test case details."""
 
+    __test__ = False
     description: str | None = Field(None, max_length=500, description="Optional description of the test case")
     arguments: dict[str, Any] | None = Field(None, description="Arguments containing variables for prompt rendering and optional 'messages' key")
     expected_output: str = Field(..., description="Expected output for accuracy comparison (JSON stored as string)")
@@ -175,12 +176,14 @@ class TestCaseBase(BaseModel):
 
 class TestCaseCreate(TestCaseBase):
     """Schema for creating a test case."""
-    pass
+
+    __test__ = False
 
 
 class TestCaseUpdate(BaseModel):
     """Schema for updating a test case (all fields optional)."""
 
+    __test__ = False
     description: str | None = Field(None, max_length=500)
     arguments: dict[str, Any] | None = None
     expected_output: str | None = None
@@ -189,6 +192,7 @@ class TestCaseUpdate(BaseModel):
 class TestCaseRead(TestCaseBase):
     """Schema for test case response."""
 
+    __test__ = False
     id: int
     task_id: int
     created_at: datetime
@@ -200,6 +204,7 @@ class TestCaseRead(TestCaseBase):
 class TestCaseListItem(BaseModel):
     """Lightweight schema for listing test cases."""
 
+    __test__ = False
     id: int
     task_id: int
     description: str | None
