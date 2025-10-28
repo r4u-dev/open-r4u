@@ -1,12 +1,26 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2, Eye, Pencil, Trash2 } from "lucide-react";
+import { ChevronUp as SortUp, ChevronDown as SortDown } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TaskService } from "@/services/taskService";
 import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
 import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
+import { testCasesApi } from "@/services/testCasesApi";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// Removed AlertDialog for delete; using regular Dialog for overlay-close behavior
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { evaluationsApi } from "@/services/evaluationsApi";
+import { gradersApi, GraderListItem } from "@/services/gradersApi";
+import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TabType = "overview" | "traces" | "evaluations" | "settings";
 
@@ -17,10 +31,142 @@ const TaskDetail = () => {
   const [task, setTask] = useState<TaskDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as TabType) || "overview";
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [expandedSection, setExpandedSection] = useState<"contracts" | null>("contracts");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [testCases, setTestCases] = useState<Array<{
+    id: number;
+    task_id: number;
+    description: string | null;
+    created_at: string;
+  }>>([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  const [testsError, setTestsError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ description: string; arguments: string; expected_output: string }>({ description: "", arguments: "{}", expected_output: "" });
+  const [createForm, setCreateForm] = useState<{ description: string; arguments: string; expected_output: string }>({ description: "", arguments: "{}", expected_output: "" });
+  const [testsSubmitting, setTestsSubmitting] = useState(false);
+  const [testsSortField, setTestsSortField] = useState<"description" | "createdAt">("createdAt");
+  const [testsSortDirection, setTestsSortDirection] = useState<"asc" | "desc">("desc");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Evaluation Config state
+  const [evalConfig, setEvalConfig] = useState<{
+    id?: number;
+    task_id?: number;
+    quality_weight: number;
+    cost_weight: number;
+    time_weight: number;
+    grader_ids: number[];
+    created_at?: string;
+    updated_at?: string;
+  } | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [graderIdsInput, setGraderIdsInput] = useState<string>("");
+  const [graders, setGraders] = useState<GraderListItem[]>([]);
+  const [gradersLoading, setGradersLoading] = useState(false);
+  const [gradersError, setGradersError] = useState<string | null>(null);
+  const [displayGraders, setDisplayGraders] = useState<GraderListItem[]>([]);
+  const graderItemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const didInitialOrderRef = useRef(false);
+
+  // Evaluation run controls
+  const [evalVersionId, setEvalVersionId] = useState<string>("");
+  const [evalRunLoading, setEvalRunLoading] = useState(false);
+  const [evalRunError, setEvalRunError] = useState<string | null>(null);
+  const [evalRunSuccessId, setEvalRunSuccessId] = useState<number | null>(null);
+  const [evalRunSuccessOpen, setEvalRunSuccessOpen] = useState(false);
+  const handleRunEvaluation = async () => {
+    if (!evalVersionId) return;
+    try {
+      setEvalRunLoading(true);
+      setEvalRunError(null);
+      const res = await evaluationsApi.runEvaluation(Number(evalVersionId));
+      const ev = res.data as any;
+      // Show background popup instead of navigating
+      setEvalRunSuccessId(ev.id);
+      setEvalRunSuccessOpen(true);
+    } catch (e) {
+      setEvalRunError(e instanceof Error ? e.message : "Failed to run evaluation");
+    } finally {
+      setEvalRunLoading(false);
+    }
+  };
+  const animateGradersReorder = (newOrder: GraderListItem[]) => {
+    // Capture first positions
+    const firstPositions = new Map<number, number>();
+    displayGraders.forEach((g) => {
+      const el = graderItemRefs.current.get(g.id);
+      if (el) firstPositions.set(g.id, el.getBoundingClientRect().top);
+    });
+
+    // Apply new order
+    setDisplayGraders(newOrder);
+
+    // Next frame: measure last positions and apply FLIP
+    requestAnimationFrame(() => {
+      newOrder.forEach((g) => {
+        const el = graderItemRefs.current.get(g.id);
+        const firstTop = firstPositions.get(g.id);
+        if (!el || firstTop === undefined) return;
+        const lastTop = el.getBoundingClientRect().top;
+        const deltaY = firstTop - lastTop;
+        if (Math.abs(deltaY) < 1) return;
+        el.style.transition = "transform 0s";
+        el.style.transform = `translateY(${deltaY}px)`;
+        // Next frame: animate to place
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 300ms ease";
+          el.style.transform = "translateY(0)";
+          const cleanup = () => {
+            el.style.transition = "";
+            el.style.transform = "";
+            el.removeEventListener("transitionend", cleanup);
+          };
+          el.addEventListener("transitionend", cleanup);
+        });
+      });
+    });
+  };
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
+  const [originalConfig, setOriginalConfig] = useState<typeof evalConfig | null>(null);
+  const [originalGraderIds, setOriginalGraderIds] = useState<string>("");
+  const weightsAnimRef = useRef<number | null>(null);
+
+  const animateWeights = (from: { q: number; c: number; t: number }, to: { q: number; c: number; t: number }, durationMs = 400) => {
+    if (!evalConfig) return;
+    if (weightsAnimRef.current !== null) {
+      cancelAnimationFrame(weightsAnimRef.current);
+      weightsAnimRef.current = null;
+    }
+
+    const start = performance.now();
+    const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
+
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const tNorm = Math.min(1, elapsed / durationMs);
+      const e = easeOutCubic(tNorm);
+      const q = from.q + (to.q - from.q) * e;
+      const c = from.c + (to.c - from.c) * e;
+      const tt = from.t + (to.t - from.t) * e;
+      setEvalConfig((prev) => prev ? { ...(prev as any), quality_weight: q, cost_weight: c, time_weight: tt } : prev);
+      if (tNorm < 1) {
+        weightsAnimRef.current = requestAnimationFrame(step);
+      } else {
+        weightsAnimRef.current = null;
+      }
+    };
+    weightsAnimRef.current = requestAnimationFrame(step);
+  };
 
   // Helper functions for tool information
   const getToolDescription = (toolName: string): string => {
@@ -136,6 +282,272 @@ const TaskDetail = () => {
 
     loadTask();
   }, [taskId, setPageTitle]);
+
+  // Keep URL in sync with active tab, and respond to external changes
+  useEffect(() => {
+    const urlTab = searchParams.get("tab");
+    if (urlTab !== activeTab) {
+      const sp = new URLSearchParams(searchParams);
+      sp.set("tab", activeTab);
+      setSearchParams(sp, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+  useEffect(() => {
+    const urlTab = (searchParams.get("tab") as TabType) || "overview";
+    if (urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [searchParams]);
+
+  // Load test cases when switching to Evaluations tab (tests live there)
+  useEffect(() => {
+    const loadTests = async () => {
+      if (activeTab !== "evaluations" || !taskId) return;
+      try {
+        setTestsLoading(true);
+        setTestsError(null);
+        const res = await testCasesApi.getTestCasesByTask(taskId);
+        const data = res.data as any;
+        const items = Array.isArray(data) ? data : (data?.test_cases ?? []);
+        setTestCases(items);
+      } catch (e) {
+        setTestsError(e instanceof Error ? e.message : "Failed to load test cases");
+      } finally {
+        setTestsLoading(false);
+      }
+    };
+
+    loadTests();
+  }, [activeTab, taskId]);
+
+  // Load evaluation config when switching to Evaluations tab
+  useEffect(() => {
+    const loadConfig = async () => {
+      if (activeTab !== "evaluations" || !taskId) return;
+      try {
+        setConfigLoading(true);
+        setConfigError(null);
+        const res = await evaluationsApi.getEvaluationConfig(Number(taskId));
+        const data = res.data;
+        if (data) {
+          setEvalConfig(data as any);
+          setGraderIdsInput((data.grader_ids || []).join(", "));
+          setOriginalConfig(data as any);
+          setOriginalGraderIds((data.grader_ids || []).join(", "));
+          // If graders already loaded, compute initial display order (selected first)
+          if (graders.length > 0) {
+            const selectedIds = new Set((data.grader_ids || []) as number[]);
+            const ordered = [...graders].sort((a, b) => {
+              const aSel = selectedIds.has(a.id);
+              const bSel = selectedIds.has(b.id);
+              if (aSel !== bSel) return aSel ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+            setDisplayGraders(ordered);
+          }
+        } else {
+          // initialize defaults if no config exists yet
+          const defaults = { quality_weight: 0.5, cost_weight: 0.3, time_weight: 0.2, grader_ids: [] as number[] };
+          setEvalConfig(defaults);
+          setGraderIdsInput("");
+          setOriginalConfig(defaults);
+          setOriginalGraderIds("");
+          if (graders.length > 0) {
+            const ordered = [...graders].sort((a, b) => a.name.localeCompare(b.name));
+            setDisplayGraders(ordered);
+          }
+        }
+      } catch (e) {
+        setConfigError(e instanceof Error ? e.message : "Failed to load evaluation config");
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+    loadConfig();
+  }, [activeTab, taskId]);
+
+  // Load graders list for selection
+  useEffect(() => {
+    const loadGraders = async () => {
+      if (activeTab !== "evaluations") return;
+      try {
+        setGradersLoading(true);
+        setGradersError(null);
+        // Using static default project id 1 from ProjectContext
+        const res = await gradersApi.listByProject(1);
+        const items = res.data || [];
+        setGraders(items);
+        // If config already present, compute initial display order
+        if (evalConfig) {
+          const selectedIds = new Set((evalConfig.grader_ids || []) as number[]);
+          const ordered = [...items].sort((a, b) => {
+            const aSel = selectedIds.has(a.id);
+            const bSel = selectedIds.has(b.id);
+            if (aSel !== bSel) return aSel ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+          setDisplayGraders(ordered);
+        } else {
+          setDisplayGraders([...items].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (e) {
+        setGradersError(e instanceof Error ? e.message : "Failed to load graders");
+      } finally {
+        setGradersLoading(false);
+      }
+    };
+    loadGraders();
+  }, [activeTab]);
+
+  // Ensure initial order places selected graders on top after both config and graders are loaded
+  useEffect(() => {
+    if (activeTab !== "evaluations") return;
+    if (!evalConfig || graders.length === 0) return;
+    if (isEditingConfig) return; // don't reorder during editing
+    if (didInitialOrderRef.current) return;
+    const selectedIds = new Set((evalConfig.grader_ids || []) as number[]);
+    const ordered = [...graders].sort((a, b) => {
+      const aSel = selectedIds.has(a.id);
+      const bSel = selectedIds.has(b.id);
+      if (aSel !== bSel) return aSel ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    setDisplayGraders(ordered);
+    didInitialOrderRef.current = true;
+  }, [activeTab, graders, evalConfig, isEditingConfig]);
+
+  const saveEvalConfig = async () => {
+    if (!taskId || !evalConfig) return;
+    try {
+      setConfigSaving(true);
+      setConfigError(null);
+      const parsedGraderIds = graderIdsInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+        .map((s) => Number(s))
+        .filter((n) => Number.isFinite(n));
+      const payload = {
+        quality_weight: Number(evalConfig.quality_weight),
+        cost_weight: Number(evalConfig.cost_weight),
+        time_weight: Number(evalConfig.time_weight),
+        grader_ids: parsedGraderIds,
+      } as any;
+      const res = await evaluationsApi.createOrUpdateEvaluationConfig(Number(taskId), payload);
+      setEvalConfig(res.data as any);
+      setGraderIdsInput((res.data.grader_ids || []).join(", "));
+      setOriginalConfig(res.data as any);
+      setOriginalGraderIds((res.data.grader_ids || []).join(", "));
+      // After save, reorder display: selected first then name
+      const selectedIds = new Set((res.data.grader_ids || []) as number[]);
+      const ordered = [...graders].sort((a, b) => {
+        const aSel = selectedIds.has(a.id);
+        const bSel = selectedIds.has(b.id);
+        if (aSel !== bSel) return aSel ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      animateGradersReorder(ordered);
+      setIsEditingConfig(false);
+    } catch (e) {
+      setConfigError(e instanceof Error ? e.message : "Failed to save evaluation config");
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  // target metrics recalculation disabled/removed from UI
+
+  const reloadTests = async () => {
+    if (!taskId) return;
+    try {
+      setTestsLoading(true);
+      const res = await testCasesApi.getTestCasesByTask(taskId);
+      const data = res.data as any;
+      const items = Array.isArray(data) ? data : (data?.test_cases ?? []);
+      setTestCases(items);
+    } finally {
+      setTestsLoading(false);
+    }
+  };
+
+  const openView = (id: number) => {
+    navigate(`/tasks/${taskId}/test-cases/${id}?tab=${activeTab}`);
+  };
+
+  const openEdit = async (id: number) => {
+    try {
+      setEditing(id);
+      setEditError(null);
+      const res = await testCasesApi.getTestCase(String(id));
+      const tc: any = res.data;
+      setEditForm({
+        description: tc.description ?? "",
+        arguments: JSON.stringify(tc.arguments ?? {}, null, 2),
+        expected_output: tc.expected_output ?? "",
+      });
+    } catch (e) {
+      setTestsError(e instanceof Error ? e.message : "Failed to load test case");
+    }
+  };
+
+  const submitCreate = async () => {
+    if (!taskId) return;
+    try {
+      setTestsSubmitting(true);
+      setCreateError(null);
+      const argsObj = JSON.parse(createForm.arguments || "{}");
+      const expectedStr = createForm.expected_output || "";
+      await testCasesApi.createTestCase({
+        task_id: String(taskId),
+        description: createForm.description || undefined,
+        arguments: argsObj,
+        expected_output: expectedStr,
+      } as any);
+      setCreateOpen(false);
+      setCreateForm({ description: "", arguments: "{}", expected_output: "" });
+      await reloadTests();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create test case");
+    } finally {
+      setTestsSubmitting(false);
+    }
+  };
+
+  const submitEdit = async () => {
+    if (!editing) return;
+    try {
+      setTestsSubmitting(true);
+      setEditError(null);
+      const argsObj = JSON.parse(editForm.arguments || "{}");
+      const expectedStr = editForm.expected_output || "";
+      await testCasesApi.patchTestCase(String(editing), {
+        description: editForm.description || undefined,
+        arguments: argsObj,
+        expected_output: expectedStr,
+      } as any);
+      setEditing(null);
+      await reloadTests();
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Failed to update test case");
+    } finally {
+      setTestsSubmitting(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    try {
+      setTestsSubmitting(true);
+      await testCasesApi.deleteTestCase(String(deleting));
+      setDeleting(null);
+      await reloadTests();
+    } catch (e) {
+      setTestsError(e instanceof Error ? e.message : "Failed to delete test case");
+    } finally {
+      setTestsSubmitting(false);
+    }
+  };
 
   // Cleanup page title when component unmounts
   useEffect(() => {
@@ -391,33 +803,295 @@ const TaskDetail = () => {
             </div>
           )}
 
+          
+
 
           {/* Evaluations Tab */}
           {activeTab === "evaluations" && (
-            <div className="p-4">
-              {task.testCases.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  <p>No evaluations yet</p>
-                  <Button variant="link" className="text-primary hover:underline mt-2 p-0 h-auto">
-                    Create evaluation
+            <div className="p-4 space-y-4">
+              {/* Evaluations Controls */}
+              <div className="border border-border rounded-lg p-4 flex items-center justify-between gap-4">
+                <div className="text-sm font-medium text-foreground">Evaluations controls</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-muted-foreground">Model version</div>
+                    <Select value={evalVersionId || ""} onValueChange={(v) => setEvalVersionId(v)}>
+                      <SelectTrigger className="w-[260px]">
+                        <SelectValue placeholder="Select a version..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {task.versions.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>{`v${v.version}`}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleRunEvaluation} disabled={!evalVersionId || evalRunLoading} className="min-w-[180px]">
+                    {evalRunLoading ? (
+                      <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Running...</span>
+                    ) : (
+                      <span className="flex items-center gap-2">Run evaluation</span>
+                    )}
                   </Button>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {task.testCases.map((tc) => (
-                    <div key={tc.id} className="border border-border rounded p-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{tc.name}</span>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${tc.status === "passed" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
-                        >
-                          {tc.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              </div>
+              {evalRunError && (
+                <div className="text-sm text-destructive">{evalRunError}</div>
               )}
+
+              {/* Evaluation started popup */}
+              <Dialog open={evalRunSuccessOpen} onOpenChange={setEvalRunSuccessOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Evaluation started</DialogTitle>
+                  </DialogHeader>
+                  <div className="text-sm text-muted-foreground">
+                    Your evaluation is running in the background. You can monitor progress and see results on the Evaluations page.
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setEvalRunSuccessOpen(false)}>Close</Button>
+                    <Button onClick={() => navigate(`/evaluations`)}>View evaluations</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Configuration Panel */}
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold">Evaluation Configuration</h2>
+                  <div className="flex items-center gap-2">
+                    {!isEditingConfig ? (
+                      <Button variant="outline" onClick={() => setIsEditingConfig(true)} disabled={configLoading || configSaving}>
+                        Edit
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            if (!evalConfig || !originalConfig) {
+                              setIsEditingConfig(false);
+                              return;
+                            }
+                            setIsEditingConfig(false);
+                            setGraderIdsInput(originalGraderIds);
+                            animateWeights(
+                              {
+                                q: Number(evalConfig.quality_weight || 0),
+                                c: Number(evalConfig.cost_weight || 0),
+                                t: Number(evalConfig.time_weight || 0),
+                              },
+                              {
+                                q: Number((originalConfig as any).quality_weight || 0),
+                                c: Number((originalConfig as any).cost_weight || 0),
+                                t: Number((originalConfig as any).time_weight || 0),
+                              },
+                              450,
+                            );
+                          }}
+                          disabled={configSaving}
+                        >
+                          Cancel
+                        </Button>
+                        <Button onClick={saveEvalConfig} disabled={configSaving}>
+                          {configSaving ? "Saving..." : "Save"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {configLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading configuration...
+                  </div>
+                ) : configError ? (
+                  <div className="text-sm text-destructive">{configError}</div>
+                ) : evalConfig ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Weights</Label>
+                      <ScoreWeightsSelector
+                        initialWeights={{
+                          quality: evalConfig.quality_weight,
+                          costEfficiency: evalConfig.cost_weight,
+                          timeEfficiency: evalConfig.time_weight,
+                        }}
+                        onWeightsChange={(w) =>
+                          setEvalConfig({
+                            ...(evalConfig as any),
+                            quality_weight: w.quality,
+                            cost_weight: w.costEfficiency,
+                            time_weight: w.timeEfficiency,
+                          })
+                        }
+                        disabled={!isEditingConfig}
+                      />
+                    </div>
+                    <div>
+                      <Label>Graders</Label>
+                      {gradersLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Loading graders...
+                        </div>
+                      ) : gradersError ? (
+                        <div className="text-sm text-destructive mt-2">{gradersError}</div>
+                      ) : (
+                        <div className={`mt-2 relative ${isEditingConfig ? '' : 'opacity-70 pointer-events-none'}`}>
+                          <div className="grid gap-1.5 max-h-48 overflow-y-auto pr-1">
+                          {displayGraders.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">No graders available</div>
+                          ) : (
+                            displayGraders.map((g) => {
+                              const selected = !!evalConfig?.grader_ids?.includes(g.id);
+                              return (
+                                <div
+                                  key={g.id}
+                                  ref={(el) => {
+                                    if (el) graderItemRefs.current.set(g.id, el);
+                                  }}
+                                  className={`flex items-center gap-2 p-1.5 border rounded border-border will-change-transform`}
+                                >
+                                  <label className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={(e) => {
+                                      if (!evalConfig) return;
+                                      const set = new Set(evalConfig.grader_ids || []);
+                                      if (e.target.checked) set.add(g.id); else set.delete(g.id);
+                                      const next = Array.from(set);
+                                      setEvalConfig({ ...(evalConfig as any), grader_ids: next });
+                                      setGraderIdsInput(next.join(', '));
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium">{g.name}</div>
+                                    {g.description && <div className="text-xs text-muted-foreground">{g.description}</div>}
+                                  </div>
+                                  </label>
+                                </div>
+                              );
+                            })
+                          )}
+                          </div>
+                          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Evaluations list */}
+              {/* Test Cases Panel styled like Evaluations list */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold">Test Cases</h2>
+                      <p className="text-sm text-muted-foreground">Create and manage test cases for this task</p>
+                    </div>
+                    <Button size="sm" onClick={() => navigate(`/tasks/${taskId}/test-cases/new?tab=${activeTab}`)}>Add Test Case</Button>
+                  </div>
+
+                  {testsLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : testsError ? (
+                    <div className="text-destructive">{testsError}</div>
+                  ) : testCases.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">No test cases yet</div>
+                  ) : (
+                    <Table>
+                      <TableBody>
+                        {testCases.map((tc) => (
+                          <TableRow
+                            key={tc.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => openView(tc.id)}
+                          >
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium text-foreground truncate max-w-[520px]" title={tc.description || `Test #${tc.id}`}>
+                                  {tc.description || `Test #${tc.id}`}
+                                </div>
+                                <p className="text-xs text-muted-foreground">ID: {tc.id}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(tc.created_at), { addSuffix: true })}
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Button variant="ghost" size="icon" className="mr-1" onClick={(e) => { e.stopPropagation(); openView(tc.id); }} aria-label="View">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleting(tc.id); }} aria-label="Delete">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+
+                  {/* Create moved to dedicated page */}
+
+                  {/* View now navigates to dedicated page */}
+
+                  {/* Edit Dialog */}
+                  <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) { setEditing(null); setEditError(null); } }}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Edit Test Case {editing ?? ''}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="tc-desc-e">Description</Label>
+                          <Input id="tc-desc-e" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label htmlFor="tc-args-e">Arguments (JSON)</Label>
+                          <Textarea id="tc-args-e" rows={6} value={editForm.arguments} onChange={(e) => setEditForm({ ...editForm, arguments: e.target.value })} />
+                        </div>
+                        <div>
+                      <Label htmlFor="tc-exp-e">Expected Output</Label>
+                          <Textarea id="tc-exp-e" rows={6} value={editForm.expected_output} onChange={(e) => setEditForm({ ...editForm, expected_output: e.target.value })} />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setEditing(null)} disabled={testsSubmitting}>Cancel</Button>
+                          <Button onClick={submitEdit} disabled={testsSubmitting}>{testsSubmitting ? "Saving..." : "Save"}</Button>
+                        </div>
+                        {editError && (
+                          <div className="text-sm text-destructive">{editError}</div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Delete Confirmation - use Dialog so clicking overlay closes */}
+                  <Dialog open={deleting !== null} onOpenChange={(open) => { if (!open) setDeleting(null); }}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Delete Test Case</DialogTitle>
+                      </DialogHeader>
+                      <div className="text-sm text-muted-foreground">
+                        Are you sure you want to delete test case {deleting ?? ''}? This action cannot be undone.
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setDeleting(null)} disabled={testsSubmitting}>Cancel</Button>
+                        <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDelete} disabled={testsSubmitting}>
+                          {testsSubmitting ? "Deleting..." : "Delete"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+
+              {/* Evaluations list removed here; visible via sidebar page */}
             </div>
           )}
 
