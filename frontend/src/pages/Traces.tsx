@@ -298,6 +298,52 @@ const Traces = () => {
         };
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
+    // Keyboard navigation for traces
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+            if (filteredAndSortedTraces.length === 0) return;
+
+            // Prevent default scrolling behavior
+            e.preventDefault();
+
+            const currentIndex = selectedTrace
+                ? filteredAndSortedTraces.findIndex((t) => t.id === selectedTrace)
+                : -1;
+
+            let newIndex: number;
+            if (e.key === "ArrowUp") {
+                newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+            } else {
+                newIndex =
+                    currentIndex < filteredAndSortedTraces.length - 1
+                        ? currentIndex + 1
+                        : filteredAndSortedTraces.length - 1;
+            }
+
+            const newTrace = filteredAndSortedTraces[newIndex];
+            if (newTrace) {
+                setSelectedTrace(newTrace.id);
+
+                // Scroll the selected row into view
+                setTimeout(() => {
+                    const row = document.querySelector(
+                        `tr[data-trace-id="${newTrace.id}"]`,
+                    );
+                    if (row) {
+                        row.scrollIntoView({
+                            behavior: "smooth",
+                            block: "nearest",
+                        });
+                    }
+                }, 0);
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [filteredAndSortedTraces, selectedTrace]);
+
     return (
         <div className="flex flex-col -m-6 h-[calc(100vh-6rem)]">
             <div className="px-6 pt-6 pb-6">

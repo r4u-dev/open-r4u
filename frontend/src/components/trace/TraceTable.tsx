@@ -116,6 +116,7 @@ export function TraceTable({
                     {traces.map((trace) => (
                         <tr
                             key={trace.id}
+                            data-trace-id={trace.id}
                             onClick={() => onSelectTrace(trace.id)}
                             className={`border-b border-border cursor-pointer transition-colors ${
                                 selectedTraceId === trace.id
