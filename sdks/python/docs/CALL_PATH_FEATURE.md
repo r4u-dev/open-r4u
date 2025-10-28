@@ -15,12 +15,15 @@ When an LLM call is made through a wrapped client, the SDK:
 
 ## Path Format
 
-The path is formatted as: `file.py::function1->function2->function3`
+The path is formatted as: `file.py::function`
 
 Example:
+
 ```
-src/chatbot/main.py::handle_request->process_query->call_llm
+src/chatbot/main.py::call_llm
 ```
+
+The function represents where `extract_call_path()` is called from (the first non-library frame).
 
 ## Implementation
 
@@ -28,11 +31,12 @@ src/chatbot/main.py::handle_request->process_query->call_llm
 
 The `extract_call_path()` function performs the stack inspection:
 
-- Skips internal frames (r4u SDK, OpenAI SDK internals)
-- Identifies the first user code frame as the "target file"
-- Collects all functions in the call chain within that file
-- Returns relative path from current working directory
-- Returns tuple of (path_signature, line_number)
+- Uses `inspect.stack()` to get all stack frames
+- Filters out library files (site-packages, standard library)
+- Identifies the first non-library file in the call stack
+- Returns the file path and function name where the call originated
+- Returns relative path from current working directory when possible
+- Returns tuple of (call_path, line_number) formatted as `"file.py::function"`
 
 ### Integration: `src/r4u/tracing/openai.py`
 
@@ -75,8 +79,10 @@ def handle_request():
 
 def query_llm(text):
     traced_client.chat.completions.create(...)
-    # Trace will include: "file.py::main->handle_request->query_llm"
+    # Trace will include: "file.py::query_llm"
 ```
+
+Note: The path shows only the immediate function where the call is made, not the full chain.
 
 ### Manual Extraction
 
@@ -93,19 +99,17 @@ def my_function():
 ### Unit Tests
 
 `tests/test_utils.py` includes comprehensive tests for:
-- Basic call path extraction
-- Nested function call chains
-- File name capture
+
+- Direct call path extraction
+- Nested function calls
+- Class method calls
+- Return format validation
+- Max depth parameter
 - Line number accuracy
-
-### Integration Tests
-
-`test_path_tracking.py` - End-to-end test with real OpenAI calls
-`test_call_path_simple.py` - Simple verification of path extraction
 
 ### Examples
 
-`examples/path_tracking_example.py` - Demonstration of the feature
+`examples/extract_call_path_example.py` - Comprehensive demonstration of the feature with various use cases
 
 ## Benefits
 
@@ -118,16 +122,16 @@ def my_function():
 
 ### Frame Filtering
 
-The implementation skips:
-- `utils.py` frames (the extraction function itself)
-- `patcher.py` frames (internal wrapping)
-- `_base_client.py` frames (OpenAI SDK internals)
-- Module-level frames (`<module>`)
-- Wrapper function frames
+The implementation filters out:
+
+- All library files (site-packages, standard library)
+- Python internal files (files starting with `<`)
+- Returns the first non-library file found in the stack
 
 ### Relative Paths
 
 Paths are made relative to the current working directory when possible:
+
 - `/home/user/project/src/main.py` → `src/main.py`
 - Falls back to absolute path if relative conversion fails
 
@@ -140,7 +144,9 @@ Paths are made relative to the current working directory when possible:
 ## Future Enhancements
 
 Potential improvements:
-- Configurable path format
-- Support for filtering by package/module
+
+- Optional full call chain format (file.py::func1->func2->func3)
+- Configurable library path filtering
+- Support for filtering by package/module patterns
 - Option to include line numbers in path string
 - Support for other LLM providers (Anthropic, Cohere, etc.)
