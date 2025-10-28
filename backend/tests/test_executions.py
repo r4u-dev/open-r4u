@@ -154,6 +154,10 @@ class TestExecutor:
         mock_usage.cached_tokens = 5
         mock_usage.reasoning_tokens = 15
 
+        # Mirror LiteLLM's nested usage structure
+        mock_usage.prompt_tokens_details = {"cached_tokens": 5}
+        mock_usage.completion_tokens_details = {"reasoning_tokens": 15}
+
         mock_response = MagicMock()
         mock_response.choices = [mock_choice]
         mock_response.usage = mock_usage

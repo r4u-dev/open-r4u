@@ -263,15 +263,43 @@ class LLMExecutor:
 
             # Extract token usage
             usage = response.usage
+
+            # Default values
             prompt_tokens = usage.prompt_tokens if usage else None
             completion_tokens = usage.completion_tokens if usage else None
             total_tokens = usage.total_tokens if usage else None
-            cached_tokens = (
-                getattr(usage, "cached_tokens", None) if usage else None
-            )
-            reasoning_tokens = (
-                getattr(usage, "reasoning_tokens", None) if usage else None
-            )
+
+            # Cached_tokens extraction (handle dicts and objects; avoid hasattr with MagicMock)
+            cached_tokens = None
+            if usage:
+                prompt_tokens_details = getattr(usage, "prompt_tokens_details", None)
+                if prompt_tokens_details is not None:
+                    if isinstance(prompt_tokens_details, dict):
+                        cached_tokens = prompt_tokens_details.get("cached_tokens")
+                    else:
+                        value = getattr(prompt_tokens_details, "cached_tokens", None)
+                        if value is not None:
+                            cached_tokens = value
+                if cached_tokens is None:
+                    direct = getattr(usage, "cached_tokens", None)
+                    if direct is not None:
+                        cached_tokens = direct
+
+            # Reasoning_tokens extraction (handle dicts and objects)
+            reasoning_tokens = None
+            if usage:
+                completion_tokens_details = getattr(usage, "completion_tokens_details", None)
+                if completion_tokens_details is not None:
+                    if isinstance(completion_tokens_details, dict):
+                        reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
+                    else:
+                        value = getattr(completion_tokens_details, "reasoning_tokens", None)
+                        if value is not None:
+                            reasoning_tokens = value
+                if reasoning_tokens is None:
+                    direct = getattr(usage, "reasoning_tokens", None)
+                    if direct is not None:
+                        reasoning_tokens = direct
 
             return ExecutionResultBase(
                 started_at=started_at,
