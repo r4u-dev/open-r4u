@@ -534,7 +534,7 @@ data: [DONE]"""
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     if response.status_code != 201:
         print(f"Error: {response.status_code}")
@@ -653,7 +653,7 @@ data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_0
         },
     }
 
-    response = await client.post("/http-traces", json=payload)
+    response = await client.post("/v1/http-traces", json=payload)
 
     if response.status_code != 201:
         print(f"Error: {response.status_code}")
