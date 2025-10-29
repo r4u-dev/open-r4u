@@ -313,7 +313,8 @@ The parser reconstructs the final response by:
 
 - Accumulating content deltas into complete text
 - Extracting metadata from initial chunks
-- Using completion event for final token counts
+- **Extracting usage metrics (token counts) from the last chunk** for Chat Completions API
+- Using completion event for final token counts in Responses API
 
 ### Performance
 
