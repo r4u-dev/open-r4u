@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { EvaluationRead } from "@/lib/types/evaluation";
 import { evaluationsApi } from "@/services/evaluationsApi";
 import type { EvaluationResultItem, Grade } from "@/lib/types/evaluation";
@@ -11,6 +12,7 @@ interface EvaluationDetailPanelProps {
 export function EvaluationDetailPanel({
     evaluation: evaluationData,
 }: EvaluationDetailPanelProps) {
+    const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState({
         overview: true,
         metrics: true,
@@ -134,6 +136,14 @@ export function EvaluationDetailPanel({
                 <span className="text-xs font-medium text-foreground">
                     Evaluation Details
                 </span>
+                <button
+                    onClick={() => navigate(`/tasks/${evaluationData.task_id}`)}
+                    className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded px-2 py-1"
+                    title={`View task ${evaluationData.task_id}`}
+                >
+                    <span className="font-mono">Task {evaluationData.task_id}</span>
+                    <ExternalLink className="h-3 w-3" />
+                </button>
             </div>
 
             {/* Metadata */}
