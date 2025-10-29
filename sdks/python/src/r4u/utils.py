@@ -1,8 +1,21 @@
 import inspect
+from dataclasses import dataclass
 from pathlib import Path
 
+from async_trace import collect_async_trace
 
-def extract_call_path(max_depth: int = 100) -> tuple[str, int] | None:
+
+@dataclass
+class FrameInfo:
+    filename: str
+    function: str
+    lineno: int
+
+
+def extract_call_path(
+    max_depth: int = 100,
+    is_async: bool = False,
+) -> tuple[str, int] | None:
     """Extract the call path from the first non-library file in the call stack.
 
     Args:
@@ -13,7 +26,27 @@ def extract_call_path(max_depth: int = 100) -> tuple[str, int] | None:
         "<file-path>::<function>" (e.g., "src/main.py::say_hi")
 
     """
-    stack = inspect.stack()
+    if is_async:
+        frames = collect_async_trace().get("frames")
+        stack = (
+            [
+                FrameInfo(
+                    filename=frame.get("filename"),
+                    function=frame.get("name"),
+                    lineno=frame.get("line"),
+                )
+                for frame in frames
+                if frame.get("filename")
+            ]
+            if frames
+            else []
+        )
+    else:
+        stack = [
+            FrameInfo(frame.filename, frame.function, frame.lineno)
+            for frame in inspect.stack()
+            if frame.filename
+        ]
 
     # Get site-packages and other library paths to filter out
     import site

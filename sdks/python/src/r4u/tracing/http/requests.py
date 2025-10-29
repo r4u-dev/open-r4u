@@ -183,7 +183,7 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
         request_payload = request_payload.encode("utf-8")
 
     # Extract call path
-    call_path_and_no = extract_call_path()
+    call_path_and_no = extract_call_path(is_async=False)
 
     return {
         "method": request.method.upper(),
