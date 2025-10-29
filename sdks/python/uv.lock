@@ -179,11 +179,11 @@ wheels = [
 
 [[package]]
 name = "async-trace"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d8/e9/bbb16d5672b07b36fe207d97e1cca1b34152a5f901e0ef79b542a1a1a9b3/async_trace-0.1.0.tar.gz", hash = "sha256:7e3dcb6d8fdb158be5a7f7612c0ef8cfeab89d8d72cdc5218aabfbb654f4ae1b", size = 11247, upload-time = "2025-10-28T19:40:16.497Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/90/673c32700b1929bd036b475dbf39b7314866e73fd79ca0a9451758a0352e/async_trace-0.1.1.tar.gz", hash = "sha256:5bd68cdced13dd950e27a56a0899e80c5ea1d53c67a1cf03cafc066cbaf75e4b", size = 11252, upload-time = "2025-10-29T08:32:49.641Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/4e/28e385ec1b2566ebbb95180c5b7a4bdd2646b6de91b689689b754f95f765/async_trace-0.1.0-py3-none-any.whl", hash = "sha256:8f6f414b41f33db7678cd35e9ece3342901384419193f306ea21d0fe8122022a", size = 8090, upload-time = "2025-10-28T19:40:14.688Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/89/58f8d3a6beb506dc50b217d07bdf72148dfd05d984a5e72f832837424cff/async_trace-0.1.1-py3-none-any.whl", hash = "sha256:6afb8d9f67f192436d0a1aa85c925945d0f725b40e553be2692e69d7b26a492a", size = 8072, upload-time = "2025-10-29T08:32:47.894Z" },
 ]
 
 [[package]]
@@ -1100,7 +1100,7 @@ wheels = [
 
 [[package]]
 name = "r4u"
-version = "0.1.8"
+version = "0.1.10"
 source = { editable = "." }
 dependencies = [
     { name = "async-trace" },
@@ -1131,7 +1131,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = ">=3.8.0" },
-    { name = "async-trace", specifier = ">=0.1.0" },
+    { name = "async-trace", specifier = ">=0.1.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.12.2" },
     { name = "requests", marker = "extra == 'requests'", specifier = ">=2.25.0" },
