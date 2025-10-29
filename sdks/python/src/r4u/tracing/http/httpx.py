@@ -5,7 +5,6 @@ import types
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from async_trace import print_async_trace, print_trace
 import httpx
 
 from r4u.client import AbstractTracer, HTTPTrace
@@ -183,14 +182,13 @@ def _is_streaming_request(kwargs: dict) -> bool:
     return kwargs.get("stream", False)
 
 
-def _build_trace_context(request: httpx.Request) -> dict:
+def _build_trace_context(request: httpx.Request, is_async=False) -> dict:
     """Build initial trace context from httpx request."""
     started_at = datetime.now(timezone.utc)
     headers_dict = dict(request.headers)
 
     # Extract call path
-    call_path_with_no = extract_call_path()
-    print_trace()
+    call_path_with_no = extract_call_path(is_async=is_async)
 
     return {
         "method": request.method.upper(),
@@ -234,7 +232,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
         if not should_trace_url(str(args[0].url)):
             return await original(*args, **kwargs)
 
-        trace_ctx = _build_trace_context(args[0])
+        trace_ctx = _build_trace_context(args[0], is_async=True)
 
         response = None
         error = None

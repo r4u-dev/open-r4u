@@ -186,7 +186,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
         elif not isinstance(request_payload, bytes):
             request_payload = b""
 
-        call_path_and_no = extract_call_path()
+        call_path_and_no = extract_call_path(is_async=True)
 
         trace_ctx = {
             "method": str(method).upper(),
