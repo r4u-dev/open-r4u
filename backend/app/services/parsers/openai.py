@@ -387,10 +387,20 @@ class OpenAIParser(ProviderParser):
             total_tokens = usage.get("total_tokens")
 
             # Additional token metrics
-            prompt_tokens_details = usage.get("prompt_tokens_details") or {}
+            # Responses API uses input_tokens_details/output_tokens_details
+            # Chat Completions API uses prompt_tokens_details/completion_tokens_details
+            prompt_tokens_details = (
+                usage.get("prompt_tokens_details")
+                or usage.get("input_tokens_details")
+                or {}
+            )
             cached_tokens = prompt_tokens_details.get("cached_tokens")
 
-            completion_tokens_details = usage.get("completion_tokens_details") or {}
+            completion_tokens_details = (
+                usage.get("completion_tokens_details")
+                or usage.get("output_tokens_details")
+                or {}
+            )
             reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
 
             system_fingerprint = response_body.get("system_fingerprint")
@@ -561,10 +571,20 @@ class OpenAIParser(ProviderParser):
             total_tokens = usage.get("total_tokens")
 
             # Additional token metrics
-            prompt_tokens_details = usage.get("prompt_tokens_details") or {}
+            # Responses API uses input_tokens_details/output_tokens_details
+            # Chat Completions API uses prompt_tokens_details/completion_tokens_details
+            prompt_tokens_details = (
+                usage.get("prompt_tokens_details")
+                or usage.get("input_tokens_details")
+                or {}
+            )
             cached_tokens = prompt_tokens_details.get("cached_tokens")
 
-            completion_tokens_details = usage.get("completion_tokens_details") or {}
+            completion_tokens_details = (
+                usage.get("completion_tokens_details")
+                or usage.get("output_tokens_details")
+                or {}
+            )
             reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
 
             system_fingerprint = response_body.get("system_fingerprint")

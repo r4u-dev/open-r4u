@@ -678,6 +678,8 @@ data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_0
     assert data["prompt_tokens"] == 13
     assert data["completion_tokens"] == 12
     assert data["total_tokens"] == 25
+    assert data["cached_tokens"] == 0
+    assert data["reasoning_tokens"] == 0
 
     # Verify input items were created
     assert len(data["input"]) == 1
