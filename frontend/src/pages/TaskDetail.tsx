@@ -10,13 +10,15 @@ import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
 import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 import { testCasesApi } from "@/services/testCasesApi";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 // Removed AlertDialog for delete; using regular Dialog for overlay-close behavior
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { evaluationsApi } from "@/services/evaluationsApi";
 import { gradersApi, GraderListItem } from "@/services/gradersApi";
+import { implementationsApi, ImplementationCreate } from "@/services/implementationsApi";
+import { modelsApi } from "@/services/modelsApi";
 import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -84,6 +86,84 @@ const TaskDetail = () => {
   const [evalRunError, setEvalRunError] = useState<string | null>(null);
   const [evalRunSuccessId, setEvalRunSuccessId] = useState<number | null>(null);
   const [evalRunSuccessOpen, setEvalRunSuccessOpen] = useState(false);
+
+  // Implementation creation state
+  const [createImplOpen, setCreateImplOpen] = useState(false);
+  const [createImplLoading, setCreateImplLoading] = useState(false);
+  const [createImplError, setCreateImplError] = useState<string | null>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  // Implementation delete state
+  const [deleteImplId, setDeleteImplId] = useState<string | null>(null);
+  const [deleteImplLoading, setDeleteImplLoading] = useState(false);
+  const [createImplForm, setCreateImplForm] = useState<ImplementationCreate>({
+    version: "",
+    prompt: "",
+    model: "gpt-4o",
+    temperature: 0.7,
+    max_output_tokens: 4000,
+    tools: undefined,
+    tool_choice: "auto",
+    reasoning: {
+      effort: "medium",
+      summary: "auto",
+    },
+    temp: false,
+  });
+  const [toolsInput, setToolsInput] = useState<string>("");
+  const [maxTokensInput, setMaxTokensInput] = useState<string>("4000");
+
+  // Compute next auto version (increment minor from the latest version present)
+  const computeNextVersion = (): string => {
+    if (!task || !task.versions || task.versions.length === 0) return "1.0";
+    const parse = (v: string): [number, number] => {
+      const [majS, minS] = v.split(".");
+      const maj = Number(majS) || 0;
+      const min = Number(minS) || 0;
+      return [maj, min];
+    };
+    let maxMaj = 0;
+    let maxMin = -1;
+    task.versions.forEach((ver) => {
+      const [maj, min] = parse(ver.version);
+      if (maj > maxMaj || (maj === maxMaj && min > maxMin)) {
+        maxMaj = maj;
+        maxMin = min;
+      }
+    });
+    return `${maxMaj}.${maxMin + 1}`;
+  };
+  
+  // Initialize inputs and load models when dialog opens
+  useEffect(() => {
+    if (createImplOpen) {
+      setToolsInput(createImplForm.tools ? JSON.stringify(createImplForm.tools, null, 2) : "");
+      setMaxTokensInput(String(createImplForm.max_output_tokens));
+      // Force version to next auto version whenever dialog opens
+      setCreateImplForm((prev) => ({ ...prev, version: computeNextVersion() }));
+      if (!modelsLoading && models.length === 0) {
+        (async () => {
+          try {
+            setModelsLoading(true);
+            const res = await modelsApi.listModels();
+            const list = res.data || [];
+            setModels(list);
+            if (!createImplForm.model && list.length > 0) {
+              setCreateImplForm({ ...createImplForm, model: list[0] });
+            }
+          } catch (e) {
+            console.error("Failed to load models", e);
+          } finally {
+            setModelsLoading(false);
+          }
+        })();
+      }
+    }
+  }, [createImplOpen]);
+
+  // Load models when edit dialog opens (if not already loaded)
+  // removed edit modal model preloading; creation dialog handles model loading
+
   const handleRunEvaluation = async () => {
     if (!evalVersionId) return;
     try {
@@ -98,6 +178,82 @@ const TaskDetail = () => {
       setEvalRunError(e instanceof Error ? e.message : "Failed to run evaluation");
     } finally {
       setEvalRunLoading(false);
+    }
+  };
+
+  const handleCreateImplementation = async () => {
+    if (!taskId) return;
+    try {
+      setCreateImplLoading(true);
+      setCreateImplError(null);
+      // Ensure tool_choice is null when no tools provided
+      const createPayload: ImplementationCreate = {
+        ...createImplForm,
+        version: computeNextVersion(),
+        tool_choice:
+          !createImplForm.tools || (Array.isArray(createImplForm.tools) && createImplForm.tools.length === 0)
+            ? null as any
+            : (createImplForm.tool_choice as any) || "auto",
+      };
+      const res = await implementationsApi.createImplementation(Number(taskId), createPayload);
+      // Fetch all implementations for this task
+      const implementationsRes = await implementationsApi.listImplementations(Number(taskId));
+      const implementations = implementationsRes.data || [];
+      
+      // Refresh task data
+      const taskData = await TaskService.getTaskById(taskId);
+      if (taskData) {
+        // Update versions array with all implementations
+        const updatedVersions = implementations.map((impl) => {
+          const toolNames = impl.tools
+            ?.map((tool: any) => tool.function?.name)
+            .filter(Boolean) || [];
+          
+          return {
+            id: String(impl.id),
+            version: impl.version,
+            model: impl.model,
+            settings: {
+              temperature: impl.temperature,
+              max_output_tokens: impl.max_output_tokens,
+            },
+            prompt: impl.prompt || "",
+            tools: toolNames,
+            createdAt: impl.created_at,
+          };
+        });
+        
+        setTask({
+          ...taskData,
+          versions: updatedVersions,
+        });
+        
+        // Select the newly created implementation
+        setSelectedVersion(String(res.data.id));
+        setEvalVersionId(String(res.data.id));
+      }
+      setCreateImplOpen(false);
+      // Reset form
+      setCreateImplForm({
+        version: "",
+        prompt: "",
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_output_tokens: 4000,
+        tools: undefined,
+        tool_choice: "auto",
+        reasoning: {
+          effort: "medium",
+          summary: "auto",
+        },
+        temp: false,
+      });
+      setToolsInput("");
+      setMaxTokensInput("4000");
+    } catch (e) {
+      setCreateImplError(e instanceof Error ? e.message : "Failed to create implementation");
+    } finally {
+      setCreateImplLoading(false);
     }
   };
   const animateGradersReorder = (newOrder: GraderListItem[]) => {
@@ -267,8 +423,50 @@ const TaskDetail = () => {
         setError(null);
         const taskData = await TaskService.getTaskById(taskId);
         if (taskData) {
+          // Fetch all implementations for this task
+          try {
+            const implementationsRes = await implementationsApi.listImplementations(Number(taskId));
+            const implementations = implementationsRes.data || [];
+            
+            // Update versions array with all implementations
+            const updatedVersions = implementations.map((impl) => {
+              const toolNames = impl.tools
+                ?.map((tool: any) => tool.function?.name)
+                .filter(Boolean) || [];
+              
+              return {
+                id: String(impl.id),
+                version: impl.version,
+                model: impl.model,
+                settings: {
+                  temperature: impl.temperature,
+                  max_output_tokens: impl.max_output_tokens,
+                },
+                prompt: impl.prompt || "",
+                tools: toolNames,
+                createdAt: impl.created_at,
+              };
+            });
+            
+            setTask({
+              ...taskData,
+              versions: updatedVersions,
+            });
+            // Select production version by default, or first version if no production version
+            const productionVersion = updatedVersions.find(v => v.version === taskData.production_version);
+            const defaultVersionId = productionVersion?.id || updatedVersions[0]?.id || "";
+            setSelectedVersion(defaultVersionId);
+            setEvalVersionId(defaultVersionId);
+          } catch (implError) {
+            // If fetching implementations fails, use the task data as-is
+            console.error("Failed to fetch implementations:", implError);
           setTask(taskData);
-          setSelectedVersion(taskData.versions[0]?.id || "");
+            // Select production version by default, or first version if no production version
+            const productionVersion = taskData.versions.find(v => v.version === taskData.production_version);
+            const defaultVersionId = productionVersion?.id || taskData.versions[0]?.id || "";
+            setSelectedVersion(defaultVersionId);
+            setEvalVersionId(defaultVersionId);
+          }
           setPageTitle(taskData.name);
         } else {
           setError(`Task not found for ID: ${taskId}`);
@@ -654,20 +852,23 @@ const TaskDetail = () => {
               </div>
 
               {/* Implementation */}
-              <div className="border border-border rounded-lg p-4">
+              <div className="border border-border rounded-lg p-4 relative">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">Implementation</h2>
-                  <select
-                    value={selectedVersion}
-                    onChange={(e) => setSelectedVersion(e.target.value)}
-                    className="bg-background border border-border rounded px-3 py-1 text-sm"
-                  >
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedVersion} onValueChange={setSelectedVersion}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select version..." />
+                      </SelectTrigger>
+                      <SelectContent>
                     {task.versions.map((version) => (
-                      <option key={version.id} value={version.id}>
+                          <SelectItem key={version.id} value={version.id}>
                         v{version.version}
-                      </option>
-                    ))}
-                  </select>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 
                 <div className="space-y-3">
@@ -746,15 +947,71 @@ const TaskDetail = () => {
                               })}
                             </div>
                           </div>
+                          {/* Bottom-right controls: edit/delete + production indicator/action */}
+                          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                            {selectedVersion && (
+                              <>
+                                <Button size="icon" variant="ghost" aria-label="Create new version from this" title="Create new version from this" onClick={async () => {
+                                  if (!selectedVersion) return;
+                                  try {
+                                    // Load full implementation to prefill create form
+                                    const res = await implementationsApi.getImplementation(Number(selectedVersion));
+                                    const impl: any = res.data;
+                                    const form: ImplementationCreate = {
+                                      version: computeNextVersion(),
+                                      prompt: impl.prompt || "",
+                                      model: impl.model || "",
+                                      temperature: impl.temperature ?? undefined,
+                                      max_output_tokens: impl.max_output_tokens ?? undefined,
+                                      tools: impl.tools ?? undefined,
+                                      tool_choice: (impl.tool_choice?.type ?? impl.tool_choice) || "auto",
+                                      reasoning: impl.reasoning ?? { effort: "medium", summary: "auto" },
+                                      temp: false,
+                                    };
+                                    if (!form.tools || form.tools.length === 0) {
+                                      form.tool_choice = null as any;
+                                    }
+                                    setCreateImplForm(form);
+                                    setToolsInput(form.tools ? JSON.stringify(form.tools, null, 2) : "");
+                                    setMaxTokensInput(
+                                      form.max_output_tokens !== undefined && form.max_output_tokens !== null
+                                        ? String(form.max_output_tokens)
+                                        : ""
+                                    );
+                                    setCreateImplOpen(true);
+                                  } catch (e) {
+                                    console.error(e);
+                                  }
+                                }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                {(() => {
+                                  const v = task.versions.find(vv => vv.id === selectedVersion);
+                                  const isProduction = v ? v.version === task.production_version : false;
+                                  if (isProduction) return null;
+                                  return (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label="Delete version"
+                                      title="Delete version"
+                                      onClick={() => setDeleteImplId(selectedVersion)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {version.version === task.production_version && (
+                              <Badge variant="secondary">Production</Badge>
+                            )}
+                          </div>
                         </div>
                       ) : null;
                     })()}
                 </div>
               </div>
-
-
-
-
             </div>
           )}
 
@@ -814,7 +1071,7 @@ const TaskDetail = () => {
                 <div className="text-sm font-medium text-foreground">Evaluations controls</div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-muted-foreground">Model version</div>
+                    <div className="text-sm text-muted-foreground">Task version</div>
                     <Select value={evalVersionId || ""} onValueChange={(v) => setEvalVersionId(v)}>
                       <SelectTrigger className="w-[260px]">
                         <SelectValue placeholder="Select a version..." />
@@ -825,7 +1082,7 @@ const TaskDetail = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
+              </div>
                   <Button onClick={handleRunEvaluation} disabled={!evalVersionId || evalRunLoading} className="min-w-[180px]">
                     {evalRunLoading ? (
                       <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Running...</span>
@@ -844,10 +1101,10 @@ const TaskDetail = () => {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Evaluation started</DialogTitle>
+                    <DialogDescription>
+                      Your evaluation is running in the background. You can monitor progress and see results on the Evaluations page.
+                    </DialogDescription>
                   </DialogHeader>
-                  <div className="text-sm text-muted-foreground">
-                    Your evaluation is running in the background. You can monitor progress and see results on the Evaluations page.
-                  </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={() => setEvalRunSuccessOpen(false)}>Close</Button>
                     <Button onClick={() => navigate(`/evaluations`)}>View evaluations</Button>
@@ -898,13 +1155,13 @@ const TaskDetail = () => {
                         </Button>
                       </>
                     )}
-                  </div>
-                </div>
+                              </div>
+                              </div>
                 {configLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading configuration...
-                  </div>
+                                  </div>
                 ) : configError ? (
                   <div className="text-sm text-destructive">{configError}</div>
                 ) : evalConfig ? (
@@ -927,13 +1184,13 @@ const TaskDetail = () => {
                         }
                         disabled={!isEditingConfig}
                       />
-                    </div>
+                                </div>
                     <div>
                       <Label>Graders</Label>
                       {gradersLoading ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
                           <Loader2 className="h-4 w-4 animate-spin" /> Loading graders...
-                        </div>
+                                </div>
                       ) : gradersError ? (
                         <div className="text-sm text-destructive mt-2">{gradersError}</div>
                       ) : (
@@ -968,32 +1225,32 @@ const TaskDetail = () => {
                                   <div className="flex-1">
                                     <div className="text-sm font-medium">{g.name}</div>
                                     {g.description && <div className="text-xs text-muted-foreground">{g.description}</div>}
-                                  </div>
-                                  </label>
                                 </div>
-                              );
+                                  </label>
+                    </div>
+                  );
                             })
                           )}
-                          </div>
+                    </div>
                           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
-                        </div>
+                    </div>
                       )}
                     </div>
-                  </div>
+                    </div>
                 ) : null}
-              </div>
+                  </div>
 
               {/* Evaluations list */}
               {/* Test Cases Panel styled like Evaluations list */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div>
+                      <div>
                       <h2 className="text-lg font-semibold">Test Cases</h2>
                       <p className="text-sm text-muted-foreground">Create and manage test cases for this task</p>
-                    </div>
+                      </div>
                     <Button size="sm" onClick={() => navigate(`/tasks/${taskId}/test-cases/new?tab=${activeTab}`)}>Add Test Case</Button>
-                  </div>
+                      </div>
 
                   {testsLoading ? (
                     <div className="flex items-center justify-center py-10">
@@ -1016,7 +1273,7 @@ const TaskDetail = () => {
                               <div className="space-y-1">
                                 <div className="font-medium text-foreground truncate max-w-[520px]" title={tc.description || `Test #${tc.id}`}>
                                   {tc.description || `Test #${tc.id}`}
-                                </div>
+                    </div>
                                 <p className="text-xs text-muted-foreground">ID: {tc.id}</p>
                               </div>
                             </TableCell>
@@ -1041,51 +1298,54 @@ const TaskDetail = () => {
 
                   {/* View now navigates to dedicated page */}
 
-                  {/* Edit Dialog */}
+              {/* Edit Dialog */}
                   <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) { setEditing(null); setEditError(null); } }}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Edit Test Case {editing ?? ''}</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        <div>
-                          <Label htmlFor="tc-desc-e">Description</Label>
-                          <Input id="tc-desc-e" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
-                        </div>
-                        <div>
-                          <Label htmlFor="tc-args-e">Arguments (JSON)</Label>
-                          <Textarea id="tc-args-e" rows={6} value={editForm.arguments} onChange={(e) => setEditForm({ ...editForm, arguments: e.target.value })} />
-                        </div>
-                        <div>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Test Case {editing ?? ''}</DialogTitle>
+                        <DialogDescription>
+                          Update the test case details below.
+                        </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="tc-desc-e">Description</Label>
+                      <Input id="tc-desc-e" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label htmlFor="tc-args-e">Arguments (JSON)</Label>
+                      <Textarea id="tc-args-e" rows={6} value={editForm.arguments} onChange={(e) => setEditForm({ ...editForm, arguments: e.target.value })} />
+                    </div>
+                    <div>
                       <Label htmlFor="tc-exp-e">Expected Output</Label>
-                          <Textarea id="tc-exp-e" rows={6} value={editForm.expected_output} onChange={(e) => setEditForm({ ...editForm, expected_output: e.target.value })} />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setEditing(null)} disabled={testsSubmitting}>Cancel</Button>
-                          <Button onClick={submitEdit} disabled={testsSubmitting}>{testsSubmitting ? "Saving..." : "Save"}</Button>
-                        </div>
+                      <Textarea id="tc-exp-e" rows={6} value={editForm.expected_output} onChange={(e) => setEditForm({ ...editForm, expected_output: e.target.value })} />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setEditing(null)} disabled={testsSubmitting}>Cancel</Button>
+                      <Button onClick={submitEdit} disabled={testsSubmitting}>{testsSubmitting ? "Saving..." : "Save"}</Button>
+                    </div>
                         {editError && (
                           <div className="text-sm text-destructive">{editError}</div>
                         )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
                   {/* Delete Confirmation - use Dialog so clicking overlay closes */}
                   <Dialog open={deleting !== null} onOpenChange={(open) => { if (!open) setDeleting(null); }}>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Delete Test Case</DialogTitle>
+                        <DialogDescription>
+                          Are you sure you want to delete test case {deleting ?? ''}? This action cannot be undone.
+                        </DialogDescription>
                       </DialogHeader>
-                      <div className="text-sm text-muted-foreground">
-                        Are you sure you want to delete test case {deleting ?? ''}? This action cannot be undone.
-                      </div>
                       <div className="flex justify-end gap-2 pt-2">
                         <Button variant="outline" onClick={() => setDeleting(null)} disabled={testsSubmitting}>Cancel</Button>
                         <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDelete} disabled={testsSubmitting}>
                           {testsSubmitting ? "Deleting..." : "Delete"}
                         </Button>
-                      </div>
+                </div>
                     </DialogContent>
                   </Dialog>
                 </CardContent>
@@ -1099,10 +1359,296 @@ const TaskDetail = () => {
           {activeTab === "settings" && (
             <div className="p-4">
               <div className="text-sm text-muted-foreground">Settings coming soon</div>
-            </div>
+                </div>
           )}
         </div>
       </div>
+
+      {/* Create Implementation Dialog */}
+      <Dialog open={createImplOpen} onOpenChange={setCreateImplOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Implementation Version</DialogTitle>
+            <DialogDescription>
+              This will create version v{computeNextVersion()} for this task with your configuration settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4"></div>
+            
+            <div>
+              <Label htmlFor="impl-prompt">Prompt</Label>
+              <Textarea
+                id="impl-prompt"
+                rows={6}
+                value={createImplForm.prompt}
+                onChange={(e) => setCreateImplForm({ ...createImplForm, prompt: e.target.value })}
+                placeholder="Enter the prompt for this implementation..."
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="impl-tools">Tools (JSON)</Label>
+              <Textarea
+                id="impl-tools"
+                rows={4}
+                value={toolsInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setToolsInput(value);
+                  try {
+                    if (value.trim() === "") {
+                      setCreateImplForm({ ...createImplForm, tools: undefined, tool_choice: null as any });
+                    } else {
+                      const tools = JSON.parse(value);
+                      setCreateImplForm({ ...createImplForm, tools: Array.isArray(tools) ? tools : undefined });
+                    }
+                  } catch {
+                    // Invalid JSON, but allow typing
+                  }
+                }}
+                placeholder='[{"type": "function", "function": {"name": "tool_name", "description": "Tool description", "parameters": {"type": "object", "properties": {"param1": {"type": "string", "description": "Parameter description"}}, "required": ["param1"]}}]'
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter tools as JSON array. Leave empty for no tools.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="impl-model">Model</Label>
+                <Select value={createImplForm.model} onValueChange={(v) => setCreateImplForm({ ...createImplForm, model: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelsLoading ? (
+                      <div className="p-2 text-sm text-muted-foreground">Loading models...</div>
+                    ) : models.length > 0 ? (
+                      models.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground">No models available</div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="impl-temperature">Temperature</Label>
+                <Input
+                  id="impl-temperature"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="2"
+                  value={createImplForm.temperature ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "") {
+                      setCreateImplForm({ ...createImplForm, temperature: undefined });
+                    } else {
+                      const numValue = parseFloat(value);
+                      if (!isNaN(numValue)) {
+                        setCreateImplForm({ ...createImplForm, temperature: numValue });
+                      }
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <Label htmlFor="impl-max-tokens">Max Output Tokens</Label>
+                <Input
+                  id="impl-max-tokens"
+                  type="number"
+                  min="1"
+                  value={maxTokensInput}
+                  onChange={(e) => {
+                    setMaxTokensInput(e.target.value);
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                      setCreateImplForm({ ...createImplForm, max_output_tokens: value });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (isNaN(value) || value <= 0) {
+                      setMaxTokensInput("4000");
+                      setCreateImplForm({ ...createImplForm, max_output_tokens: 4000 });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="impl-tool-choice">Tool Choice</Label>
+                <Select value={createImplForm.tool_choice as string || "auto"} onValueChange={(v) => setCreateImplForm({ ...createImplForm, tool_choice: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="required">Required</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="impl-reasoning-effort">Reasoning Effort</Label>
+                <Select 
+                  value={createImplForm.reasoning?.effort || "medium"} 
+                  onValueChange={(v) => setCreateImplForm({ 
+                    ...createImplForm, 
+                    reasoning: { 
+                      ...createImplForm.reasoning, 
+                      effort: v as "minimal" | "low" | "medium" | "high" 
+                    } 
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minimal">Minimal</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="impl-reasoning-summary">Reasoning Summary</Label>
+                <Select 
+                  value={createImplForm.reasoning?.summary || "auto"} 
+                  onValueChange={(v) => setCreateImplForm({ 
+                    ...createImplForm, 
+                    reasoning: { 
+                      ...createImplForm.reasoning, 
+                      summary: v as "auto" | "concise" | "detailed" 
+                    } 
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="concise">Concise</SelectItem>
+                    <SelectItem value="detailed">Detailed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="impl-temp"
+                checked={createImplForm.temp || false}
+                onChange={(e) => setCreateImplForm({ ...createImplForm, temp: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="impl-temp" className="text-sm font-medium">
+                Temporary implementation
+              </Label>
+            </div>
+
+            {createImplError && (
+              <div className="text-sm text-destructive">{createImplError}</div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setCreateImplOpen(false)} disabled={createImplLoading}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateImplementation} 
+                disabled={
+                  createImplLoading || 
+                  !createImplForm.version ||
+                  (createImplForm.temperature !== undefined && (createImplForm.temperature < 0 || createImplForm.temperature > 2))
+                }
+              >
+                {createImplLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                        </span>
+                ) : (
+                  "Create Version"
+                )}
+              </Button>
+            </div>
+                    </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Promote to production confirmation removed as promotion is disabled */}
+
+      {/* Edit Implementation Dialog removed; editing creates a new version via the create dialog */}
+
+      {/* Delete Implementation Dialog */}
+      <Dialog open={deleteImplId !== null} onOpenChange={(open) => { if (!open) setDeleteImplId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Implementation</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this implementation version? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteImplId(null)} disabled={deleteImplLoading}>Cancel</Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteImplLoading}
+              onClick={async () => {
+                if (!deleteImplId) return;
+                try {
+                  setDeleteImplLoading(true);
+                  // Guard: prevent deleting production version
+                  const current = task.versions.find(v => v.id === deleteImplId);
+                  if (current && current.version === task.production_version) {
+                    setDeleteImplLoading(false);
+                    setDeleteImplId(null);
+                    return;
+                  }
+                  await implementationsApi.deleteImplementation(Number(deleteImplId));
+                  // Reload implementations
+                  const implementationsRes = await implementationsApi.listImplementations(Number(taskId));
+                  const implementations = implementationsRes.data || [];
+                  const taskData = await TaskService.getTaskById(taskId!);
+                  if (taskData) {
+                    const updatedVersions = implementations.map((impl) => ({
+                      id: String(impl.id),
+                      version: impl.version,
+                      model: impl.model,
+                      settings: {
+                        temperature: impl.temperature,
+                        max_output_tokens: impl.max_output_tokens,
+                      },
+                      prompt: impl.prompt || "",
+                      tools: (impl.tools || []).map((t: any) => t.function?.name).filter(Boolean),
+                      createdAt: impl.created_at,
+                    }));
+                    setTask({ ...taskData, versions: updatedVersions });
+                    const prodMatch = updatedVersions.find(v => v.version === taskData.production_version);
+                    const defId = prodMatch?.id || updatedVersions[0]?.id || "";
+                    setSelectedVersion(defId);
+                    setEvalVersionId(defId);
+                  }
+                  setDeleteImplId(null);
+                } finally {
+                  setDeleteImplLoading(false);
+                }
+              }}
+            >
+              {deleteImplLoading ? "Deleting..." : "Delete"}
+            </Button>
+        </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
