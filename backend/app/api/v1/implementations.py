@@ -9,8 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.models.tasks import Implementation, Task
 from app.schemas.tasks import ImplementationCreate, ImplementationRead
+from app.services.pricing_service import PricingService
 
 router = APIRouter(prefix="/implementations", tags=["implementations"])
+
+
+def get_pricing_service() -> PricingService:
+    """Dependency provider for PricingService."""
+    return PricingService()
 
 
 @router.get("", response_model=list[ImplementationRead])
@@ -28,6 +34,21 @@ async def list_implementations(
     implementations: Sequence[Implementation] = result.scalars().all()
 
     return [ImplementationRead.model_validate(impl) for impl in implementations]
+
+
+@router.get("/models")
+async def list_available_models(
+    pricing_service: PricingService = Depends(get_pricing_service),
+) -> list[str]:
+    """Return a flat list of available model names from models.yaml.
+
+    Aggregates models from all providers via PricingService.
+    """
+    by_provider = pricing_service.get_available_models()
+    models_set: set[str] = set()
+    for models in by_provider.values():
+        models_set.update(models)
+    return sorted(models_set)
 
 
 @router.get("/{implementation_id}", response_model=ImplementationRead)
