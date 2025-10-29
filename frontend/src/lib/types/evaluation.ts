@@ -3,6 +3,7 @@ export type EvaluationStatus = "pending" | "running" | "completed" | "failed";
 export interface EvaluationListItem {
     id: number;
     implementation_id: number;
+    implementation_version: string;
     task_id: number;
     status: EvaluationStatus;
     started_at: string | null;

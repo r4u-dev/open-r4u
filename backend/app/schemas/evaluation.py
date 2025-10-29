@@ -316,6 +316,7 @@ class EvaluationListItem(BaseModel):
 
     id: int
     implementation_id: int
+    implementation_version: str
     task_id: int
     status: EvaluationStatus
     started_at: datetime | None

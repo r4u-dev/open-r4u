@@ -463,7 +463,7 @@ class EvaluationService:
     ) -> list[EvaluationListItem]:
         """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
         
-        query = select(Evaluation)
+        query = select(Evaluation).options(selectinload(Evaluation.implementation))
         if implementation_id is not None:
             query = query.where(Evaluation.implementation_id == implementation_id)
         if task_id is not None:
@@ -484,6 +484,7 @@ class EvaluationService:
             evaluations_with_scores.append(EvaluationListItem(
                 id=evaluation.id,
                 implementation_id=evaluation.implementation_id,
+                implementation_version=evaluation.implementation.version,
                 task_id=evaluation.task_id,
                 status=evaluation.status,
                 started_at=evaluation.started_at,

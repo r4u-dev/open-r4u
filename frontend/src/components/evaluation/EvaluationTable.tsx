@@ -127,7 +127,7 @@ export function EvaluationTable({
                                 {evaluation.task_id}
                             </td>
                             <td className={`px-3 py-2 tabular-nums ${selectedEvaluationId === evaluation.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
-                                {evaluation.implementation_id}
+                                {evaluation.implementation_version}
                             </td>
                             <td
                                 className={`px-3 py-2 text-right tabular-nums ${
