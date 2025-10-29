@@ -5,7 +5,7 @@ import types
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from async_trace import print_async_trace
+from async_trace import print_async_trace, print_trace
 import httpx
 
 from r4u.client import AbstractTracer, HTTPTrace
@@ -190,7 +190,7 @@ def _build_trace_context(request: httpx.Request) -> dict:
 
     # Extract call path
     call_path_with_no = extract_call_path()
-    print_async_trace()
+    print_trace()
 
     return {
         "method": request.method.upper(),
