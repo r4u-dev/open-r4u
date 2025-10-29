@@ -336,20 +336,20 @@ export function EvaluationDetailPanel({
                                                 className="border border-border rounded-md overflow-hidden"
                                             >
                                                 <button
-                                                    className="w-full px-3 py-2 bg-muted/50 flex items-center justify-between hover:bg-muted transition-colors"
+                                                    className="w-full px-3 py-2 bg-muted/50 flex items-start justify-between hover:bg-muted transition-colors"
                                                     onClick={() => toggleResult(r.execution_result_id)}
                                                 >
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-start gap-2 flex-1 min-w-0">
                                                         {isOpen ? (
-                                                            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                                                            <ChevronUp className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
                                                         ) : (
-                                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                                            <ChevronDown className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
                                                         )}
-                                                        <div className="text-xs font-medium">
+                                                        <div className="text-xs font-medium text-left break-words">
                                                             {r.test_case_description || `Test ${r.test_case_id}`}
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0 ml-2">
                                                         <span>Total tokens: <span className="text-foreground font-mono">{r.total_tokens ?? "-"}</span></span>
                                                         <span>Cost: <span className="text-foreground font-mono">{r.cost != null ? `$${r.cost.toFixed(6)}` : "-"}</span></span>
                                                     </div>
