@@ -75,20 +75,24 @@ describe("TraceDetailPanel", () => {
         it("should show all messages including system messages", () => {
             const trace = createMockTrace({
                 inputMessages: [
-                    { role: "system", content: "You are helpful" },
-                    { role: "user", content: "Hello" },
-                    { role: "assistant", content: "Hi there" },
+                    {
+                        type: "message",
+                        role: "system",
+                        content: "You are helpful",
+                    },
+                    { type: "message", role: "user", content: "Hello" },
+                    { type: "message", role: "assistant", content: "Hi there" },
                 ],
             });
 
             render(<TraceDetailPanel trace={trace} />);
 
             expect(screen.getByText("Input Messages")).toBeInTheDocument();
-            expect(screen.getByText("system")).toBeInTheDocument();
+            expect(screen.getByText("SYSTEM")).toBeInTheDocument();
             expect(screen.getByText("You are helpful")).toBeInTheDocument();
-            expect(screen.getByText("user")).toBeInTheDocument();
+            expect(screen.getByText("USER")).toBeInTheDocument();
             expect(screen.getByText("Hello")).toBeInTheDocument();
-            expect(screen.getByText("assistant")).toBeInTheDocument();
+            expect(screen.getByText("ASSISTANT")).toBeInTheDocument();
             expect(screen.getByText("Hi there")).toBeInTheDocument();
         });
 
@@ -96,8 +100,12 @@ describe("TraceDetailPanel", () => {
             const trace = createMockTrace({
                 prompt: null,
                 inputMessages: [
-                    { role: "system", content: "System instruction" },
-                    { role: "user", content: "User query" },
+                    {
+                        type: "message",
+                        role: "system",
+                        content: "System instruction",
+                    },
+                    { type: "message", role: "user", content: "User query" },
                 ],
             });
 
@@ -106,7 +114,7 @@ describe("TraceDetailPanel", () => {
             // System message should be in Input Messages, not in Prompt
             expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
             expect(screen.getByText("Input Messages")).toBeInTheDocument();
-            expect(screen.getByText("system")).toBeInTheDocument();
+            expect(screen.getByText("SYSTEM")).toBeInTheDocument();
             expect(screen.getByText("System instruction")).toBeInTheDocument();
         });
 
@@ -127,8 +135,12 @@ describe("TraceDetailPanel", () => {
             const trace = createMockTrace({
                 prompt: "Custom prompt from trace.prompt field",
                 inputMessages: [
-                    { role: "system", content: "System message in input" },
-                    { role: "user", content: "User message" },
+                    {
+                        type: "message",
+                        role: "system",
+                        content: "System message in input",
+                    },
+                    { type: "message", role: "user", content: "User message" },
                 ],
             });
 
@@ -141,18 +153,24 @@ describe("TraceDetailPanel", () => {
             ).toBeInTheDocument();
 
             expect(screen.getByText("Input Messages")).toBeInTheDocument();
-            expect(screen.getByText("system")).toBeInTheDocument();
+            expect(screen.getByText("SYSTEM")).toBeInTheDocument();
             expect(
                 screen.getByText("System message in input"),
             ).toBeInTheDocument();
-            expect(screen.getByText("user")).toBeInTheDocument();
+            expect(screen.getByText("USER")).toBeInTheDocument();
             expect(screen.getByText("User message")).toBeInTheDocument();
         });
 
         it("should only show Input Messages when prompt is null but system messages exist", () => {
             const trace = createMockTrace({
                 prompt: null,
-                inputMessages: [{ role: "system", content: "System message" }],
+                inputMessages: [
+                    {
+                        type: "message",
+                        role: "system",
+                        content: "System message",
+                    },
+                ],
             });
 
             render(<TraceDetailPanel trace={trace} />);
@@ -162,7 +180,7 @@ describe("TraceDetailPanel", () => {
 
             // Input Messages should show the system message
             expect(screen.getByText("Input Messages")).toBeInTheDocument();
-            expect(screen.getByText("system")).toBeInTheDocument();
+            expect(screen.getByText("SYSTEM")).toBeInTheDocument();
             expect(screen.getByText("System message")).toBeInTheDocument();
         });
     });

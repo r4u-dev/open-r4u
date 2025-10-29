@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Trace, HTTPTrace } from "@/lib/types/trace";
 import { tracesApi } from "@/services/tracesApi";
 import { formatHTTPRequest, formatHTTPResponse } from "@/lib/utils";
+import { InputItemRenderer } from "./InputItemRenderer";
 
 interface TraceDetailPanelProps {
     trace: Trace;
@@ -179,20 +180,14 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                 )}
 
                 <Section title="Input Messages" section="inputMessages">
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {trace.inputMessages.length > 0 ? (
-                            trace.inputMessages.map((msg, idx) => (
-                                <div
+                            trace.inputMessages.map((item, idx) => (
+                                <InputItemRenderer
                                     key={idx}
-                                    className="border-l-2 border-primary pl-2"
-                                >
-                                    <div className="text-muted-foreground font-medium">
-                                        {msg.role}
-                                    </div>
-                                    <div className="text-foreground whitespace-pre-wrap break-words">
-                                        {msg.content}
-                                    </div>
-                                </div>
+                                    item={item}
+                                    index={idx}
+                                />
                             ))
                         ) : (
                             <span className="text-muted-foreground italic">
