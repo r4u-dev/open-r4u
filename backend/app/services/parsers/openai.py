@@ -132,6 +132,10 @@ class OpenAIParser(ProviderParser):
                 if choice.get("finish_reason"):
                     finish_reason = choice["finish_reason"]
 
+            # Extract usage from chunk (usually in the last chunk)
+            if data.get("usage"):
+                response["usage"] = data["usage"]
+
         # Build final choice
         if content_parts or finish_reason:
             response["choices"] = [

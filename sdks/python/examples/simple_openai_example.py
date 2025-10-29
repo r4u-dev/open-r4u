@@ -54,9 +54,21 @@ def main():
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": "Hey, what is your name?"}],
             stream=True,
+            stream_options={
+                "include_usage": True,
+            },
         )
         for chunk in response:
-            print(chunk)
+            pass
+        print("📤 Using responses api...")
+
+        response = client.responses.create(
+            model="gpt-3.5-turbo",
+            input=[{"role": "user", "content": "Hey, what is your name?"}],
+            stream=True,
+        )
+        for chunk in response:
+            pass
 
         # Print the response
 
