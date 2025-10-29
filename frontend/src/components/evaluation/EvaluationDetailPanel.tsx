@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { EvaluationRead } from "@/lib/types/evaluation";
 import { evaluationsApi } from "@/services/evaluationsApi";
@@ -25,30 +25,40 @@ export function EvaluationDetailPanel({
     const [expandedResultIds, setExpandedResultIds] = useState<Set<number>>(new Set());
     const [expandedGradeIds, setExpandedGradeIds] = useState<Set<number>>(new Set());
 
+    const fetchResults = useCallback(async () => {
+        try {
+            setResultsLoading(true);
+            setResultsError(null);
+            const r = await evaluationsApi.listEvaluationResults(
+                evaluationData.id,
+            );
+            setResults(r.data || []);
+        } catch (e) {
+            setResultsError(
+                e instanceof Error ? e.message : "Failed to load results",
+            );
+        } finally {
+            setResultsLoading(false);
+        }
+    }, [evaluationData.id]);
+
     useEffect(() => {
         let isCancelled = false;
-        const load = async () => {
-            try {
-                setResultsLoading(true);
-                setResultsError(null);
-                const r = await evaluationsApi.listEvaluationResults(
-                    evaluationData.id,
-                );
-                if (!isCancelled) setResults(r.data || []);
-            } catch (e) {
-                if (!isCancelled)
-                    setResultsError(
-                        e instanceof Error ? e.message : "Failed to load results",
-                    );
-            } finally {
-                if (!isCancelled) setResultsLoading(false);
-            }
-        };
-        load();
+        (async () => {
+            if (isCancelled) return;
+            await fetchResults();
+        })();
         return () => {
             isCancelled = true;
         };
-    }, [evaluationData.id]);
+    }, [fetchResults]);
+
+    useEffect(() => {
+        // When evaluation transitions to a terminal state, refresh results
+        if (evaluationData.status === "completed" || evaluationData.status === "failed") {
+            fetchResults();
+        }
+    }, [evaluationData.status, fetchResults]);
 
     const toggleResult = (executionResultId: number) => {
         setExpandedResultIds((prev) => {
@@ -283,7 +293,7 @@ export function EvaluationDetailPanel({
                                                 Grader {graderId}:
                                             </span>
                                             <span className="text-foreground">
-                                                {score.toFixed(2)}
+                                                {typeof score === "number" ? score.toFixed(2) : "-"}
                                             </span>
                                         </div>
                                     ))}
@@ -330,8 +340,8 @@ export function EvaluationDetailPanel({
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                        <span>Total tokens: <span className="text-foreground font-mono">{r.total_tokens}</span></span>
-                                                        <span>Cost: <span className="text-foreground font-mono">${r.cost.toFixed(6)}</span></span>
+                                                        <span>Total tokens: <span className="text-foreground font-mono">{r.total_tokens ?? "-"}</span></span>
+                                                        <span>Cost: <span className="text-foreground font-mono">{r.cost != null ? `$${r.cost.toFixed(6)}` : "-"}</span></span>
                                                     </div>
                                                 </button>
                                                 {isOpen && (
@@ -421,4 +431,5 @@ export function EvaluationDetailPanel({
         </div>
     );
 }
+
 
