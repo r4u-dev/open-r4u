@@ -27,6 +27,7 @@ async def test_engine():
         "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
+        echo=False,
     )
 
     # Enable foreign key support for SQLite

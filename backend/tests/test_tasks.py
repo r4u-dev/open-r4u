@@ -103,8 +103,7 @@ async def test_list_tasks(client: AsyncClient, test_session):
         task_id=task1.id,
         prompt="Chat assistant",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl1)
     await test_session.flush()
 
@@ -118,8 +117,7 @@ async def test_list_tasks(client: AsyncClient, test_session):
         task_id=task2.id,
         prompt="Search assistant",
         model="gpt-3.5-turbo",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(impl2)
     await test_session.flush()
 
@@ -153,11 +151,9 @@ async def test_list_tasks_by_project(client: AsyncClient, test_session):
     await test_session.flush()
 
     impl1 = Implementation(
-        task_id=task1.id, prompt="V1", model="gpt-4", max_output_tokens=1000,
-    )
+        task_id=task1.id, prompt="V1", model="gpt-4", max_output_tokens=1000)
     impl2 = Implementation(
-        task_id=task2.id, prompt="V2", model="gpt-4", max_output_tokens=1000,
-    )
+        task_id=task2.id, prompt="V2", model="gpt-4", max_output_tokens=1000)
     test_session.add_all([impl1, impl2])
     await test_session.flush()
 
@@ -194,8 +190,7 @@ async def test_get_task(client: AsyncClient, test_session):
         task_id=task.id,
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=2000,
-    )
+        max_output_tokens=2000)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -234,8 +229,7 @@ async def test_delete_task(client: AsyncClient, test_session):
         task_id=task.id,
         prompt="Test",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.flush()
 

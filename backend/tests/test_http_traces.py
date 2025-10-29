@@ -10,8 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest.mark.asyncio
 async def test_create_openai_http_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI HTTP request/response."""
     # Sample OpenAI request
@@ -84,7 +83,13 @@ async def test_create_openai_http_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -100,8 +105,7 @@ async def test_create_openai_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_anthropic_http_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from Anthropic HTTP request/response."""
     # Sample Anthropic request
@@ -167,7 +171,13 @@ async def test_create_anthropic_http_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "claude-3-opus-20240229"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -184,8 +194,7 @@ async def test_create_anthropic_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_openai_responses_api_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI Responses API format."""
     # Sample OpenAI Responses API request
@@ -250,7 +259,13 @@ async def test_create_openai_responses_api_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -301,8 +316,7 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_create_openai_tool_call_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI with tool calls."""
     # Sample OpenAI request with tools
@@ -393,7 +407,8 @@ async def test_create_openai_tool_call_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] is None  # No content for tool calls
+    # Check output items - should have function call items
+    assert len(data["output"]) >= 1
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 50
     assert data["completion_tokens"] == 20
@@ -413,8 +428,7 @@ async def test_create_openai_tool_call_trace(
 
 @pytest.mark.asyncio
 async def test_http_trace_persisted_on_parse_failure(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test that HTTPTrace is persisted even when parsing fails."""
     from sqlalchemy import select
@@ -476,8 +490,7 @@ async def test_http_trace_persisted_on_parse_failure(
 
 @pytest.mark.asyncio
 async def test_create_openai_streaming_chat_completions_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI streaming Chat Completions API."""
     # Sample OpenAI request
@@ -547,7 +560,10 @@ data: [DONE]"""
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-3.5-turbo-0125"
-    assert data["result"] == "Hi, how are you?"
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert data["output"][0]["data"]["content"][0]["text"] == "Hi, how are you?"
     assert data["finish_reason"] == "stop"
 
     # Verify input items were created
@@ -565,8 +581,7 @@ data: [DONE]"""
 
 @pytest.mark.asyncio
 async def test_create_openai_streaming_responses_api_trace(
-    client: AsyncClient,
-    test_session: AsyncSession,
+    client: AsyncClient, test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI streaming Responses API."""
     # Sample OpenAI Responses API request
@@ -673,7 +688,13 @@ data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_0
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-3.5-turbo-0125"
-    assert data["result"] == "Greetings, hello, hi, hey, salutations!"
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "Greetings, hello, hi, hey, salutations!"
+    )
     assert data["temperature"] == 1.0
     assert data["prompt_tokens"] == 13
     assert data["completion_tokens"] == 12

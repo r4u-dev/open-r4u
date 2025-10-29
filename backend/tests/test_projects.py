@@ -76,8 +76,7 @@ class TestProjectEndpoints:
         # Create a project
         create_response = await client.post(
             "/v1/projects",
-            json={"name": "Get By ID Test", "description": "Test description"},
-        )
+            json={"name": "Get By ID Test", "description": "Test description"})
         project_id = create_response.json()["id"]
 
         # Get the project
@@ -99,8 +98,7 @@ class TestProjectEndpoints:
         # Create a project
         await client.post(
             "/v1/projects",
-            json={"name": "Named Project", "description": "Find by name"},
-        )
+            json={"name": "Named Project", "description": "Find by name"})
 
         # Get by name
         response = await client.get("/v1/projects/by-name/Named Project")

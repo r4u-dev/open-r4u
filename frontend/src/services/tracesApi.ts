@@ -1,11 +1,10 @@
 import { apiClient } from "./api";
-import { Trace, HTTPTrace, InputItem } from "@/lib/types/trace";
+import { Trace, HTTPTrace, InputItem, OutputItem } from "@/lib/types/trace";
 
 export interface BackendTrace {
     id: number;
     project_id: number;
     model: string;
-    result: string | null;
     error: string | null;
     path: string | null;
     started_at: string;
@@ -30,6 +29,12 @@ export interface BackendTrace {
     trace_metadata: Record<string, any> | null;
     prompt_variables: Record<string, any> | null;
     input: Array<{
+        id: number;
+        type: string;
+        data: Record<string, any>;
+        position: number;
+    }>;
+    output: Array<{
         id: number;
         type: string;
         data: Record<string, any>;
@@ -64,6 +69,17 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
                 type: item.type as any,
                 ...item.data,
             } as InputItem;
+        });
+
+    // Map all output items to their proper types
+    const outputItems: OutputItem[] = (backendTrace.output || [])
+        .sort((a, b) => a.position - b.position)
+        .map((item) => {
+            // Return the item with its type and data merged
+            return {
+                type: item.type as any,
+                ...item.data,
+            } as OutputItem;
         });
 
     // Prompt comes only from the trace.prompt field
@@ -150,7 +166,7 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         inputMessages,
         modelSettings,
         metrics,
-        output: backendTrace.result || "",
+        outputItems,
         rawRequest: "", // Raw request not available from backend
         rawResponse: "", // Raw response not available from backend
     };

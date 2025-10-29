@@ -125,8 +125,7 @@ async def test_list_graders(client: AsyncClient, test_session):
         prompt="Test prompt 1",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader1)
 
     grader2 = Grader(
@@ -136,8 +135,7 @@ async def test_list_graders(client: AsyncClient, test_session):
         prompt="Test prompt 2",
         score_type=ScoreType.BOOLEAN,
         model="gpt-4",
-        max_output_tokens=300,
-    )
+        max_output_tokens=300)
     test_session.add(grader2)
     await test_session.commit()
 
@@ -166,28 +164,21 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
         prompt="Test prompt",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 1",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace1)
     
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 2",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -197,8 +188,7 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
         trace_id=trace1.id,
         score_float=0.8,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade1)
 
     grade2 = Grade(
@@ -206,8 +196,7 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
         trace_id=trace2.id,
         score_float=0.9,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade2)
     await test_session.commit()
 
@@ -232,8 +221,7 @@ async def test_get_grader(client: AsyncClient, test_session):
         prompt="Test prompt",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.commit()
 
@@ -274,28 +262,21 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
         prompt="Test prompt",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 1",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace1)
     
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 2",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -305,8 +286,7 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
         trace_id=trace1.id,
         score_float=0.8,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade1)
 
     grade2 = Grade(
@@ -314,8 +294,7 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
         trace_id=trace2.id,
         score_float=0.9,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade2)
     await test_session.commit()
 
@@ -341,8 +320,7 @@ async def test_update_grader(client: AsyncClient, test_session):
         model="gpt-4",
         temperature=0.0,
         max_output_tokens=500,
-        is_active=True,
-    )
+        is_active=True)
     test_session.add(grader)
     await test_session.commit()
 
@@ -384,8 +362,7 @@ async def test_update_grader_partial(client: AsyncClient, test_session):
         model="gpt-4",
         temperature=0.0,
         max_output_tokens=500,
-        is_active=True,
-    )
+        is_active=True)
     test_session.add(grader)
     await test_session.commit()
 
@@ -432,8 +409,7 @@ async def test_delete_grader(client: AsyncClient, test_session):
         prompt="Test prompt",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.commit()
 
@@ -470,28 +446,21 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
         prompt="Test prompt",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 1",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace1)
     
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Test response 2",
-        started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -501,8 +470,7 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
         trace_id=trace1.id,
         score_float=0.8,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade1)
 
     grade2 = Grade(
@@ -510,8 +478,7 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
         trace_id=trace2.id,
         score_float=0.9,
         grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-    )
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
     test_session.add(grade2)
     await test_session.commit()
 

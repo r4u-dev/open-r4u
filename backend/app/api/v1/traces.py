@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from app.database import get_session
 from app.models.http_traces import HTTPTrace
@@ -29,13 +29,16 @@ async def list_traces(
     """
     query = (
         select(Trace)
-        .options(selectinload(Trace.input_items))
+        .options(
+            joinedload(Trace.input_items),
+            joinedload(Trace.output_items),
+        )
         .order_by(Trace.started_at.desc())
         .limit(limit)
         .offset(offset)
     )
     result = await session.execute(query)
-    traces: Sequence[Trace] = result.scalars().unique().all()
+    traces: Sequence[Trace] = result.unique().scalars().all()
 
     return [TraceRead.model_validate(trace) for trace in traces]
 
@@ -64,11 +67,14 @@ async def group_trace(
     # Check if trace exists
     query = (
         select(Trace)
-        .options(selectinload(Trace.input_items))
+        .options(
+            joinedload(Trace.input_items),
+            joinedload(Trace.output_items),
+        )
         .where(Trace.id == trace_id)
     )
     result = await session.execute(query)
-    trace = result.scalar_one_or_none()
+    trace = result.unique().scalar_one_or_none()
 
     if not trace:
         raise HTTPException(

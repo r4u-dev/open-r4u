@@ -127,16 +127,14 @@ async def test_list_test_cases(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1",
-    )
+        expected_output="expected1")
     test_session.add(test_case1)
 
     test_case2 = TestCase(
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2",
-    )
+        expected_output="expected2")
     test_session.add(test_case2)
 
     await test_session.commit()
@@ -203,8 +201,7 @@ async def test_get_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case for retrieval",
         arguments={"input": "test input"},
-        expected_output="expected output",
-    )
+        expected_output="expected output")
     test_session.add(test_case)
     await test_session.commit()
 
@@ -246,8 +243,7 @@ async def test_update_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected",
-    )
+        expected_output="original expected")
     test_session.add(test_case)
     await test_session.commit()
 
@@ -281,8 +277,7 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected",
-    )
+        expected_output="original expected")
     test_session.add(test_case)
     await test_session.commit()
 
@@ -328,8 +323,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case to delete",
         arguments={"input": "test input"},
-        expected_output="expected output",
-    )
+        expected_output="expected output")
     test_session.add(test_case)
     await test_session.commit()
 

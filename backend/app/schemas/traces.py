@@ -1,9 +1,14 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.enums import FinishReason, ItemType, MessageRole, ReasoningEffort
+from app.enums import (
+    FinishReason,
+    ItemType,
+    MessageRole,
+    ReasoningEffort,
+)
 from app.services.pricing_service import PricingService
 
 
@@ -154,7 +159,248 @@ InputItem = (
 )
 
 
-# Input Item Read Schema
+# Output Item Schemas (OpenAI Responses API compatible)
+class OutputMessageContent(BaseModel):
+    """Content within an output message."""
+
+    type: str
+    text: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class OutputMessageItem(BaseModel):
+    """Output message from the assistant."""
+
+    type: Literal["message"] = "message"
+    id: str
+    role: Literal["assistant"] = "assistant"
+    content: list[OutputMessageContent] | None = None
+    status: Literal["in_progress", "completed", "incomplete"] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class FileSearchResult(BaseModel):
+    """Result from file search."""
+
+    file_id: str
+    text: str | None = None
+    filename: str | None = None
+    score: float | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class FileSearchToolCallItem(BaseModel):
+    """File search tool call output."""
+
+    type: Literal["file_search_call"] = "file_search_call"
+    id: str
+    status: Literal["in_progress", "searching", "completed", "incomplete", "failed"]
+    queries: list[str] | None = None
+    results: list[FileSearchResult] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class FunctionToolCallItem(BaseModel):
+    """Function tool call output."""
+
+    type: Literal["function_call"] = "function_call"
+    id: str
+    call_id: str
+    name: str
+    arguments: str
+    status: Literal["in_progress", "completed", "incomplete"] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class WebSearchAction(BaseModel):
+    """Web search action details."""
+
+    type: str
+    model_config = ConfigDict(extra="allow")
+
+
+class WebSearchToolCallItem(BaseModel):
+    """Web search tool call output."""
+
+    type: Literal["web_search_call"] = "web_search_call"
+    id: str
+    status: Literal["in_progress", "searching", "completed", "failed"]
+    action: WebSearchAction | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ComputerAction(BaseModel):
+    """Computer use action details."""
+
+    type: str
+    model_config = ConfigDict(extra="allow")
+
+
+class ComputerToolCallItem(BaseModel):
+    """Computer tool call output."""
+
+    type: Literal["computer_call"] = "computer_call"
+    id: str
+    call_id: str
+    action: ComputerAction | None = None
+    pending_safety_checks: list[Any] | None = None
+    status: Literal["in_progress", "completed", "incomplete"]
+    model_config = ConfigDict(extra="allow")
+
+
+class ReasoningSummary(BaseModel):
+    """Reasoning summary content."""
+
+    type: str | None = None
+    text: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ReasoningContent(BaseModel):
+    """Reasoning text content."""
+
+    type: str | None = None
+    text: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ReasoningOutputItem(BaseModel):
+    """Reasoning item from the model."""
+
+    type: Literal["reasoning"] = "reasoning"
+    id: str
+    encrypted_content: str | None = None
+    summary: list[ReasoningSummary] | None = None
+    content: list[ReasoningContent] | None = None
+    status: Literal["in_progress", "completed", "incomplete"] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ImageGenToolCallItem(BaseModel):
+    """Image generation tool call output."""
+
+    type: Literal["image_generation_call"] = "image_generation_call"
+    id: str
+    status: Literal["in_progress", "completed", "generating", "failed"]
+    result: str | None = None  # Base64 encoded image
+    model_config = ConfigDict(extra="allow")
+
+
+class CodeInterpreterOutput(BaseModel):
+    """Code interpreter output (logs or images)."""
+
+    type: str
+    model_config = ConfigDict(extra="allow")
+
+
+class CodeInterpreterToolCallItem(BaseModel):
+    """Code interpreter tool call output."""
+
+    type: Literal["code_interpreter_call"] = "code_interpreter_call"
+    id: str
+    status: Literal["in_progress", "completed", "incomplete", "interpreting", "failed"]
+    container_id: str
+    code: str | None = None
+    outputs: list[CodeInterpreterOutput] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class LocalShellAction(BaseModel):
+    """Local shell execution action."""
+
+    type: str | None = None
+    command: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class LocalShellToolCallItem(BaseModel):
+    """Local shell tool call output."""
+
+    type: Literal["local_shell_call"] = "local_shell_call"
+    id: str
+    call_id: str
+    action: LocalShellAction | None = None
+    status: Literal["in_progress", "completed", "incomplete"]
+    model_config = ConfigDict(extra="allow")
+
+
+class MCPToolCallItem(BaseModel):
+    """MCP tool call output."""
+
+    type: Literal["mcp_call"] = "mcp_call"
+    id: str
+    server_label: str
+    name: str
+    arguments: str
+    output: str | None = None
+    error: str | None = None
+    status: str | None = None
+    approval_request_id: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class MCPListToolsTool(BaseModel):
+    """Tool available on MCP server."""
+
+    name: str
+    description: str | None = None
+    input_schema: dict[str, Any] | None = None
+    annotations: dict[str, Any] | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class MCPListToolsItem(BaseModel):
+    """MCP list tools output."""
+
+    type: Literal["mcp_list_tools"] = "mcp_list_tools"
+    id: str
+    server_label: str
+    tools: list[MCPListToolsTool] | None = None
+    error: str | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class MCPApprovalRequestItem(BaseModel):
+    """MCP approval request output."""
+
+    type: Literal["mcp_approval_request"] = "mcp_approval_request"
+    id: str
+    server_label: str
+    name: str
+    arguments: str
+    model_config = ConfigDict(extra="allow")
+
+
+class CustomToolCallItem(BaseModel):
+    """Custom tool call output."""
+
+    type: Literal["custom_tool_call"] = "custom_tool_call"
+    id: str
+    call_id: str
+    name: str
+    input: str
+    model_config = ConfigDict(extra="allow")
+
+
+# Union type for all output items
+OutputItem = (
+    OutputMessageItem
+    | FileSearchToolCallItem
+    | FunctionToolCallItem
+    | WebSearchToolCallItem
+    | ComputerToolCallItem
+    | ReasoningOutputItem
+    | ImageGenToolCallItem
+    | CodeInterpreterToolCallItem
+    | LocalShellToolCallItem
+    | MCPToolCallItem
+    | MCPListToolsItem
+    | MCPApprovalRequestItem
+    | CustomToolCallItem
+)
+
+
+# Input/Output Item Read Schemas
 class InputItemRead(BaseModel):
     """Schema for reading an input item."""
 
@@ -165,11 +411,20 @@ class InputItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OutputItemRead(BaseModel):
+    """Schema for reading an output item."""
+
+    id: int
+    type: str
+    data: dict[str, Any]
+    position: int
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TraceBase(BaseModel):
     """Base schema for trace details."""
 
     model: str
-    result: str | None = None
     error: str | None = None
     path: str | None = None
     started_at: datetime
@@ -215,16 +470,9 @@ class TraceBase(BaseModel):
 class TraceCreate(TraceBase):
     """Schema for trace creation payload."""
 
-    input: list[InputItem]  # Replaces messages
+    input: list[InputItem] = Field(default_factory=list)
+    output: list[OutputItem] = Field(default_factory=list)
     project: str = "Default Project"  # Project name, defaults to "Default Project"
-
-    @field_validator("input", mode="before")
-    @classmethod
-    def validate_input(cls, v):
-        """Validate input items."""
-        if not isinstance(v, list):
-            raise ValueError("input must be a list")
-        return v
 
 
 class TraceRead(TraceBase):
@@ -236,6 +484,11 @@ class TraceRead(TraceBase):
         default_factory=list,
         validation_alias="input_items",
         serialization_alias="input",
+    )
+    output: list[OutputItemRead] = Field(
+        default_factory=list,
+        validation_alias="output_items",
+        serialization_alias="output",
     )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

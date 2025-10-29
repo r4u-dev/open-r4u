@@ -48,8 +48,7 @@ def sample_implementation(sample_task):
         model="gpt-5",
         temperature=0.7,
         max_output_tokens=1000,
-        temp=False,
-    )
+        temp=False)
     impl.task = sample_task
     return impl
 
@@ -72,8 +71,7 @@ def sample_execution_result():
         cached_tokens=0,
         reasoning_tokens=None,
         system_fingerprint="test-fingerprint",
-        provider_response={"test": "response"},
-    )
+        provider_response={"test": "response"})
 
 
 class TestExecutionCostIntegration:
@@ -107,16 +105,14 @@ class TestExecutionCostIntegration:
                     session=mock_session,
                     settings=mock_settings,
                     task_id=1,
-                    arguments={"test": "value"},
-                )
+                    arguments={"test": "value"})
                 
                 # Verify pricing service was called correctly
                 mock_pricing.calculate_cost.assert_called_once_with(
                     model="gpt-5",
                     prompt_tokens=1000,
                     completion_tokens=500,
-                    cached_tokens=0,
-                )
+                    cached_tokens=0)
                 
                 # Verify execution was saved with cost
                 mock_session.add.assert_called_once()
@@ -144,8 +140,7 @@ class TestExecutionCostIntegration:
             result_text="Test response",
             prompt_tokens=1000,
             completion_tokens=500,
-            cached_tokens=200,
-        )
+            cached_tokens=200)
         
         # Mock the LLM executor
         with patch('app.services.executions_service.LLMExecutor') as mock_executor_class:
@@ -163,16 +158,14 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was called with cached tokens
                 mock_pricing.calculate_cost.assert_called_once_with(
                     model="gpt-5",
                     prompt_tokens=1000,
                     completion_tokens=500,
-                    cached_tokens=200,
-                )
+                    cached_tokens=200)
                 
                 # Verify execution was saved with cost
                 saved_execution = mock_session.add.call_args[0][0]
@@ -196,8 +189,7 @@ class TestExecutionCostIntegration:
             prompt_rendered="Test prompt rendered",
             result_text="Test response",
             prompt_tokens=None,  # Missing token data
-            completion_tokens=500,
-        )
+            completion_tokens=500)
         
         # Mock the LLM executor
         with patch('app.services.executions_service.LLMExecutor') as mock_executor_class:
@@ -214,8 +206,7 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was not called
                 mock_pricing.calculate_cost.assert_not_called()
@@ -251,8 +242,7 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was called
                 mock_pricing.calculate_cost.assert_called_once()
@@ -275,8 +265,7 @@ class TestExecutionCostIntegration:
             model="gemini-2.5-pro",
             temperature=0.7,
             max_output_tokens=1000,
-            temp=False,
-        )
+            temp=False)
         gemini_impl.task = sample_task
         sample_task.production_version = gemini_impl
         
@@ -293,8 +282,7 @@ class TestExecutionCostIntegration:
             result_text="Test response",
             prompt_tokens=250000,  # Above Gemini threshold
             completion_tokens=10000,
-            cached_tokens=0,
-        )
+            cached_tokens=0)
         
         # Mock the LLM executor
         with patch('app.services.executions_service.LLMExecutor') as mock_executor_class:
@@ -312,16 +300,14 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was called with Gemini model
                 mock_pricing.calculate_cost.assert_called_once_with(
                     model="gemini-2.5-pro",
                     prompt_tokens=250000,
                     completion_tokens=10000,
-                    cached_tokens=0,
-                )
+                    cached_tokens=0)
                 
                 # Verify execution was saved with cost
                 saved_execution = mock_session.add.call_args[0][0]
@@ -341,8 +327,7 @@ class TestExecutionCostIntegration:
             model="gpt-5-2024-10-01",  # Versioned model
             temperature=0.7,
             max_output_tokens=1000,
-            temp=False,
-        )
+            temp=False)
         versioned_impl.task = sample_task
         sample_task.production_version = versioned_impl
         
@@ -367,16 +352,14 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was called with versioned model
                 mock_pricing.calculate_cost.assert_called_once_with(
                     model="gpt-5-2024-10-01",
                     prompt_tokens=1000,
                     completion_tokens=500,
-                    cached_tokens=0,
-                )
+                    cached_tokens=0)
 
     @pytest.mark.asyncio
     async def test_execute_with_provider_prefixed_model(
@@ -392,8 +375,7 @@ class TestExecutionCostIntegration:
             model="openai/gpt-5",  # Provider-prefixed model
             temperature=0.7,
             max_output_tokens=1000,
-            temp=False,
-        )
+            temp=False)
         prefixed_impl.task = sample_task
         sample_task.production_version = prefixed_impl
         
@@ -418,13 +400,11 @@ class TestExecutionCostIntegration:
                 result = await execute(
                     session=mock_session,
                     settings=mock_settings,
-                    task_id=1,
-                )
+                    task_id=1)
                 
                 # Verify pricing service was called with provider-prefixed model
                 mock_pricing.calculate_cost.assert_called_once_with(
                     model="openai/gpt-5",
                     prompt_tokens=1000,
                     completion_tokens=500,
-                    cached_tokens=0,
-                )
+                    cached_tokens=0)

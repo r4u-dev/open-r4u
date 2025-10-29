@@ -9,8 +9,7 @@ from app.models.tasks import Implementation, Task
 from app.services.implementation_matcher import (
     ImplementationMatcher,
     extract_system_prompt_from_trace,
-    find_matching_implementation,
-)
+    find_matching_implementation)
 
 
 @pytest_asyncio.fixture
@@ -234,16 +233,14 @@ class TestFindMatchingImplementation:
     async def test_find_matching_implementation_exact_match(
         self,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test finding an exact match."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.flush()
 
@@ -261,8 +258,7 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is not None
         assert result["implementation_id"] == impl.id
@@ -272,16 +268,14 @@ class TestFindMatchingImplementation:
     async def test_find_matching_implementation_with_placeholders(
         self,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test finding a match with placeholder extraction."""
         # Create an implementation with placeholders
         impl = Implementation(
             task_id=task.id,
             prompt="Hello, {name}! You are user #{user_id}.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.flush()
 
@@ -299,8 +293,7 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is not None
         assert result["implementation_id"] == impl.id
@@ -310,16 +303,14 @@ class TestFindMatchingImplementation:
     async def test_no_match_different_model(
         self,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that different models don't match."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.flush()
 
@@ -336,8 +327,7 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-3.5-turbo",  # Different model
             project_id=task.project_id,
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is None
 
@@ -346,8 +336,7 @@ class TestFindMatchingImplementation:
         self,
         test_session: AsyncSession,
         task: Task,
-        project: Project,
-    ):
+        project: Project):
         """Test that implementations from different projects don't match."""
         # Create another project and task
         other_project = Project(name="Other Project")
@@ -359,8 +348,7 @@ class TestFindMatchingImplementation:
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.flush()
 
@@ -377,8 +365,7 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=other_project.id,  # Different project
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is None
 
@@ -386,16 +373,14 @@ class TestFindMatchingImplementation:
     async def test_match_first_when_multiple_implementations_match(
         self,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that the first created implementation is returned when multiple match."""
         # Create multiple implementations that would match
         impl1 = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl1)
         await test_session.flush()
 
@@ -403,8 +388,7 @@ class TestFindMatchingImplementation:
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl2)
         await test_session.flush()
 
@@ -421,8 +405,7 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is not None
         # Should match the first one (by ID)
@@ -432,16 +415,14 @@ class TestFindMatchingImplementation:
     async def test_no_match_when_no_system_prompt(
         self,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test when trace has no system prompt."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.flush()
 
@@ -454,7 +435,6 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session,
-        )
+            session=test_session)
 
         assert result is None
