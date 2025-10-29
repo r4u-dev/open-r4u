@@ -1,5 +1,6 @@
 """LLM executor service for running task implementations using LiteLLM."""
 
+import logging
 import json
 import os
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from app.enums import FinishReason, ItemType
 from app.models.tasks import Implementation
 from app.schemas.executions import ExecutionResultBase
 from app.schemas.traces import InputItem, ToolCallItem
+
+logger = logging.getLogger(__name__)
 
 
 class LLMExecutor:
@@ -321,6 +324,7 @@ class LLMExecutor:
             )
 
         except Exception as e:
+            logger.error(f"Error executing implementation: {str(e)}")
             completed_at = datetime.now(timezone.utc)
             return ExecutionResultBase(
                 started_at=started_at,
