@@ -11,13 +11,11 @@ from app.models.traces import Trace
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_auto_match_trace_to_existing_task(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test that a new trace automatically matches an existing task."""
     # Create a project
     project = Project(name="Auto Match Test")
@@ -27,8 +25,7 @@ async def test_auto_match_trace_to_existing_task(
     # Create task and implementation
     task = Task(
         project_id=project.id,
-        path="/greet",
-    )
+        path="/greet")
     test_session.add(task)
     await test_session.flush()
 
@@ -36,8 +33,7 @@ async def test_auto_match_trace_to_existing_task(
         task_id=task.id,
         prompt="You are a helpful assistant.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -55,8 +51,7 @@ async def test_auto_match_trace_to_existing_task(
             "instructions": "Say hello to Alice",
             "started_at": "2025-10-17T10:00:00Z",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-        },
-    )
+        })
 
     assert response.status_code == 201
     trace_data = response.json()
@@ -66,13 +61,11 @@ async def test_auto_match_trace_to_existing_task(
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_no_auto_match_when_no_similar_task(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test that trace is not matched when no similar task exists."""
     # Create a project
     project = Project(name="No Match Test")
@@ -82,8 +75,7 @@ async def test_no_auto_match_when_no_similar_task(
     # Create task and implementation with different instructions
     task = Task(
         project_id=project.id,
-        path="/weather",
-    )
+        path="/weather")
     test_session.add(task)
     await test_session.flush()
 
@@ -91,8 +83,7 @@ async def test_no_auto_match_when_no_similar_task(
         task_id=task.id,
         prompt="You are a weather assistant.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -110,8 +101,7 @@ async def test_no_auto_match_when_no_similar_task(
             "instructions": "Say hello to Alice",
             "started_at": "2025-10-17T10:00:00Z",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-        },
-    )
+        })
 
     assert response.status_code == 201
     trace_data = response.json()
@@ -121,13 +111,11 @@ async def test_no_auto_match_when_no_similar_task(
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_auto_match_respects_similarity_threshold(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test that auto-matching respects similarity threshold."""
     # Create a project
     project = Project(name="Similarity Test")
@@ -137,8 +125,7 @@ async def test_auto_match_respects_similarity_threshold(
     # Create task and implementation with specific instructions
     task = Task(
         project_id=project.id,
-        path="/api",
-    )
+        path="/api")
     test_session.add(task)
     await test_session.flush()
 
@@ -146,8 +133,7 @@ async def test_auto_match_respects_similarity_threshold(
         task_id=task.id,
         prompt="You are a helpful assistant.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -165,8 +151,7 @@ async def test_auto_match_respects_similarity_threshold(
             "instructions": "Tell me a joke about cats",  # Completely different
             "started_at": "2025-10-17T10:00:00Z",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-        },
-    )
+        })
 
     assert response.status_code == 201
     trace_data = response.json()
@@ -176,13 +161,11 @@ async def test_auto_match_respects_similarity_threshold(
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_auto_match_with_system_message_instructions(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test auto-matching when instructions come from system messages."""
     # Create a project
     project = Project(name="System Message Test")
@@ -192,8 +175,7 @@ async def test_auto_match_with_system_message_instructions(
     # Create task and implementation with templated instructions
     task = Task(
         project_id=project.id,
-        path="/chat",
-    )
+        path="/chat")
     test_session.add(task)
     await test_session.flush()
 
@@ -201,8 +183,7 @@ async def test_auto_match_with_system_message_instructions(
         task_id=task.id,
         prompt="You are a helpful assistant.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -226,8 +207,7 @@ async def test_auto_match_with_system_message_instructions(
                 },
                 {"type": "message", "role": "user", "content": "What is a list?"},
             ],
-        },
-    )
+        })
 
     assert response.status_code == 201
     trace_data = response.json()
@@ -237,13 +217,11 @@ async def test_auto_match_with_system_message_instructions(
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_batch_grouping_creates_tasks_for_ungrouped_traces(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test that batch grouping creates tasks for ungrouped traces."""
     # Create a project
     project = Project(name="Batch Test")
@@ -263,8 +241,7 @@ async def test_batch_grouping_creates_tasks_for_ungrouped_traces(
                 "input": [
                     {"type": "message", "role": "user", "content": f"Hello {name}"},
                 ],
-            },
-        )
+            })
         assert response.status_code == 201
         # All traces should be ungrouped initially
         assert response.json()["task_id"] is None
@@ -289,13 +266,11 @@ async def test_batch_grouping_creates_tasks_for_ungrouped_traces(
 
 
 @pytest.mark.skip(
-    reason="Auto-grouping feature not yet integrated into trace creation API",
-)
+    reason="Auto-grouping feature not yet integrated into trace creation API")
 @pytest.mark.asyncio
 async def test_subsequent_traces_auto_match_after_batch_grouping(
     client: AsyncClient,
-    test_session: AsyncSession,
-):
+    test_session: AsyncSession):
     """Test that after batch grouping, new traces auto-match to created tasks."""
     # Create a project
     project = Project(name="Sequential Test")
@@ -315,8 +290,7 @@ async def test_subsequent_traces_auto_match_after_batch_grouping(
                 "input": [
                     {"type": "message", "role": "user", "content": f"Hello {name}"},
                 ],
-            },
-        )
+            })
 
     # Run batch grouping to create task
     response = await client.post("/v1/tasks/group-traces?min_cluster_size=2")
@@ -335,8 +309,7 @@ async def test_subsequent_traces_auto_match_after_batch_grouping(
             "instructions": "Say hello to Charlie",
             "started_at": "2025-10-17T10:00:00Z",
             "input": [{"type": "message", "role": "user", "content": "Hello Charlie"}],
-        },
-    )
+        })
 
     assert response.status_code == 201
     trace_data = response.json()

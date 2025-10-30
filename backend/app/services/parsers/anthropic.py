@@ -7,8 +7,12 @@ from urllib.parse import urlparse
 from app.enums import FinishReason, MessageRole
 from app.schemas.traces import (
     FunctionDefinition,
+    FunctionToolCallItem,
     InputItem,
     MessageItem,
+    OutputItem,
+    OutputMessageContent,
+    OutputMessageItem,
     ToolCallItem,
     ToolDefinition,
     ToolResultItem,
@@ -110,6 +114,7 @@ class AnthropicParser(ProviderParser):
         # Extract result from response
         result = None
         finish_reason = None
+        output_items: list[OutputItem] = []
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
@@ -125,7 +130,8 @@ class AnthropicParser(ProviderParser):
 
                     # Handle text blocks
                     if block_type == "text":
-                        text_blocks.append(block.get("text", ""))
+                        text = block.get("text", "")
+                        text_blocks.append(text)
 
                     # Handle tool use blocks - create ToolCallItem
                     elif block_type == "tool_use":
@@ -142,7 +148,32 @@ class AnthropicParser(ProviderParser):
                                 ),
                             )
 
-                result = "\n".join(text_blocks) if text_blocks else None
+                            # Also add to output items
+                            import json
+
+                            output_items.append(
+                                FunctionToolCallItem(
+                                    id=tool_use_id,
+                                    call_id=tool_use_id,
+                                    name=tool_name,
+                                    arguments=json.dumps(tool_input),
+                                    status="completed",
+                                ),
+                            )
+
+                # Create output message item if we have text content
+                if text_blocks:
+                    combined_text = "\n".join(text_blocks)
+                    output_items.insert(
+                        0,
+                        OutputMessageItem(
+                            id=f"msg_{response_body.get('id', 'unknown')}",
+                            content=[
+                                OutputMessageContent(type="text", text=combined_text),
+                            ],
+                            status="completed",
+                        ),
+                    )
 
             # Extract finish reason
             stop_reason = response_body.get("stop_reason")
@@ -199,7 +230,7 @@ class AnthropicParser(ProviderParser):
         return TraceCreate(
             project=project,
             model=model,
-            result=result,
+            output=output_items,
             error=error,
             started_at=started_at,
             completed_at=completed_at,

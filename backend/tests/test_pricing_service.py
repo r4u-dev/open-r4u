@@ -189,8 +189,7 @@ class TestPricingService:
             model="gpt-5",
             prompt_tokens=1000,
             completion_tokens=500,
-            cached_tokens=0,
-        )
+            cached_tokens=0)
         
         # Expected: (1000 * 1.25 + 0 * 0.125 + 500 * 10.00) / 1_000_000
         expected = (1000 * 1.25 + 500 * 10.00) / 1_000_000
@@ -204,8 +203,7 @@ class TestPricingService:
             model="gpt-5",
             prompt_tokens=1000,
             completion_tokens=500,
-            cached_tokens=200,
-        )
+            cached_tokens=200)
         
         # Expected: (800 * 1.25 + 200 * 0.125 + 500 * 10.00) / 1_000_000
         expected = (800 * 1.25 + 200 * 0.125 + 500 * 10.00) / 1_000_000
@@ -219,8 +217,7 @@ class TestPricingService:
             model="gemini-2.5-pro",
             prompt_tokens=100000,  # Below threshold
             completion_tokens=5000,
-            cached_tokens=0,
-        )
+            cached_tokens=0)
         
         # Expected: (100000 * 1.25 + 5000 * 10.00) / 1_000_000
         expected = (100000 * 1.25 + 5000 * 10.00) / 1_000_000
@@ -234,8 +231,7 @@ class TestPricingService:
             model="gemini-2.5-pro",
             prompt_tokens=250000,  # Above threshold
             completion_tokens=10000,
-            cached_tokens=0,
-        )
+            cached_tokens=0)
         
         # Expected: (250000 * 2.50 + 10000 * 15.00) / 1_000_000
         expected = (250000 * 2.50 + 10000 * 15.00) / 1_000_000
@@ -249,8 +245,7 @@ class TestPricingService:
             model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=500,
-            cached_tokens=0,
-        )
+            cached_tokens=0)
         
         expected = (1000 * 1.25 + 500 * 10.00) / 1_000_000
         assert cost == pytest.approx(expected, rel=1e-6)
@@ -263,16 +258,14 @@ class TestPricingService:
         cost = service.calculate_cost(
             model="gpt-5",
             prompt_tokens=None,
-            completion_tokens=500,
-        )
+            completion_tokens=500)
         assert cost is None
         
         # Missing completion_tokens
         cost = service.calculate_cost(
             model="gpt-5",
             prompt_tokens=1000,
-            completion_tokens=None,
-        )
+            completion_tokens=None)
         assert cost is None
 
     def test_calculate_cost_negative_tokens(self, pricing_service_with_data):
@@ -283,16 +276,14 @@ class TestPricingService:
         cost = service.calculate_cost(
             model="gpt-5",
             prompt_tokens=-100,
-            completion_tokens=500,
-        )
+            completion_tokens=500)
         assert cost is None
         
         # Negative completion_tokens
         cost = service.calculate_cost(
             model="gpt-5",
             prompt_tokens=1000,
-            completion_tokens=-50,
-        )
+            completion_tokens=-50)
         assert cost is None
 
     def test_calculate_cost_unknown_model(self, pricing_service_with_data):
@@ -303,8 +294,7 @@ class TestPricingService:
             cost = service.calculate_cost(
                 model="unknown-model",
                 prompt_tokens=1000,
-                completion_tokens=500,
-            )
+                completion_tokens=500)
             assert cost is None
             mock_logger.warning.assert_called()
 
@@ -316,8 +306,7 @@ class TestPricingService:
         cost = service.calculate_cost(
             model="gpt-5",
             prompt_tokens=1000,
-            completion_tokens=500,
-        )
+            completion_tokens=500)
         assert cost is None
 
     def test_get_available_models(self, pricing_service_with_data):

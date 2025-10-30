@@ -53,10 +53,10 @@ def main():
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": "Hey, what is your name?"}],
-            stream=True,
-            stream_options={
-                "include_usage": True,
-            },
+            # stream=True,
+            # stream_options={
+            #     "include_usage": True,
+            # },
         )
         for chunk in response:
             pass
@@ -65,7 +65,7 @@ def main():
         response = client.responses.create(
             model="gpt-3.5-turbo",
             input=[{"role": "user", "content": "Hey, what is your name?"}],
-            stream=True,
+            # stream=True,
         )
         for chunk in response:
             pass

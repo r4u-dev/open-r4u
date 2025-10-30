@@ -140,8 +140,7 @@ async def test_get_evaluation_config(client: AsyncClient, test_session):
         quality_weight=0.6,
         cost_weight=0.3,
         time_weight=0.1,
-        grader_ids=[1, 2, 3],
-    )
+        grader_ids=[1, 2, 3])
     test_session.add(config)
     await test_session.commit()
 
@@ -191,8 +190,7 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
         quality_weight=0.5,
         cost_weight=0.3,
         time_weight=0.2,
-        grader_ids=[1, 2],
-    )
+        grader_ids=[1, 2])
     test_session.add(config)
     await test_session.commit()
 
@@ -230,8 +228,7 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
         quality_weight=0.5,
         cost_weight=0.3,
         time_weight=0.2,
-        grader_ids=[1, 2],
-    )
+        grader_ids=[1, 2])
     test_session.add(config)
     await test_session.commit()
 
@@ -290,8 +287,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -302,8 +298,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
@@ -312,16 +307,14 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1",
-    )
+        expected_output="expected1")
     test_session.add(test_case1)
 
     test_case2 = TestCase(
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2",
-    )
+        expected_output="expected2")
     test_session.add(test_case2)
     await test_session.commit()
 
@@ -334,8 +327,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         completed_at=datetime.now(timezone.utc),
         prompt_rendered="Test prompt rendered 1",
         result_text="Test result 1",
-        cost=0.01,
-    )
+        cost=0.01)
 
     execution_result2 = ExecutionResult(
         id=2,
@@ -345,8 +337,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         completed_at=datetime.now(timezone.utc),
         prompt_rendered="Test prompt rendered 2",
         result_text="Test result 2",
-        cost=0.02,
-    )
+        cost=0.02)
 
     grade1 = Grade(
         id=1,
@@ -354,8 +345,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         execution_result_id=1,
         score_float=0.8,
         grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_completed_at=datetime.now(timezone.utc))
 
     grade2 = Grade(
         id=2,
@@ -363,8 +353,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         execution_result_id=2,
         score_float=0.9,
         grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_completed_at=datetime.now(timezone.utc))
 
     # Start evaluation - should return immediately with status running
     with patch('app.services.evaluation_service.execute_task') as mock_execute, \
@@ -445,8 +434,7 @@ async def test_run_evaluation_no_test_cases(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -483,8 +471,7 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -499,8 +486,7 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         quality_score=0.8,
         avg_cost=0.01,
         avg_execution_time_ms=1000.0,
-        grader_scores={"1": 0.8},
-    )
+        grader_scores={"1": 0.8})
     test_session.add(evaluation1)
 
     evaluation2 = Evaluation(
@@ -511,8 +497,7 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         completed_at=datetime.now(timezone.utc),
         test_case_count=1,
         error="Execution failed",
-        grader_scores={},
-    )
+        grader_scores={})
     test_session.add(evaluation2)
     await test_session.commit()
 
@@ -552,8 +537,7 @@ async def test_list_implementation_evaluations_empty(client: AsyncClient, test_s
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -580,8 +564,7 @@ async def test_get_evaluation(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -595,8 +578,7 @@ async def test_get_evaluation(client: AsyncClient, test_session):
         quality_score=0.85,
         avg_cost=0.015,
         avg_execution_time_ms=1500.0,
-        grader_scores={"1": 0.85},
-    )
+        grader_scores={"1": 0.85})
     test_session.add(evaluation)
     await test_session.commit()
 
@@ -641,8 +623,7 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -653,8 +634,7 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
         started_at=datetime.now(timezone.utc),
         completed_at=datetime.now(timezone.utc),
         test_case_count=1,
-        grader_scores={},
-    )
+        grader_scores={})
     test_session.add(evaluation)
     await test_session.commit()
 
@@ -694,8 +674,7 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -703,8 +682,7 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
     target_metrics = TargetTaskMetrics(
         task_id=task.id,
         cost=0.01,
-        time_ms=1000.0,
-    )
+        time_ms=1000.0)
     test_session.add(target_metrics)
 
     evaluation = Evaluation(
@@ -717,8 +695,7 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
         quality_score=0.8,
         avg_cost=0.02,  # 2x target cost
         avg_execution_time_ms=2000.0,  # 2x target time
-        grader_scores={"1": 0.8},
-    )
+        grader_scores={"1": 0.8})
     test_session.add(evaluation)
     await test_session.commit()
 

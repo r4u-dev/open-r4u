@@ -57,7 +57,6 @@ class Trace(Base):
         nullable=True,
     )
     model: Mapped[str] = mapped_column(String(255), nullable=False)
-    result: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime] = mapped_column(
@@ -119,6 +118,12 @@ class Trace(Base):
         cascade="all, delete-orphan",
         order_by="TraceInputItem.position",
     )
+    output_items: Mapped[list["TraceOutputItem"]] = relationship(
+        "TraceOutputItem",
+        back_populates="trace",
+        cascade="all, delete-orphan",
+        order_by="TraceOutputItem.position",
+    )
     tools: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
     grades: Mapped[list["Grade"]] = relationship(
         "Grade",
@@ -158,6 +163,35 @@ class TraceInputItem(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
 
     trace: Mapped[Trace] = relationship("Trace", back_populates="input_items")
+
+    created_at: Mapped[created_at_col]
+    updated_at: Mapped[updated_at_col]
+
+
+class TraceOutputItem(Base):
+    """Individual output item belonging to a trace."""
+
+    __tablename__ = "trace_output_item"
+    __table_args__ = (
+        Index(
+            "ix_trace_output_item_trace_id_position",
+            "trace_id",
+            "position",
+            unique=True,
+        ),
+        Index("ix_trace_output_item_type", "type"),
+    )
+
+    id: Mapped[intpk]
+    trace_id: Mapped[int] = mapped_column(
+        ForeignKey("trace.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(String(255), nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    trace: Mapped[Trace] = relationship("Trace", back_populates="output_items")
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]

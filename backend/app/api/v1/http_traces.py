@@ -92,6 +92,7 @@ async def create_http_trace(
         )
     except Exception as e:
         # HTTPTrace is already saved, just rollback the transaction for the trace
+        logger.exception("Unexpected error parsing HTTP trace")
         await session.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

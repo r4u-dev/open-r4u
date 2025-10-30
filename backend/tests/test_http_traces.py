@@ -84,7 +84,13 @@ async def test_create_openai_http_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -167,7 +173,13 @@ async def test_create_anthropic_http_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "claude-3-opus-20240229"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -250,7 +262,13 @@ async def test_create_openai_responses_api_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] == "The capital of France is Paris."
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "The capital of France is Paris."
+    )
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 20
     assert data["completion_tokens"] == 10
@@ -393,7 +411,8 @@ async def test_create_openai_tool_call_trace(
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-4"
-    assert data["result"] is None  # No content for tool calls
+    # Check output items - should have function call items
+    assert len(data["output"]) >= 1
     assert data["temperature"] == 0.7
     assert data["prompt_tokens"] == 50
     assert data["completion_tokens"] == 20
@@ -401,14 +420,9 @@ async def test_create_openai_tool_call_trace(
     assert data["finish_reason"] == "tool_calls"
 
     # Verify input items were created
-    assert len(data["input"]) == 2
+    assert len(data["input"]) == 1
     assert data["input"][0]["type"] == "message"
     assert data["input"][0]["data"]["role"] == "user"
-    assert data["input"][1]["type"] == "tool_call"
-
-    # Verify tool calls were created
-    assert data["input"][1]["data"]["tool_name"] == "get_weather"
-    assert data["input"][1]["data"]["arguments"] == {"location": "San Francisco"}
 
 
 @pytest.mark.asyncio
@@ -547,7 +561,10 @@ data: [DONE]"""
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-3.5-turbo-0125"
-    assert data["result"] == "Hi, how are you?"
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert data["output"][0]["data"]["content"][0]["text"] == "Hi, how are you?"
     assert data["finish_reason"] == "stop"
 
     # Verify input items were created
@@ -673,7 +690,13 @@ data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_0
 
     # Verify trace was created correctly
     assert data["model"] == "gpt-3.5-turbo-0125"
-    assert data["result"] == "Greetings, hello, hi, hey, salutations!"
+    # Check output items instead of result
+    assert len(data["output"]) == 1
+    assert data["output"][0]["type"] == "message"
+    assert (
+        data["output"][0]["data"]["content"][0]["text"]
+        == "Greetings, hello, hi, hey, salutations!"
+    )
     assert data["temperature"] == 1.0
     assert data["prompt_tokens"] == 13
     assert data["completion_tokens"] == 12

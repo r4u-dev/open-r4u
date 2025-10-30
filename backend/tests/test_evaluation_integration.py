@@ -22,8 +22,7 @@ def evaluation_service():
     from app.config import Settings
     settings = Settings(
         database_url="sqlite+aiosqlite:///:memory:",
-        openai_api_key="test-key",
-    )
+        openai_api_key="test-key")
     return EvaluationService(settings)
 
 
@@ -45,8 +44,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
         version="0.1",
         prompt="You are a helpful assistant. Answer: {{question}}",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -67,8 +65,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
                 "reasoning": {"type": "string"}
             },
             "required": ["score", "reasoning"]
-        },
-    )
+        })
     test_session.add(accuracy_grader)
 
     toxicity_grader = Grader(
@@ -87,8 +84,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
                 "reasoning": {"type": "string"}
             },
             "required": ["score", "reasoning"]
-        },
-    )
+        })
     test_session.add(toxicity_grader)
     await test_session.flush()
 
@@ -127,8 +123,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
         quality_weight=0.6,
         cost_weight=0.3,
         time_weight=0.1,
-        grader_ids=[accuracy_grader.id, toxicity_grader.id],
-    )
+        grader_ids=[accuracy_grader.id, toxicity_grader.id])
 
     # 6. Mock execution results
     execution_results = []
@@ -160,8 +155,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             grading_completed_at=datetime.now(timezone.utc),
             prompt_tokens=50,
             completion_tokens=30,
-            total_tokens=80,
-        )
+            total_tokens=80)
         grades.append(accuracy_grade)
 
         # Toxicity grade
@@ -176,8 +170,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             grading_completed_at=datetime.now(timezone.utc),
             prompt_tokens=40,
             completion_tokens=20,
-            total_tokens=60,
-        )
+            total_tokens=60)
         grades.append(toxicity_grade)
 
     # 8. Mock the execution and grading process
@@ -205,8 +198,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
         # 9. Run evaluation
         evaluation = await evaluation_service.create_evaluation(
             session=test_session,
-            implementation_id=implementation.id,
-        )
+            implementation_id=implementation.id)
 
         # Simulate background execution completion
         evaluation.status = EvaluationStatus.COMPLETED
@@ -248,8 +240,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
     # 11. Test efficiency score calculation
     evaluation_with_scores = await evaluation_service.get_evaluation(
         session=test_session,
-        evaluation_id=evaluation.id,
-    )
+        evaluation_id=evaluation.id)
 
     # Should have efficiency scores if target metrics exist
     assert evaluation_with_scores.quality_score == evaluation.quality_score
@@ -274,8 +265,7 @@ async def test_evaluation_error_recovery(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -286,8 +276,7 @@ async def test_evaluation_error_recovery(evaluation_service, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
@@ -297,14 +286,12 @@ async def test_evaluation_error_recovery(evaluation_service, test_session):
         task_id=task.id,
         description="Test case",
         arguments={"input": "test"},
-        expected_output="expected",
-    )
+        expected_output="expected")
 
     # Create evaluation first
     evaluation = await evaluation_service.create_evaluation(
         session=test_session,
-        implementation_id=implementation.id,
-    )
+        implementation_id=implementation.id)
 
     # Simulate background execution failure
     evaluation.status = EvaluationStatus.FAILED
@@ -335,8 +322,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         version="0.1",
         prompt="Simple prompt: {{question}}",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation1)
 
     implementation2 = Implementation(
@@ -344,8 +330,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         version="0.2",
         prompt="Detailed prompt: Please answer the following question: {{question}}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(implementation2)
     await test_session.flush()
 
@@ -356,8 +341,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
@@ -367,8 +351,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         task_id=task.id,
         description="Test case",
         arguments={"question": "What is 2+2?"},
-        expected_output="4",
-    )
+        expected_output="4")
 
     # Mock execution results for both implementations
     execution1 = ExecutionResult(
@@ -379,8 +362,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         completed_at=datetime.now(timezone.utc),
         prompt_rendered="Simple prompt: What is 2+2?",
         result_text="4",
-        cost=0.01,
-    )
+        cost=0.01)
 
     execution2 = ExecutionResult(
         id=2,
@@ -390,8 +372,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         completed_at=datetime.now(timezone.utc),
         prompt_rendered="Detailed prompt: Please answer the following question: What is 2+2?",
         result_text="The answer is 4",
-        cost=0.02,
-    )
+        cost=0.02)
 
     grade1 = Grade(
         id=1,
@@ -399,8 +380,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         execution_result_id=1,
         score_float=0.9,
         grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_completed_at=datetime.now(timezone.utc))
 
     grade2 = Grade(
         id=2,
@@ -408,8 +388,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         execution_result_id=2,
         score_float=0.95,
         grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_completed_at=datetime.now(timezone.utc))
 
     # Run evaluations for both implementations
     with patch('app.services.evaluation_service.execute_task') as mock_execute, \
@@ -427,8 +406,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
 
             evaluation1 = await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation1.id,
-            )
+                implementation_id=implementation1.id)
 
             # Simulate completion
             evaluation1.status = EvaluationStatus.COMPLETED
@@ -444,8 +422,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
 
             evaluation2 = await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation2.id,
-            )
+                implementation_id=implementation2.id)
 
             # Simulate completion
             evaluation2.status = EvaluationStatus.COMPLETED
@@ -470,12 +447,10 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
     # List evaluations for each implementation
     evaluations1 = await evaluation_service.list_evaluations(
         session=test_session,
-        implementation_id=implementation1.id,
-    )
+        implementation_id=implementation1.id)
     evaluations2 = await evaluation_service.list_evaluations(
         session=test_session,
-        implementation_id=implementation2.id,
-    )
+        implementation_id=implementation2.id)
 
     assert len(evaluations1) == 1
     assert len(evaluations2) == 1
@@ -502,8 +477,7 @@ async def test_evaluation_config_workflow(evaluation_service, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader1)
 
     grader2 = Grader(
@@ -512,8 +486,7 @@ async def test_evaluation_config_workflow(evaluation_service, test_session):
         prompt="Check toxicity: {{context}}",
         score_type=ScoreType.BOOLEAN,
         model="gpt-4",
-        max_output_tokens=300,
-    )
+        max_output_tokens=300)
     test_session.add(grader2)
     await test_session.flush()
 
@@ -524,8 +497,7 @@ async def test_evaluation_config_workflow(evaluation_service, test_session):
         quality_weight=0.5,
         cost_weight=0.3,
         time_weight=0.2,
-        grader_ids=[grader1.id],
-    )
+        grader_ids=[grader1.id])
 
     assert config.quality_weight == 0.5
     assert config.grader_ids == [grader1.id]
@@ -537,8 +509,7 @@ async def test_evaluation_config_workflow(evaluation_service, test_session):
         quality_weight=0.6,
         cost_weight=0.2,
         time_weight=0.2,
-        grader_ids=[grader1.id, grader2.id],
-    )
+        grader_ids=[grader1.id, grader2.id])
 
     assert updated_config.id == config.id  # Same record
     assert updated_config.quality_weight == 0.6
@@ -548,8 +519,7 @@ async def test_evaluation_config_workflow(evaluation_service, test_session):
     # 3. Get config
     retrieved_config = await evaluation_service.get_evaluation_config(
         session=test_session,
-        task_id=task.id,
-    )
+        task_id=task.id)
 
     assert retrieved_config.id == config.id
     assert retrieved_config.quality_weight == 0.6
@@ -574,22 +544,19 @@ async def test_test_case_management_workflow(evaluation_service, test_session):
         task_id=task.id,
         description="Simple math",
         arguments={"question": "What is 2+2?"},
-        expected_output="4",
-    )
+        expected_output="4")
 
     test_case2 = await evaluation_service.create_test_case(
         session=test_session,
         task_id=task.id,
         description="Complex reasoning",
         arguments={"question": "Explain photosynthesis"},
-        expected_output="Process by which plants convert light to energy",
-    )
+        expected_output="Process by which plants convert light to energy")
 
     # 2. List test cases
     test_cases = await evaluation_service.list_test_cases(
         session=test_session,
-        task_id=task.id,
-    )
+        task_id=task.id)
 
     assert len(test_cases) == 2
     test_case_ids = [tc.id for tc in test_cases]
@@ -599,8 +566,7 @@ async def test_test_case_management_workflow(evaluation_service, test_session):
     # 3. Get specific test case
     retrieved_test_case = await evaluation_service.get_test_case(
         session=test_session,
-        test_case_id=test_case1.id,
-    )
+        test_case_id=test_case1.id)
 
     assert retrieved_test_case.id == test_case1.id
     assert retrieved_test_case.description == "Simple math"
@@ -610,8 +576,7 @@ async def test_test_case_management_workflow(evaluation_service, test_session):
         session=test_session,
         test_case_id=test_case1.id,
         description="Updated simple math",
-        expected_output="The answer is 4",
-    )
+        expected_output="The answer is 4")
 
     assert updated_test_case.description == "Updated simple math"
     assert updated_test_case.expected_output == "The answer is 4"
@@ -620,21 +585,18 @@ async def test_test_case_management_workflow(evaluation_service, test_session):
     # 5. Delete test case
     await evaluation_service.delete_test_case(
         session=test_session,
-        test_case_id=test_case2.id,
-    )
+        test_case_id=test_case2.id)
 
     # Verify deletion
     with pytest.raises(Exception):  # Should raise NotFoundError
         await evaluation_service.get_test_case(
             session=test_session,
-            test_case_id=test_case2.id,
-        )
+            test_case_id=test_case2.id)
 
     # Verify remaining test case
     remaining_test_cases = await evaluation_service.list_test_cases(
         session=test_session,
-        task_id=task.id,
-    )
+        task_id=task.id)
 
     assert len(remaining_test_cases) == 1
     assert remaining_test_cases[0].id == test_case1.id

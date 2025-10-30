@@ -37,16 +37,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that a trace automatically matches an implementation with exact prompt."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -85,16 +83,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that a trace matches implementation and extracts placeholder values."""
         # Create an implementation with placeholders
         impl = Implementation(
             task_id=task.id,
             prompt="Hello, {name}! You are user #{user_id}. Your role is {role}.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -141,16 +137,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that trace doesn't match implementation with different model."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -183,16 +177,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that trace doesn't match when prompt structure is different."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -225,16 +217,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that explicit implementation_id is not overridden by auto-matching."""
         # Create two implementations
         impl1 = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl1)
         await test_session.flush()
 
@@ -242,8 +232,7 @@ class TestTraceImplementationMatching:
             task_id=task.id,
             prompt="You are a different assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl2)
         await test_session.commit()
 
@@ -277,16 +266,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that when multiple implementations match, the first one is used."""
         # Create two implementations with same prompt
         impl1 = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl1)
         await test_session.flush()
 
@@ -294,8 +281,7 @@ class TestTraceImplementationMatching:
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl2)
         await test_session.commit()
 
@@ -328,16 +314,14 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that trace doesn't match when there's no system message."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -365,8 +349,7 @@ class TestTraceImplementationMatching:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test matching with complex multiline prompts."""
         # Create an implementation with multiline template
         impl = Implementation(
@@ -377,8 +360,7 @@ Department: {department}
 
 Please assist with their requests.""",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 
@@ -419,16 +401,14 @@ Please assist with their requests.""",
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        task: Task,
-    ):
+        task: Task):
         """Test that implementations from different projects don't match."""
         # Create an implementation in the test project
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000,
-        )
+            max_output_tokens=1000)
         test_session.add(impl)
         await test_session.commit()
 

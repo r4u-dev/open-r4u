@@ -1,9 +1,10 @@
 """Tests for grade API endpoints."""
 
-import pytest
-from datetime import datetime, timezone
-from httpx import AsyncClient
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
+
+import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.enums import ScoreType
@@ -37,17 +38,16 @@ async def test_create_grade_for_trace(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
 
     # Mock the executor
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Rate accuracy: Test response",
         result_text='{"score": 0.8, "reasoning": "Good response", "confidence": 0.9}',
         result_json={"score": 0.8, "reasoning": "Good response", "confidence": 0.9},
@@ -56,13 +56,16 @@ async def test_create_grade_for_trace(client: AsyncClient, test_session):
         total_tokens=80,
     )
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
+        response = await client.post(
+            "/v1/grades",
+            json={**payload, "grader_id": grader.id},
+        )
         assert response.status_code == 201
 
     data = response.json()
@@ -118,8 +121,8 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
     execution_result = ExecutionResult(
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered",
         result_text="Test execution result",
     )
@@ -128,8 +131,8 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
 
     # Mock the executor
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Check toxicity: Test execution result",
         result_text='{"score": false, "reasoning": "Not toxic", "confidence": 0.95}',
         result_json={"score": False, "reasoning": "Not toxic", "confidence": 0.95},
@@ -138,13 +141,16 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
         total_tokens=60,
     )
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
 
         payload = {"execution_result_id": execution_result.id}
-        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
+        response = await client.post(
+            "/v1/grades",
+            json={**payload, "grader_id": grader.id},
+        )
         assert response.status_code == 201
 
     data = response.json()
@@ -221,7 +227,7 @@ async def test_create_grade_grader_not_found(client: AsyncClient):
 
     response = await client.post("/v1/grades", json=payload)
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grader with id 999 not found" in data["detail"]
 
@@ -248,13 +254,16 @@ async def test_create_grade_trace_not_found(client: AsyncClient, test_session):
 
     response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Trace with id 999 not found" in data["detail"]
 
 
 @pytest.mark.asyncio
-async def test_create_grade_execution_result_not_found(client: AsyncClient, test_session):
+async def test_create_grade_execution_result_not_found(
+    client: AsyncClient,
+    test_session,
+):
     """Test creating a grade with non-existent execution result."""
     project = Project(name="Test Project")
     test_session.add(project)
@@ -275,7 +284,7 @@ async def test_create_grade_execution_result_not_found(client: AsyncClient, test
 
     response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "ExecutionResult with id 999 not found" in data["detail"]
 
@@ -302,9 +311,8 @@ async def test_create_grade_inactive_grader(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -339,28 +347,30 @@ async def test_create_grade_executor_error(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
 
     # Mock the executor to return an error
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt",
         error="API timeout",
     )
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
+        response = await client.post(
+            "/v1/grades",
+            json={**payload, "grader_id": grader.id},
+        )
         assert response.status_code == 201  # Grade is still created with error
 
     data = response.json()
@@ -391,9 +401,8 @@ async def test_get_grade(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -404,8 +413,8 @@ async def test_get_grade(client: AsyncClient, test_session):
         score_float=0.85,
         reasoning="Good response",
         confidence=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
         prompt_tokens=50,
         completion_tokens=30,
         total_tokens=80,
@@ -415,7 +424,7 @@ async def test_get_grade(client: AsyncClient, test_session):
 
     response = await client.get(f"/v1/grades/{grade.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["id"] == grade.id
     assert data["grader_id"] == grader.id
@@ -435,7 +444,7 @@ async def test_get_grade_not_found(client: AsyncClient):
     """Test getting a non-existent grade."""
     response = await client.get("/v1/grades/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grade with id 999 not found" in data["detail"]
 
@@ -461,9 +470,8 @@ async def test_list_grades_for_trace(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -473,8 +481,8 @@ async def test_list_grades_for_trace(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade1)
 
@@ -482,18 +490,18 @@ async def test_list_grades_for_trace(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade2)
     await test_session.commit()
 
     response = await client.get(f"/v1/grades?trace_id={trace.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 2
-    
+
     # Check that both grades are present (order may vary due to timing)
     scores = [grade["score_float"] for grade in data]
     assert 0.8 in scores
@@ -535,8 +543,8 @@ async def test_list_grades_for_execution_result(client: AsyncClient, test_sessio
     execution_result = ExecutionResult(
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered",
         result_text="Test execution result",
     )
@@ -547,15 +555,15 @@ async def test_list_grades_for_execution_result(client: AsyncClient, test_sessio
         grader_id=grader.id,
         execution_result_id=execution_result.id,
         score_boolean=False,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade)
     await test_session.commit()
 
     response = await client.get(f"/v1/grades?execution_result_id={execution_result.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 1
     assert data[0]["score_boolean"] is False
@@ -583,9 +591,8 @@ async def test_list_grades_for_grader(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -594,15 +601,15 @@ async def test_list_grades_for_grader(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.85,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade)
     await test_session.commit()
 
     response = await client.get(f"/v1/grades?grader_id={grader.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 1
     assert data[0]["score_float"] == 0.85
@@ -614,7 +621,7 @@ async def test_list_grades_empty(client: AsyncClient, test_session):
     """Test listing grades when none exist."""
     response = await client.get("/v1/grades?trace_id=999")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 0
 
@@ -640,9 +647,8 @@ async def test_delete_grade(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -651,8 +657,8 @@ async def test_delete_grade(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC),
     )
     test_session.add(grade)
     await test_session.commit()
@@ -672,7 +678,7 @@ async def test_delete_grade_not_found(client: AsyncClient):
     """Test deleting a non-existent grade."""
     response = await client.delete("/v1/grades/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grade with id 999 not found" in data["detail"]
 
@@ -698,9 +704,8 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
     )
     test_session.add(trace)
     await test_session.flush()
@@ -710,14 +715,16 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
         "object": "chat.completion",
         "created": 1677652288,
         "model": "gpt-4",
-        "choices": [{"message": {"content": '{"score": 0.8, "reasoning": "Good response"}'}}],
-        "usage": {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70}
+        "choices": [
+            {"message": {"content": '{"score": 0.8, "reasoning": "Good response"}'}},
+        ],
+        "usage": {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70},
     }
 
     # Mock the executor
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt",
         result_text='{"score": 0.8, "reasoning": "Good response"}',
         result_json={"score": 0.8, "reasoning": "Good response"},
@@ -727,13 +734,16 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
         total_tokens=70,
     )
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
 
         payload = {"trace_id": trace.id}
-        response = await client.post("/v1/grades", json={**payload, "grader_id": grader.id})
+        response = await client.post(
+            "/v1/grades",
+            json={**payload, "grader_id": grader.id},
+        )
         assert response.status_code == 201
 
     data = response.json()

@@ -38,8 +38,7 @@ class EvaluationTestFixtures:
             version="0.1",
             prompt="Test prompt: {{question}}",
             model="gpt-4",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         session.add(implementation)
         await session.flush()
         return implementation
@@ -66,8 +65,7 @@ class EvaluationTestFixtures:
                     "reasoning": {"type": "string"}
                 },
                 "required": ["score", "reasoning"]
-            },
-        )
+            })
         session.add(accuracy_grader)
         graders.append(accuracy_grader)
 
@@ -88,8 +86,7 @@ class EvaluationTestFixtures:
                     "reasoning": {"type": "string"}
                 },
                 "required": ["score", "reasoning"]
-            },
-        )
+            })
         session.add(toxicity_grader)
         graders.append(toxicity_grader)
 
@@ -110,8 +107,7 @@ class EvaluationTestFixtures:
                     "reasoning": {"type": "string"}
                 },
                 "required": ["score", "reasoning"]
-            },
-        )
+            })
         session.add(helpfulness_grader)
         graders.append(helpfulness_grader)
 
@@ -169,8 +165,7 @@ class EvaluationTestFixtures:
             quality_weight=0.6,
             cost_weight=0.25,
             time_weight=0.15,
-            grader_ids=grader_ids,
-        )
+            grader_ids=grader_ids)
         return config
 
     @staticmethod
@@ -227,8 +222,7 @@ def evaluation_service():
     from app.config import Settings
     settings = Settings(
         database_url="sqlite+aiosqlite:///:memory:",
-        openai_api_key="test-key",
-    )
+        openai_api_key="test-key")
     return EvaluationService(settings)
 
 

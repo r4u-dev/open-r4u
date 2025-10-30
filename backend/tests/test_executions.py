@@ -30,14 +30,12 @@ async def test_project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def test_task(
     test_session: AsyncSession,
-    test_project: Project,
-) -> Task:
+    test_project: Project) -> Task:
     """Create a test task."""
     task = Task(
         project_id=test_project.id,
         path="test/path",
-        response_schema={"type": "object", "properties": {"summary": {"type": "string"}}},
-    )
+        response_schema={"type": "object", "properties": {"summary": {"type": "string"}}})
     test_session.add(task)
     await test_session.commit()
     await test_session.refresh(task)
@@ -53,8 +51,7 @@ async def test_implementation(test_session: AsyncSession, test_task: Task) -> Im
         prompt="Summarize this text: {{text}}",
         model="gpt-4",
         temperature=0.7,
-        max_output_tokens=100,
-    )
+        max_output_tokens=100)
     test_session.add(implementation)
     await test_session.commit()
     await test_session.refresh(implementation)
@@ -265,8 +262,7 @@ class TestExecutor:
             completion_tokens=5,
             total_tokens=15,
             cached_tokens=2,
-            reasoning_tokens=3,
-        )
+            reasoning_tokens=3)
 
         with patch("app.services.executions_service.LLMExecutor") as mock_executor_class:
             mock_executor = AsyncMock()
@@ -280,8 +276,7 @@ class TestExecutor:
                     "arguments": {"text": "test"},
                     "model": "gpt-3.5-turbo",
                     "temperature": 0.5,
-                },
-            )
+                })
 
             if response.status_code != 201:
                 print(f"Response status: {response.status_code}")
@@ -387,16 +382,14 @@ class TestExecutionAPI:
             cached_tokens=2,
             reasoning_tokens=3,
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
+            updated_at=datetime.now(timezone.utc))
 
         with patch("app.api.v1.executions.svc.execute") as mock_execute:
             mock_execute.return_value = mock_result
 
             response = await client.post(
                 "/v1/executions",
-                json={"implementation_id": implementation.id, "arguments": {"text": "Hello world"}},
-            )
+                json={"implementation_id": implementation.id, "arguments": {"text": "Hello world"}})
 
             assert response.status_code == 201
             data = response.json()
@@ -435,16 +428,14 @@ class TestExecutionAPI:
             cached_tokens=2,
             reasoning_tokens=3,
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
+            updated_at=datetime.now(timezone.utc))
 
         with patch("app.api.v1.executions.svc.execute") as mock_execute:
             mock_execute.return_value = mock_result
 
             response = await client.post(
                 "/v1/executions",
-                json={"implementation_id": test_implementation.id, "arguments": {"text": "What's the weather?"}},
-            )
+                json={"implementation_id": test_implementation.id, "arguments": {"text": "What's the weather?"}})
 
             assert response.status_code == 201
             data = response.json()
@@ -486,8 +477,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 1",
             arguments={"key": "value1"},
-            result_text="Result 1",
-        )
+            result_text="Result 1")
         execution2 = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
@@ -495,8 +485,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 2",
             arguments={"key": "value2"},
-            result_text="Result 2",
-        )
+            result_text="Result 2")
 
         test_session.add_all([execution1, execution2])
         await test_session.commit()
@@ -524,8 +513,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 1",
             arguments={"key": "value1"},
-            result_text="Result 1",
-        )
+            result_text="Result 1")
         execution2 = ExecutionResult(
             task_id=1,  # Mock task_id
             implementation_id=implementation.id,
@@ -533,8 +521,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt 2",
             arguments={"key": "value2"},
-            result_text="Result 2",
-        )
+            result_text="Result 2")
 
         test_session.add_all([execution1, execution2])
         await test_session.commit()
@@ -562,8 +549,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt",
             result_text="Test result",
-            arguments={"key": "value"},
-        )
+            arguments={"key": "value"})
 
         test_session.add(execution)
         await test_session.commit()
@@ -600,8 +586,7 @@ class TestExecutionAPI:
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt",
-            result_text="Test result",
-        )
+            result_text="Test result")
 
         test_session.add(execution)
         await test_session.commit()
@@ -628,8 +613,7 @@ class TestExecutionAPI:
             completed_at=datetime.now(timezone.utc),
             prompt_rendered="Test prompt",
             arguments={"key": "value"},
-            result_text="Test result",
-        )
+            result_text="Test result")
 
         test_session.add(execution)
         await test_session.commit()
