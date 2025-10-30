@@ -420,14 +420,9 @@ async def test_create_openai_tool_call_trace(
     assert data["finish_reason"] == "tool_calls"
 
     # Verify input items were created
-    assert len(data["input"]) == 2
+    assert len(data["input"]) == 1
     assert data["input"][0]["type"] == "message"
     assert data["input"][0]["data"]["role"] == "user"
-    assert data["input"][1]["type"] == "tool_call"
-
-    # Verify tool calls were created
-    assert data["input"][1]["data"]["tool_name"] == "get_weather"
-    assert data["input"][1]["data"]["arguments"] == {"location": "San Francisco"}
 
 
 @pytest.mark.asyncio

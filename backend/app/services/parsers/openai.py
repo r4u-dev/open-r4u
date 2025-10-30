@@ -517,7 +517,7 @@ class OpenAIParser(ProviderParser):
                 if not isinstance(item, dict):
                     raise ValueError("Invalid input item format in Responses API")
 
-                if item["type"] == "message":
+                if "type" not in item or item["type"] == "message":
                     role_str = item.get("role", "user")
                     try:
                         role = MessageRole(role_str)
