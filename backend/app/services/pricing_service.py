@@ -209,7 +209,7 @@ class PricingService:
             # Standard pricing calculation
             input_rate = pricing["input_usd_per_million"]
             output_rate = pricing["output_usd_per_million"]
-            cached_rate = pricing.get("cached_input_usd_per_million", 0)
+            cached_rate = pricing.get("cached_input_usd_per_million") or 0
 
             # Calculate costs
             input_tokens = max(0, prompt_tokens - cached_tokens)  # Ensure non-negative
