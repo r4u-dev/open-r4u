@@ -891,7 +891,12 @@ const TaskDetail = () => {
                       <SelectContent>
                     {task.versions.map((version) => (
                           <SelectItem key={version.id} value={version.id}>
-                        v{version.version}
+                        <span className="flex items-center gap-1">
+                          <span>v{version.version}</span>
+                          {version.version === task.production_version && (
+                            <span className="text-muted-foreground ml-1">production</span>
+                          )}
+                        </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1032,9 +1037,6 @@ const TaskDetail = () => {
                                 })()}
                               </>
                             )}
-                            {version.version === task.production_version && (
-                              <Badge variant="secondary">Production</Badge>
-                            )}
                           </div>
                           
                           {/* Evaluation Stats */}
@@ -1171,7 +1173,14 @@ const TaskDetail = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {task.versions.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>{`v${v.version}`}</SelectItem>
+                          <SelectItem key={v.id} value={v.id}>
+                            <span className="flex items-center gap-1">
+                              <span>{`v${v.version}`}</span>
+                              {v.version === task.production_version && (
+                                <span className="text-muted-foreground ml-1">production</span>
+                              )}
+                            </span>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
