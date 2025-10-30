@@ -410,3 +410,19 @@ class EvaluationResultItem(BaseModel):
     grades: list[EvaluationResultGradeItem]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ImplementationEvaluationStats(BaseModel):
+    """Aggregate stats for all evaluations of an implementation."""
+    
+    implementation_id: int
+    evaluation_count: int
+    avg_quality_score: float | None = Field(None, ge=0.0, le=1.0)
+    avg_cost: float | None = Field(None, ge=0.0)
+    avg_execution_time_ms: float | None = Field(None, ge=0.0)
+    avg_cost_efficiency_score: float | None = Field(None, ge=0.0, le=1.0)
+    avg_time_efficiency_score: float | None = Field(None, ge=0.0, le=1.0)
+    avg_final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0)
+
+    model_config = ConfigDict(from_attributes=True)
+

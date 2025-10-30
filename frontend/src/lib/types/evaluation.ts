@@ -82,3 +82,14 @@ export interface EvaluationResultItem {
     grades: Grade[];
 }
 
+export interface ImplementationEvaluationStats {
+    implementation_id: number;
+    evaluation_count: number;
+    avg_quality_score: number | null;
+    avg_cost: number | null;
+    avg_execution_time_ms: number | null;
+    avg_cost_efficiency_score: number | null;
+    avg_time_efficiency_score: number | null;
+    avg_final_evaluation_score: number | null;
+}
+
