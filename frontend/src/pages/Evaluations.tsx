@@ -103,8 +103,8 @@ const Evaluations = () => {
                     bValue = b.task_id;
                     break;
                 case "implementation":
-                    aValue = a.implementation_id;
-                    bValue = b.implementation_id;
+                    aValue = a.implementation_version;
+                    bValue = b.implementation_version;
                     break;
                 default:
                     return 0;
@@ -186,6 +186,7 @@ const Evaluations = () => {
             return {
                 id,
                 implementation_id: 1,
+                implementation_version: "0.1",
                 task_id: 1,
                 status: "completed",
                 started_at: start.toISOString(),

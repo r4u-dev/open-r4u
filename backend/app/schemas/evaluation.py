@@ -156,6 +156,8 @@ class GradeListItem(BaseModel):
     execution_result_id: int | None
     score_float: float | None
     score_boolean: bool | None
+    reasoning: str | None
+    confidence: float | None
     grading_started_at: datetime
     grading_completed_at: datetime | None
     error: str | None
@@ -314,6 +316,7 @@ class EvaluationListItem(BaseModel):
 
     id: int
     implementation_id: int
+    implementation_version: str
     task_id: int
     status: EvaluationStatus
     started_at: datetime | None
@@ -359,3 +362,51 @@ class TargetTaskMetricsRead(TargetTaskMetricsBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# Evaluation Results (per-test execution) Schemas
+class EvaluationResultGradeItem(BaseModel):
+    """Grade summary for an execution within an evaluation."""
+
+    id: int
+    grader_id: int
+    grader_name: str | None
+    score_float: float | None
+    score_boolean: bool | None
+    reasoning: str | None
+    confidence: float | None
+    grading_started_at: datetime
+    grading_completed_at: datetime | None
+    error: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvaluationResultItem(BaseModel):
+    """Per-execution result for an evaluation, including test case and grades."""
+
+    execution_result_id: int
+    test_case_id: int | None
+    test_case_description: str | None
+    arguments: dict[str, Any] | None
+    expected_output: str | None
+
+    # Outputs
+    result_text: str | None
+    result_json: dict[str, Any] | None
+    error: str | None
+
+    # Execution metrics
+    started_at: datetime
+    completed_at: datetime | None
+    prompt_tokens: int | None
+    cached_tokens: int | None
+    completion_tokens: int | None
+    reasoning_tokens: int | None
+    total_tokens: int | None
+    cost: float | None
+
+    # Grades for this execution
+    grades: list[EvaluationResultGradeItem]
+
+    model_config = ConfigDict(from_attributes=True)

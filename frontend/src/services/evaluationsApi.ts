@@ -1,5 +1,5 @@
 import { apiClient, ApiResponse } from "@/services/api";
-import { EvaluationRead, EvaluationListItem } from "@/lib/types/evaluation";
+import { EvaluationRead, EvaluationListItem, EvaluationResultItem, Grade } from "@/lib/types/evaluation";
 
 class EvaluationsApiService {
     private baseEndpoint = "/v1/evaluations";
@@ -22,6 +22,14 @@ class EvaluationsApiService {
     ): Promise<ApiResponse<EvaluationRead>> {
         return apiClient.get<EvaluationRead>(
             `${this.baseEndpoint}/${evaluationId}`,
+        );
+    }
+
+    async listEvaluationResults(
+        evaluationId: number,
+    ): Promise<ApiResponse<EvaluationResultItem[]>> {
+        return apiClient.get<EvaluationResultItem[]>(
+            `${this.baseEndpoint}/${evaluationId}/results`,
         );
     }
 
@@ -95,3 +103,6 @@ class EvaluationsApiService {
 }
 
 export const evaluationsApi = new EvaluationsApiService();
+
+// Re-export types for convenience
+export type { EvaluationRead, EvaluationListItem, EvaluationResultItem, Grade } from "@/lib/types/evaluation";
