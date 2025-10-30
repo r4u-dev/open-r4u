@@ -17,7 +17,10 @@ from app.models.executions import ExecutionResult
 from app.models.tasks import Implementation, Task
 from app.services.executor import LLMExecutor
 from app.services.pricing_service import PricingService
-from app.schemas.traces import InputItem
+from app.schemas.traces import (
+    MessageItem, FunctionCallItem, FunctionResultItem, ToolCallItem,
+    ToolResultItem, MediaItem, MCPToolCallItem, MCPToolResultItem
+)
 
 
 class NotFoundError(Exception):
@@ -58,6 +61,32 @@ async def _create_temp_implementation(
     await session.refresh(temp_impl)
     
     return temp_impl
+
+
+def parse_input_item(item):
+    t = item.get("type", None)
+    if t is None:
+        raise ValueError(f"Input item is missing 'type' key: {item}")
+
+    match t:
+        case "message":
+            return MessageItem.model_validate(item)
+        case "function_call":
+            return FunctionCallItem.model_validate(item)
+        case "function_result":
+            return FunctionResultItem.model_validate(item)
+        case "tool_call":
+            return ToolCallItem.model_validate(item)
+        case "tool_result":
+            return ToolResultItem.model_validate(item)
+        case "image" | "video" | "audio":
+            return MediaItem.model_validate(item)
+        case "mcp_tool_call":
+            return MCPToolCallItem.model_validate(item)
+        case "mcp_tool_result":
+            return MCPToolResultItem.model_validate(item)
+        case _:
+            raise ValueError(f"Unknown input item type: {t}")
 
 
 async def execute(
@@ -142,6 +171,8 @@ async def execute(
         # Extract messages if present
         if "messages" in arguments:
             input = arguments["messages"]
+            if input is not None:
+                input = [parse_input_item(item) for item in input]
 
     # Execute via LLM executor
     executor = LLMExecutor(settings)
