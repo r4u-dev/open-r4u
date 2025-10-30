@@ -255,7 +255,7 @@ const EvaluationDetailPage = () => {
                         Tokens: {result.total_tokens}
                       </div>
                       <div className="text-xs md:text-sm">
-                        Cost: ${result.cost.toFixed(6)}
+                        Cost: {result.cost !== null ? `$${result.cost.toFixed(6)}` : '-'}
                       </div>
                       <div className="text-xs md:text-sm">
                         Grades: {result.grades.length}
@@ -322,7 +322,7 @@ const EvaluationDetailPage = () => {
                             <div>Completion: {result.completion_tokens}</div>
                             <div>Reasoning: {result.reasoning_tokens}</div>
                             <div className="font-medium">Total: {result.total_tokens}</div>
-                            <div className="font-medium">Cost: ${result.cost.toFixed(6)}</div>
+                            <div className="font-medium">Cost: {result.cost !== null ? `$${result.cost.toFixed(6)}` : '-'}</div>
                           </div>
                         </CardContent>
                       </Card>

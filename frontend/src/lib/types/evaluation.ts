@@ -78,7 +78,7 @@ export interface EvaluationResultItem {
     completion_tokens: number;
     reasoning_tokens: number;
     total_tokens: number;
-    cost: number;
+    cost: number | null;
     grades: Grade[];
 }
 

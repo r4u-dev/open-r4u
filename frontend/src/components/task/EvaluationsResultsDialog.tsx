@@ -113,7 +113,7 @@ const EvaluationsResultsDialog = ({ isOpen, onClose, evaluationId }: Evaluations
                             {r.test_case_description || `Test ${r.test_case_id}`}
                           </TableCell>
                           <TableCell className="text-xs">{r.total_tokens}</TableCell>
-                          <TableCell className="text-xs">${r.cost.toFixed(6)}</TableCell>
+                          <TableCell className="text-xs">{r.cost !== null ? `$${r.cost.toFixed(6)}` : '-'}</TableCell>
                           <TableCell className="text-xs">{r.grades.length}</TableCell>
                         </TableRow>
                       ))}
