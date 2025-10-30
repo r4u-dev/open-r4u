@@ -884,7 +884,62 @@ const TaskDetail = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">Implementation</h2>
                   <div className="flex items-center gap-2">
-                    <Select value={selectedVersion} onValueChange={setSelectedVersion}>
+                    {selectedVersion && (
+                      <>
+                        <Button size="icon" variant="ghost" aria-label="Create new version from this" title="Create new version from this" onClick={async () => {
+                          if (!selectedVersion) return;
+                          try {
+                            // Load full implementation to prefill create form
+                            const res = await implementationsApi.getImplementation(Number(selectedVersion));
+                            const impl: any = res.data;
+                            const form: ImplementationCreate = {
+                              version: computeNextVersion(),
+                              prompt: impl.prompt || "",
+                              model: impl.model || "",
+                              temperature: impl.temperature ?? undefined,
+                              max_output_tokens: impl.max_output_tokens ?? undefined,
+                              tools: impl.tools ?? undefined,
+                              tool_choice: (impl.tool_choice?.type ?? impl.tool_choice) || "auto",
+                              reasoning: impl.reasoning ?? { effort: "medium", summary: "auto" },
+                              temp: false,
+                            };
+                            if (!form.tools || form.tools.length === 0) {
+                              form.tool_choice = null as any;
+                            }
+                            setCreateImplForm(form);
+                            setToolsInput(form.tools ? JSON.stringify(form.tools, null, 2) : "");
+                            setMaxTokensInput(
+                              form.max_output_tokens !== undefined && form.max_output_tokens !== null
+                                ? String(form.max_output_tokens)
+                                : ""
+                            );
+                            setCreateImplOpen(true);
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {(() => {
+                          const v = task.versions.find(vv => vv.id === selectedVersion);
+                          const isProduction = v ? v.version === task.production_version : false;
+                          if (isProduction) return null;
+                          return (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Delete version"
+                              title="Delete version"
+                              onClick={() => setDeleteImplId(selectedVersion)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          );
+                        })()}
+                      </>
+                    )}
+                    <div className="ml-2">
+                      <Select value={selectedVersion} onValueChange={setSelectedVersion}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Select version..." />
                       </SelectTrigger>
@@ -900,7 +955,8 @@ const TaskDetail = () => {
                           </SelectItem>
                         ))}
                       </SelectContent>
-                    </Select>
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 
@@ -979,64 +1035,6 @@ const TaskDetail = () => {
                                 );
                               })}
                             </div>
-                          </div>
-                          
-                          {/* Controls: edit/delete + production indicator/action */}
-                          <div className="flex items-center justify-end gap-2 mt-3">
-                            {selectedVersion && (
-                              <>
-                                <Button size="icon" variant="ghost" aria-label="Create new version from this" title="Create new version from this" onClick={async () => {
-                                  if (!selectedVersion) return;
-                                  try {
-                                    // Load full implementation to prefill create form
-                                    const res = await implementationsApi.getImplementation(Number(selectedVersion));
-                                    const impl: any = res.data;
-                                    const form: ImplementationCreate = {
-                                      version: computeNextVersion(),
-                                      prompt: impl.prompt || "",
-                                      model: impl.model || "",
-                                      temperature: impl.temperature ?? undefined,
-                                      max_output_tokens: impl.max_output_tokens ?? undefined,
-                                      tools: impl.tools ?? undefined,
-                                      tool_choice: (impl.tool_choice?.type ?? impl.tool_choice) || "auto",
-                                      reasoning: impl.reasoning ?? { effort: "medium", summary: "auto" },
-                                      temp: false,
-                                    };
-                                    if (!form.tools || form.tools.length === 0) {
-                                      form.tool_choice = null as any;
-                                    }
-                                    setCreateImplForm(form);
-                                    setToolsInput(form.tools ? JSON.stringify(form.tools, null, 2) : "");
-                                    setMaxTokensInput(
-                                      form.max_output_tokens !== undefined && form.max_output_tokens !== null
-                                        ? String(form.max_output_tokens)
-                                        : ""
-                                    );
-                                    setCreateImplOpen(true);
-                                  } catch (e) {
-                                    console.error(e);
-                                  }
-                                }}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                {(() => {
-                                  const v = task.versions.find(vv => vv.id === selectedVersion);
-                                  const isProduction = v ? v.version === task.production_version : false;
-                                  if (isProduction) return null;
-                                  return (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      aria-label="Delete version"
-                                      title="Delete version"
-                                      onClick={() => setDeleteImplId(selectedVersion)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  );
-                                })()}
-                              </>
-                            )}
                           </div>
                           
                           {/* Evaluation Stats */}
