@@ -19,6 +19,7 @@ import { evaluationsApi } from "@/services/evaluationsApi";
 import { gradersApi, GraderListItem } from "@/services/gradersApi";
 import { implementationsApi, ImplementationCreate } from "@/services/implementationsApi";
 import { modelsApi } from "@/services/modelsApi";
+import { ImplementationEvaluationStats } from "@/lib/types/evaluation";
 import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -96,6 +97,10 @@ const TaskDetail = () => {
   // Implementation delete state
   const [deleteImplId, setDeleteImplId] = useState<string | null>(null);
   const [deleteImplLoading, setDeleteImplLoading] = useState(false);
+  // Implementation evaluation stats state
+  const [evalStats, setEvalStats] = useState<ImplementationEvaluationStats | null>(null);
+  const [evalStatsLoading, setEvalStatsLoading] = useState(false);
+  const [evalStatsError, setEvalStatsError] = useState<string | null>(null);
   const [createImplForm, setCreateImplForm] = useState<ImplementationCreate>({
     version: "",
     prompt: "",
@@ -497,6 +502,29 @@ const TaskDetail = () => {
       setActiveTab(urlTab);
     }
   }, [searchParams]);
+
+  // Load evaluation stats when selectedVersion changes
+  useEffect(() => {
+    const loadEvalStats = async () => {
+      if (!selectedVersion) {
+        setEvalStats(null);
+        return;
+      }
+      try {
+        setEvalStatsLoading(true);
+        setEvalStatsError(null);
+        const res = await evaluationsApi.getImplementationEvaluationStats(Number(selectedVersion));
+        setEvalStats(res.data);
+      } catch (e) {
+        setEvalStatsError(e instanceof Error ? e.message : "Failed to load evaluation stats");
+        setEvalStats(null);
+      } finally {
+        setEvalStatsLoading(false);
+      }
+    };
+
+    loadEvalStats();
+  }, [selectedVersion]);
 
   // Load test cases when switching to Evaluations tab (tests live there)
   useEffect(() => {
@@ -947,8 +975,9 @@ const TaskDetail = () => {
                               })}
                             </div>
                           </div>
-                          {/* Bottom-right controls: edit/delete + production indicator/action */}
-                          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                          
+                          {/* Controls: edit/delete + production indicator/action */}
+                          <div className="flex items-center justify-end gap-2 mt-3">
                             {selectedVersion && (
                               <>
                                 <Button size="icon" variant="ghost" aria-label="Create new version from this" title="Create new version from this" onClick={async () => {
@@ -1007,6 +1036,70 @@ const TaskDetail = () => {
                               <Badge variant="secondary">Production</Badge>
                             )}
                           </div>
+                          
+                          {/* Evaluation Stats */}
+                          {evalStatsLoading ? (
+                            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading evaluation stats...
+                            </div>
+                          ) : evalStatsError ? (
+                            <div className="mt-4 text-sm text-destructive">{evalStatsError}</div>
+                          ) : evalStats && evalStats.evaluation_count > 0 ? (
+                            <div className="mt-4 border-t border-border pt-4">
+                              <div className="text-muted-foreground mb-3 text-xs font-medium">
+                                Evaluation statistics (from {evalStats.evaluation_count} {evalStats.evaluation_count === 1 ? 'eval' : 'evals'})
+                              </div>
+                              <div className="space-y-3">
+                                {/* First row: Final Score | Cost Efficiency | Time Efficiency */}
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Average Evaluation Score</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_final_evaluation_score !== null ? evalStats.avg_final_evaluation_score.toFixed(2) : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Cost Efficiency</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_cost_efficiency_score !== null ? evalStats.avg_cost_efficiency_score.toFixed(2) : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Time Efficiency</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_time_efficiency_score !== null ? evalStats.avg_time_efficiency_score.toFixed(2) : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Second row: Average Quality | Average Cost | Average Time */}
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Average Quality</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_quality_score !== null ? evalStats.avg_quality_score.toFixed(2) : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Average Cost</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_cost !== null ? `$${evalStats.avg_cost.toFixed(6)}` : '-'}
+                                    </div>
+                                  </div>
+                                  <div className="p-2 bg-muted/50 rounded">
+                                    <div className="text-muted-foreground text-xs mb-1">Average Time</div>
+                                    <div className="text-sm font-semibold">
+                                      {evalStats.avg_execution_time_ms !== null ? `${evalStats.avg_execution_time_ms.toFixed(2)}ms` : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : evalStats && evalStats.evaluation_count === 0 ? (
+                            <div className="mt-4 border-t border-border pt-4">
+                              <div className="text-sm text-muted-foreground">No evaluations yet</div>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null;
                     })()}

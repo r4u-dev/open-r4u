@@ -32,6 +32,7 @@ from app.schemas.evaluation import (
     EvaluationListItem,
     EvaluationResultItem,
     EvaluationResultGradeItem,
+    ImplementationEvaluationStats,
 )
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
@@ -741,6 +742,71 @@ class EvaluationService:
         
         return final_score
 
+    async def get_implementation_evaluation_stats(
+        self, session: AsyncSession, implementation_id: int
+    ) -> ImplementationEvaluationStats:
+        """Return aggregate stats for all evaluations of an implementation, optimizing avg calculation with SQL."""
+        # Use a direct SQL query for averages/counts (ignoring NULLs)
+        # Prepare separate queries for each metric (averages only for non-null values)
+        query = select(
+            func.count(Evaluation.id), # Total count
+            func.avg(Evaluation.quality_score),
+            func.avg(Evaluation.avg_cost),
+            func.avg(Evaluation.avg_execution_time_ms),
+        ).where(Evaluation.implementation_id == implementation_id)
+
+        result = await session.execute(query)
+        count, avg_quality_score, avg_cost, avg_execution_time_ms = result.one()
+
+        if count == 0:
+            return ImplementationEvaluationStats(
+                implementation_id=implementation_id,
+                evaluation_count=0,
+                avg_quality_score=None,
+                avg_cost=None,
+                avg_execution_time_ms=None,
+                avg_final_evaluation_score=None,
+                avg_cost_efficiency_score=None,
+                avg_time_efficiency_score=None,
+            )
+
+        # Use the averaged values to construct a dummy eval object for downstream calcs
+        # We fetch the first evaluation only for task_id as all share the same implementation
+        first_eval = await session.scalar(
+            select(Evaluation).where(Evaluation.implementation_id == implementation_id)
+        )
+        task_id = first_eval.task_id if first_eval else None
+
+        avg_cost_efficiency_score = None
+        avg_time_efficiency_score = None
+        avg_final_evaluation_score = None
+
+        if task_id is not None:
+            class DummyEval:
+                pass
+            dummy = DummyEval()
+            dummy.task_id = task_id
+            dummy.quality_score = avg_quality_score
+            dummy.avg_cost = avg_cost
+            dummy.avg_execution_time_ms = avg_execution_time_ms
+            # Calculate efficiency scores
+            cost_eff, time_eff = await self.calculate_efficiency_scores(session, dummy)
+            avg_cost_efficiency_score = cost_eff
+            avg_time_efficiency_score = time_eff
+            # Calculate final evaluation score
+            final_score = await self.calculate_final_evaluation_score(session, dummy)
+            avg_final_evaluation_score = final_score
+
+        return ImplementationEvaluationStats(
+            implementation_id=implementation_id,
+            evaluation_count=count,
+            avg_quality_score=avg_quality_score,
+            avg_cost=avg_cost,
+            avg_execution_time_ms=avg_execution_time_ms,
+            avg_cost_efficiency_score=avg_cost_efficiency_score,
+            avg_time_efficiency_score=avg_time_efficiency_score,
+            avg_final_evaluation_score=avg_final_evaluation_score,
+        )
 
     # Helper methods
     async def _get_task(self, session: AsyncSession, task_id: int) -> Task:

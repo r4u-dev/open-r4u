@@ -1,5 +1,6 @@
 import { apiClient, ApiResponse } from "@/services/api";
 import { EvaluationRead, EvaluationListItem, EvaluationResultItem, Grade } from "@/lib/types/evaluation";
+import type { ImplementationEvaluationStats } from "@/lib/types/evaluation";
 
 class EvaluationsApiService {
     private baseEndpoint = "/v1/evaluations";
@@ -100,9 +101,17 @@ class EvaluationsApiService {
         // Temporarily disabled from frontend usage
         throw new Error('recalculateTargetMetrics is not available in the UI');
     }
+
+    async getImplementationEvaluationStats(
+        implementationId: number
+    ): Promise<ApiResponse<ImplementationEvaluationStats>> {
+        return apiClient.get<ImplementationEvaluationStats>(
+            `${this.baseEndpoint}/implementation/${implementationId}/stats`
+        );
+    }
 }
 
 export const evaluationsApi = new EvaluationsApiService();
 
 // Re-export types for convenience
-export type { EvaluationRead, EvaluationListItem, EvaluationResultItem, Grade } from "@/lib/types/evaluation";
+export type { EvaluationRead, EvaluationListItem, EvaluationResultItem, Grade, ImplementationEvaluationStats } from "@/lib/types/evaluation";

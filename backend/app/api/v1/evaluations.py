@@ -13,6 +13,7 @@ from app.schemas.evaluation import (
     EvaluationListItem,
     EvaluationRunRequest,
     EvaluationResultItem,
+    ImplementationEvaluationStats,
 )
 from app.services.evaluation_service import EvaluationService, NotFoundError, BadRequestError
 
@@ -280,3 +281,18 @@ async def recalculate_target_metrics(
         )
 
     return {"message": "Target metrics recalculated successfully"}
+
+
+@router.get("/implementation/{implementation_id}/stats", response_model=ImplementationEvaluationStats)
+async def get_implementation_evaluation_stats(
+    implementation_id: int,
+    session: AsyncSession = Depends(get_session),
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
+) -> ImplementationEvaluationStats:
+    """Get average quality, time, cost, and final evaluation score from all evaluations of an implementation."""
+    try:
+        return await evaluation_service.get_implementation_evaluation_stats(session, implementation_id=implementation_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to get evaluation stats: {str(e)}")
