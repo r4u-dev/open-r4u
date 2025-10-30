@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @pytest.mark.asyncio
 async def test_create_openai_http_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI HTTP request/response."""
     # Sample OpenAI request
@@ -105,7 +106,8 @@ async def test_create_openai_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_anthropic_http_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from Anthropic HTTP request/response."""
     # Sample Anthropic request
@@ -194,7 +196,8 @@ async def test_create_anthropic_http_trace(
 
 @pytest.mark.asyncio
 async def test_create_openai_responses_api_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI Responses API format."""
     # Sample OpenAI Responses API request
@@ -316,7 +319,8 @@ async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_create_openai_tool_call_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI with tool calls."""
     # Sample OpenAI request with tools
@@ -428,7 +432,8 @@ async def test_create_openai_tool_call_trace(
 
 @pytest.mark.asyncio
 async def test_http_trace_persisted_on_parse_failure(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test that HTTPTrace is persisted even when parsing fails."""
     from sqlalchemy import select
@@ -490,7 +495,8 @@ async def test_http_trace_persisted_on_parse_failure(
 
 @pytest.mark.asyncio
 async def test_create_openai_streaming_chat_completions_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI streaming Chat Completions API."""
     # Sample OpenAI request
@@ -581,7 +587,8 @@ data: [DONE]"""
 
 @pytest.mark.asyncio
 async def test_create_openai_streaming_responses_api_trace(
-    client: AsyncClient, test_session: AsyncSession,
+    client: AsyncClient,
+    test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI streaming Responses API."""
     # Sample OpenAI Responses API request

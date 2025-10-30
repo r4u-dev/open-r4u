@@ -83,7 +83,7 @@ class GoogleGenAIParser(ProviderParser):
 
                     input_items.append(
                         FunctionCallItem(
-                            id=func_id,
+                            call_id=func_id,
                             name=func_name,
                             arguments=func_args,
                         ),
@@ -152,7 +152,7 @@ class GoogleGenAIParser(ProviderParser):
 
                         input_items.append(
                             FunctionCallItem(
-                                id=func_id,
+                                call_id=func_id,
                                 name=func_name,
                                 arguments=func_args,
                             ),

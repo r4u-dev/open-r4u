@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from app.enums import FinishReason, MessageRole
 from app.schemas.traces import (
+    FunctionCallItem,
     FunctionToolCallItem,
     InputItem,
     MessageItem,
@@ -14,7 +15,6 @@ from app.schemas.traces import (
     OutputMessageContent,
     OutputMessageItem,
     Reasoning,
-    ToolCallItem,
     ToolDefinition,
     ToolResultItem,
     TraceCreate,
@@ -324,13 +324,27 @@ class OpenAIParser(ProviderParser):
             except ValueError:
                 role = MessageRole.USER
 
-            # Regular message without tool calls
-            input_items.append(
-                MessageItem(
-                    role=role,
-                    content=msg.get("content"),
-                ),
-            )
+            if msg.get("content"):
+                input_items.append(
+                    MessageItem(
+                        role=role,
+                        content=msg.get("content"),
+                    ),
+                )
+            elif msg.get("tool_calls"):
+                # Handle tool calls in messages
+                tool_calls_data = msg.get("tool_calls")
+                for tc in tool_calls_data:
+                    function_data = tc.get("function", {})
+                    arguments_str = function_data.get("arguments", "")
+
+                    input_items.append(
+                        FunctionCallItem(
+                            call_id=tc.get("id", ""),
+                            name=function_data.get("name", ""),
+                            arguments=arguments_str,
+                        ),
+                    )
 
         # Extract result from response
         result = None
@@ -367,26 +381,6 @@ class OpenAIParser(ProviderParser):
                     for tc in tool_calls_data:
                         function_data = tc.get("function", {})
                         arguments_str = function_data.get("arguments", "")
-
-                        # Parse arguments if they're a JSON string
-                        import json
-
-                        try:
-                            arguments = (
-                                json.loads(arguments_str)
-                                if isinstance(arguments_str, str)
-                                else arguments_str
-                            )
-                        except (json.JSONDecodeError, TypeError):
-                            arguments = {"raw": arguments_str}
-
-                        input_items.append(
-                            ToolCallItem(
-                                id=tc.get("id", ""),
-                                tool_name=function_data.get("name", ""),
-                                arguments=arguments,
-                            ),
-                        )
 
                         # Also add to output items
                         output_items.append(
@@ -474,7 +468,6 @@ class OpenAIParser(ProviderParser):
             completed_at=completed_at,
             input=input_items,
             path=call_path,
-            task_id=task_id,
             tools=tools,
             instructions=instructions,
             prompt=None,  # Not directly available in OpenAI format
@@ -521,29 +514,31 @@ class OpenAIParser(ProviderParser):
         # Handle different input formats
         if isinstance(request_input, list):
             for item in request_input:
-                if isinstance(item, dict):
-                    # If it looks like a message
-                    if "role" in item:
-                        role_str = item.get("role", "user")
-                        try:
-                            role = MessageRole(role_str)
-                        except ValueError:
-                            role = MessageRole.USER
+                if not isinstance(item, dict):
+                    raise ValueError("Invalid input item format in Responses API")
 
-                        input_items.append(
-                            MessageItem(
-                                role=role,
-                                content=item.get("content"),
-                            ),
-                        )
-                    else:
-                        # Generic content
-                        input_items.append(
-                            MessageItem(
-                                role=MessageRole.USER,
-                                content=str(item),
-                            ),
-                        )
+                if item["type"] == "message":
+                    role_str = item.get("role", "user")
+                    try:
+                        role = MessageRole(role_str)
+                    except ValueError:
+                        role = MessageRole.USER
+
+                    input_items.append(
+                        MessageItem(
+                            role=role,
+                            content=item["content"],
+                        ),
+                    )
+                elif item["type"] == "function_call":
+                    input_items.append(
+                        FunctionCallItem(
+                            call_id=item.get("call_id", ""),
+                            name=item.get("name", ""),
+                            arguments=item.get("arguments", ""),
+                        ),
+                    )
+
         elif isinstance(request_input, str):
             # Simple string input
             input_items.append(
@@ -621,7 +616,8 @@ class OpenAIParser(ProviderParser):
                                             id=f"msg_{response_body.get('id', 'unknown')}_{idx}",
                                             content=[
                                                 OutputMessageContent(
-                                                    type="text", text=str(text),
+                                                    type="text",
+                                                    text=str(text),
                                                 ),
                                             ],
                                             status="completed",

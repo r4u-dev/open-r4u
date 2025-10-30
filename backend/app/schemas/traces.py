@@ -75,7 +75,7 @@ class FunctionCallItem(BaseModel):
     """Function call item in trace input."""
 
     type: Literal[ItemType.FUNCTION_CALL] = ItemType.FUNCTION_CALL
-    id: str
+    call_id: str
     name: str
     arguments: str | dict[str, Any]
     model_config = ConfigDict(extra="allow")
