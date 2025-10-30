@@ -349,6 +349,9 @@ class OptimizationService:
         for evaluation in created_evals:
             await self.evaluation_service.execute_evaluation_in_background(evaluation_id=evaluation.id)
 
+        # Ensure we don't read stale objects from the identity map after background execution
+        session.expire_all()
+
         # After execution completes, load results and compute final scores
         for impl_id in implementation_ids:
             evaluation_row = await session.scalar(
