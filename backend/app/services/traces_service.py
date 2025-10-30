@@ -349,7 +349,7 @@ class TracesService:
             )
 
             # Use TaskGrouper to create task and implementations
-            grouper = TaskGrouper(min_cluster_size=self.min_cluster_size)
+            grouper = TaskGrouper(session, min_cluster_size=self.min_cluster_size)
 
             # Reload trace with input items for grouper
             reload_query = (
@@ -363,7 +363,6 @@ class TracesService:
             # Try to find or create task
             task = await grouper.find_or_create_task_for_trace(
                 trace_with_items.id,
-                session,
             )
 
             if task:

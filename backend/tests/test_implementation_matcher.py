@@ -24,7 +24,10 @@ async def project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def task(test_session: AsyncSession, project: Project) -> Task:
     """Create a test task."""
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
     return task

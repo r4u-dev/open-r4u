@@ -25,9 +25,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_auto_create_implementation_from_similar_traces(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that implementations are auto-created from similar traces."""
         # Create 3 similar traces (reaches min_cluster_size of 3)
         names = ["Alice", "Bob", "Charlie"]
@@ -62,7 +61,8 @@ class TestAutoCreateImplementation:
 
         # Check that implementation has inferred template
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
 
@@ -83,9 +83,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_no_auto_create_with_insufficient_traces(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that implementations are NOT created when there aren't enough traces."""
         # Create only 2 traces (below min_cluster_size of 3)
         for name in ["Alice", "Bob"]:
@@ -123,9 +122,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_auto_create_with_exact_min_cluster_size(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that implementation is created exactly at min_cluster_size threshold."""
         # Create exactly 3 traces (exactly min_cluster_size)
         for i in range(3):
@@ -155,9 +153,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_auto_create_with_null_path(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that implementations ARE auto-created for traces with null paths."""
         # Create 3 traces without paths but with similar prompts
         for i in range(3):
@@ -191,7 +188,8 @@ class TestAutoCreateImplementation:
 
         # Verify implementation was created
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
         assert impl is not None
@@ -206,9 +204,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_null_paths_separate_from_non_null_paths(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that traces with null paths are grouped separately from traces with paths."""
         # Create 3 traces with null path
         for i in range(3):
@@ -287,9 +284,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_no_auto_create_without_system_prompt(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that implementations are not auto-created for traces without system prompts."""
         # Create 3 traces without system messages
         for i in range(3):
@@ -315,9 +311,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_separate_implementations_for_different_paths(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that different paths create separate implementations."""
         # Create 3 traces for path A
         for name in ["Alice", "Bob", "Charlie"]:
@@ -371,9 +366,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_separate_implementations_for_different_models(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that different models create separate implementations."""
         # Create 3 traces with gpt-4
         for i in range(3):
@@ -427,13 +421,16 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_existing_implementation_not_replaced(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
-        project: Project):
+        self, client: AsyncClient, test_session: AsyncSession, project: Project,
+    ):
         """Test that existing implementations are not replaced by auto-creation."""
         # Create a task and implementation manually
-        task = Task(project_id=project.id, path="/api/manual")
+        task = Task(
+            name="Manual Task",
+            description="Test task with manual implementation",
+            project_id=project.id,
+            path="/api/manual",
+        )
         test_session.add(task)
         await test_session.flush()
 
@@ -441,7 +438,8 @@ class TestAutoCreateImplementation:
             task_id=task.id,
             prompt="Manual template {name}",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -477,9 +475,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_template_inference_with_complex_patterns(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that template inference works with complex patterns."""
         # Create traces with multiple variables
         test_cases = [
@@ -516,7 +513,8 @@ class TestAutoCreateImplementation:
         assert task.production_version_id is not None
 
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
 
@@ -530,9 +528,8 @@ class TestAutoCreateImplementation:
 
     @pytest.mark.asyncio
     async def test_project_isolation_in_auto_creation(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession):
+        self, client: AsyncClient, test_session: AsyncSession,
+    ):
         """Test that auto-creation respects project boundaries."""
         # Create 3 traces in Project A
         for i in range(3):

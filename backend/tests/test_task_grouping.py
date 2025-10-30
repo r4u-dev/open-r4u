@@ -34,7 +34,10 @@ async def project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def task(test_session: AsyncSession, project: Project) -> Task:
     """Create a test task."""
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
     return task
@@ -171,8 +174,14 @@ async def test_traces_with_different_paths_match_different_implementations(
     project: Project):
     """Test that traces with different contexts match different implementations."""
     # Create task and implementations for different purposes
-    task1 = Task(project_id=project.id, path="/api/greet")
-    task2 = Task(project_id=project.id, path="/api/weather")
+    task1 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/greet")
+    task2 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/weather")
     test_session.add_all([task1, task2])
     await test_session.flush()
 
@@ -443,8 +452,14 @@ async def test_project_isolation_in_matching(
     test_session.add_all([project1, project2])
     await test_session.flush()
 
-    task1 = Task(project_id=project1.id)
-    task2 = Task(project_id=project2.id)
+    task1 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project1.id)
+    task2 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project2.id)
     test_session.add_all([task1, task2])
     await test_session.flush()
 

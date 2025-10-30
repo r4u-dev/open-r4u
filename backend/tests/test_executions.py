@@ -33,7 +33,9 @@ async def test_task(
     test_project: Project) -> Task:
     """Create a test task."""
     task = Task(
-        project_id=test_project.id,
+            name="Test Task",
+            description="Test task",
+            project_id=test_project.id,
         path="test/path",
         response_schema={"type": "object", "properties": {"summary": {"type": "string"}}})
     test_session.add(task)

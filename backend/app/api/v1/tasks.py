@@ -1,46 +1,40 @@
 """API endpoints for Task management."""
 
-from collections.abc import Sequence
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models.projects import Project
-from app.models.tasks import Implementation, Task
-from app.schemas.tasks import TaskCreate, TaskRead
+from app.schemas.tasks import TaskCreate, TaskSchema
 from app.services.task_grouping import group_all_traces
+from app.services.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-@router.get("", response_model=list[TaskRead])
+def get_task_service(
+    session: AsyncSession = Depends(get_session),
+) -> TaskService:
+    """Dependency provider for TaskService."""
+    return TaskService(session)
+
+
+@router.get("", response_model=list[TaskSchema])
 async def list_tasks(
     project_id: int | None = None,
-    session: AsyncSession = Depends(get_session),
-) -> list[TaskRead]:
+    service: TaskService = Depends(get_task_service),
+) -> list[TaskSchema]:
     """Return all tasks, optionally filtered by project_id."""
-    query = select(Task)
-    if project_id is not None:
-        query = query.where(Task.project_id == project_id)
-    query = query.order_by(Task.created_at.desc())
-
-    result = await session.execute(query)
-    tasks: Sequence[Task] = result.scalars().all()
-
-    return [TaskRead.model_validate(task) for task in tasks]
+    tasks = await service.list_tasks(project_id=project_id)
+    return [TaskSchema.model_validate(task) for task in tasks]
 
 
-@router.get("/{task_id}", response_model=TaskRead)
+@router.get("/{task_id}", response_model=TaskSchema)
 async def get_task(
     task_id: int,
-    session: AsyncSession = Depends(get_session),
-) -> TaskRead:
+    service: TaskService = Depends(get_task_service),
+) -> TaskSchema:
     """Get a specific task by ID."""
-    query = select(Task).where(Task.id == task_id)
-    result = await session.execute(query)
-    task = result.scalar_one_or_none()
+    task = await service.get_task(task_id)
 
     if not task:
         raise HTTPException(
@@ -48,108 +42,50 @@ async def get_task(
             detail=f"Task with id {task_id} not found",
         )
 
-    return TaskRead.model_validate(task)
+    return TaskSchema.model_validate(task)
 
 
-@router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=TaskSchema, status_code=status.HTTP_201_CREATED)
 async def create_task(
     payload: TaskCreate,
-    session: AsyncSession = Depends(get_session),
-) -> TaskRead:
+    service: TaskService = Depends(get_task_service),
+) -> TaskSchema:
     """Create a new task."""
-    # Get or create project
-    project_query = select(Project).where(Project.name == payload.project)
-    project_result = await session.execute(project_query)
-    project = project_result.scalar_one_or_none()
-
-    if not project:
-        # Auto-create project if it doesn't exist
-        project = Project(name=payload.project)
-        session.add(project)
-        await session.flush()
-
-    # Create task first
-    task = Task(
-        project_id=project.id,
-        path=payload.path,
-        response_schema=payload.response_schema,
-    )
-    session.add(task)
-    await session.flush()
-
-    # Create implementation (version) linked to task
-    implementation = Implementation(
-        task_id=task.id,
-        version=payload.implementation.version,
-        prompt=payload.implementation.prompt,
-        model=payload.implementation.model,
-        temperature=payload.implementation.temperature,
-        reasoning=(
-            payload.implementation.reasoning.model_dump(mode="json", exclude_unset=True)
-            if payload.implementation.reasoning
-            else None
-        ),
-        tools=(
-            [
-                tool.model_dump(mode="json", by_alias=True)
-                for tool in payload.implementation.tools
-            ]
-            if payload.implementation.tools
-            else None
-        ),
-        tool_choice=(
-            payload.implementation.tool_choice
-            if isinstance(payload.implementation.tool_choice, dict)
-            else {"type": payload.implementation.tool_choice}
-            if payload.implementation.tool_choice
-            else None
-        ),
-        max_output_tokens=payload.implementation.max_output_tokens,
-    )
-    session.add(implementation)
-    await session.flush()
-
-    # Set as production version
-    task.production_version_id = implementation.id
-    session.add(task)
-    await session.flush()
-    await session.commit()
-
-    query = select(Task).where(Task.id == task.id)
-    result = await session.execute(query)
-    created_task = result.scalar_one()
-
-    return TaskRead.model_validate(created_task)
+    try:
+        task = await service.create_task(payload)
+        return TaskSchema.model_validate(task)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,
-    session: AsyncSession = Depends(get_session),
+    service: TaskService = Depends(get_task_service),
 ) -> None:
     """Delete a task."""
-    query = select(Task).where(Task.id == task_id)
-    result = await session.execute(query)
-    task = result.scalar_one_or_none()
-
-    if not task:
+    try:
+        await service.delete_task(task_id)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task with id {task_id} not found",
+            detail=str(e),
         )
-
-    await session.delete(task)
-    await session.commit()
 
 
 @router.post(
-    "/group-traces", response_model=list[TaskRead], status_code=status.HTTP_201_CREATED,
+    "/group-traces",
+    response_model=list[TaskSchema],
+    status_code=status.HTTP_201_CREATED,
 )
 async def group_traces_into_tasks(
     session: AsyncSession = Depends(get_session),
     similarity_threshold: float = 0.6,
     min_cluster_size: int = 2,
-) -> list[TaskRead]:
+) -> list[TaskSchema]:
     """Automatically group all ungrouped traces into tasks.
 
     This endpoint:
@@ -174,4 +110,5 @@ async def group_traces_into_tasks(
         min_cluster_size=min_cluster_size,
     )
 
-    return [TaskRead.model_validate(task) for task in created_tasks]
+    return [TaskSchema.model_validate(task) for task in created_tasks]
+

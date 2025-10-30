@@ -345,7 +345,10 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -620,7 +623,10 @@ async def test_list_grades_for_execution(grading_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 

@@ -23,7 +23,10 @@ async def test_create_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -63,7 +66,10 @@ async def test_create_evaluation_config_default_weights(client: AsyncClient, tes
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -88,7 +94,10 @@ async def test_create_evaluation_config_invalid_weights(client: AsyncClient, tes
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -130,7 +139,10 @@ async def test_get_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -162,7 +174,10 @@ async def test_get_evaluation_config_not_found(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -180,7 +195,10 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -218,7 +236,10 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -255,7 +276,10 @@ async def test_update_evaluation_config_not_found(client: AsyncClient, test_sess
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -278,7 +302,10 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -425,7 +452,10 @@ async def test_run_evaluation_no_test_cases(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -462,7 +492,10 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -528,7 +561,10 @@ async def test_list_implementation_evaluations_empty(client: AsyncClient, test_s
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -555,7 +591,10 @@ async def test_get_evaluation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -614,7 +653,10 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -665,7 +707,10 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -715,7 +760,10 @@ async def test_evaluation_config_validation_weights_sum(client: AsyncClient, tes
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 

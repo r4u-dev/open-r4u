@@ -42,14 +42,18 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     """Schema for task creation payload."""
 
+    name: str | None = None
+    description: str | None = None
     project: str = "Default Project"  # Project name, defaults to "Default Project"
     implementation: ImplementationCreate  # Initial implementation version
 
 
-class TaskRead(TaskBase):
+class TaskSchema(TaskBase):
     """Schema for task responses."""
 
     id: int
+    name: str
+    description: str
     project_id: int
     production_version_id: int | None = None
     created_at: datetime

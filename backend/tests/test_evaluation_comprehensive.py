@@ -41,7 +41,10 @@ class TestEvaluationSystemComprehensive:
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 
@@ -361,7 +364,10 @@ class TestEvaluationSystemComprehensive:
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 
@@ -477,7 +483,10 @@ class TestEvaluationSystemComprehensive:
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 

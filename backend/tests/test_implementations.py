@@ -16,7 +16,10 @@ async def test_create_implementation_for_task(client: AsyncClient, test_session)
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.commit()
 
@@ -63,7 +66,10 @@ async def test_list_implementations_by_task(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.flush()
 
@@ -101,8 +107,14 @@ async def test_list_all_implementations(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task1 = Task(project_id=project.id, path="/api/task1")
-    task2 = Task(project_id=project.id, path="/api/task2")
+    task1 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/task1")
+    task2 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/task2")
     test_session.add_all([task1, task2])
     await test_session.flush()
 
@@ -138,7 +150,10 @@ async def test_get_implementation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.flush()
 
@@ -181,7 +196,10 @@ async def test_update_implementation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.flush()
 
@@ -224,7 +242,10 @@ async def test_delete_implementation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.flush()
 
@@ -263,7 +284,10 @@ async def test_set_production_version(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/test")
     test_session.add(task)
     await test_session.flush()
 
@@ -311,7 +335,10 @@ async def test_create_implementation_with_tools(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/weather")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/weather")
     test_session.add(task)
     await test_session.commit()
 
@@ -353,7 +380,10 @@ async def test_create_implementation_with_reasoning(client: AsyncClient, test_se
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/reason")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/reason")
     test_session.add(task)
     await test_session.commit()
 
@@ -381,7 +411,10 @@ async def test_multiple_versions_for_task(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/chat")
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/chat")
     test_session.add(task)
     await test_session.commit()
 

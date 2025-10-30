@@ -1,14 +1,12 @@
 """API endpoints for Implementation management."""
 
-from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models.tasks import Implementation, Task
 from app.schemas.tasks import ImplementationCreate, ImplementationRead
+from app.services.implementation_service import ImplementationService
 from app.services.pricing_service import PricingService
 
 router = APIRouter(prefix="/implementations", tags=["implementations"])
@@ -19,20 +17,20 @@ def get_pricing_service() -> PricingService:
     return PricingService()
 
 
+def get_implementation_service(
+    session: AsyncSession = Depends(get_session),
+) -> ImplementationService:
+    """Dependency provider for ImplementationService."""
+    return ImplementationService(session)
+
+
 @router.get("", response_model=list[ImplementationRead])
 async def list_implementations(
     task_id: int | None = None,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> list[ImplementationRead]:
     """Return all implementations, optionally filtered by task_id."""
-    query = select(Implementation)
-    if task_id is not None:
-        query = query.where(Implementation.task_id == task_id)
-    query = query.order_by(Implementation.created_at.desc())
-
-    result = await session.execute(query)
-    implementations: Sequence[Implementation] = result.scalars().all()
-
+    implementations = await service.list_implementations(task_id=task_id)
     return [ImplementationRead.model_validate(impl) for impl in implementations]
 
 
@@ -54,12 +52,10 @@ async def list_available_models(
 @router.get("/{implementation_id}", response_model=ImplementationRead)
 async def get_implementation(
     implementation_id: int,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> ImplementationRead:
     """Get a specific implementation by ID."""
-    query = select(Implementation).where(Implementation.id == implementation_id)
-    result = await session.execute(query)
-    implementation = result.scalar_one_or_none()
+    implementation = await service.get_implementation(implementation_id)
 
     if not implementation:
         raise HTTPException(
@@ -74,149 +70,69 @@ async def get_implementation(
 async def create_implementation(
     task_id: int,
     payload: ImplementationCreate,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> ImplementationRead:
     """Create a new implementation version for a task."""
-    # Verify task exists
-    task_query = select(Task).where(Task.id == task_id)
-    task_result = await session.execute(task_query)
-    task = task_result.scalar_one_or_none()
-
-    if not task:
+    try:
+        implementation = await service.create_implementation(
+            task_id=task_id,
+            payload=payload,
+        )
+        return ImplementationRead.model_validate(implementation)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task with id {task_id} not found",
+            detail=str(e),
         )
-
-    # Create implementation
-    implementation = Implementation(
-        task_id=task_id,
-        version=payload.version,
-        prompt=payload.prompt,
-        model=payload.model,
-        temperature=payload.temperature,
-        reasoning=(
-            payload.reasoning.model_dump(mode="json", exclude_unset=True)
-            if payload.reasoning
-            else None
-        ),
-        tools=(
-            [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
-            if payload.tools
-            else None
-        ),
-        tool_choice=(
-            payload.tool_choice
-            if isinstance(payload.tool_choice, dict)
-            else {"type": payload.tool_choice}
-            if payload.tool_choice
-            else None
-        ),
-        max_output_tokens=payload.max_output_tokens,
-    )
-
-    session.add(implementation)
-    await session.flush()
-    await session.commit()
-
-    query = select(Implementation).where(Implementation.id == implementation.id)
-    result = await session.execute(query)
-    created_implementation = result.scalar_one()
-
-    return ImplementationRead.model_validate(created_implementation)
 
 
 @router.put("/{implementation_id}", response_model=ImplementationRead)
 async def update_implementation(
     implementation_id: int,
     payload: ImplementationCreate,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> ImplementationRead:
     """Update an existing implementation."""
-    query = select(Implementation).where(Implementation.id == implementation_id)
-    result = await session.execute(query)
-    implementation = result.scalar_one_or_none()
-
-    if not implementation:
+    try:
+        implementation = await service.update_implementation(
+            implementation_id=implementation_id,
+            payload=payload,
+        )
+        return ImplementationRead.model_validate(implementation)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Implementation with id {implementation_id} not found",
+            detail=str(e),
         )
-
-    # Update fields
-    implementation.version = payload.version
-    implementation.prompt = payload.prompt
-    implementation.model = payload.model
-    implementation.temperature = payload.temperature
-    implementation.reasoning = (
-        payload.reasoning.model_dump(mode="json", exclude_unset=True)
-        if payload.reasoning
-        else None
-    )
-    implementation.tools = (
-        [tool.model_dump(mode="json", by_alias=True) for tool in payload.tools]
-        if payload.tools
-        else None
-    )
-    implementation.tool_choice = (
-        payload.tool_choice
-        if isinstance(payload.tool_choice, dict)
-        else {"type": payload.tool_choice}
-        if payload.tool_choice
-        else None
-    )
-    implementation.max_output_tokens = payload.max_output_tokens
-
-    await session.commit()
-    await session.refresh(implementation)
-
-    return ImplementationRead.model_validate(implementation)
 
 
 @router.delete("/{implementation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_implementation(
     implementation_id: int,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> None:
     """Delete an implementation."""
-    query = select(Implementation).where(Implementation.id == implementation_id)
-    result = await session.execute(query)
-    implementation = result.scalar_one_or_none()
-
-    if not implementation:
+    try:
+        await service.delete_implementation(implementation_id)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Implementation with id {implementation_id} not found",
+            detail=str(e),
         )
-
-    await session.delete(implementation)
-    await session.commit()
 
 
 @router.post("/{implementation_id}/set-production", response_model=ImplementationRead)
 async def set_production_version(
     implementation_id: int,
-    session: AsyncSession = Depends(get_session),
+    service: ImplementationService = Depends(get_implementation_service),
 ) -> ImplementationRead:
     """Set this implementation as the production version for its task."""
-    query = select(Implementation).where(Implementation.id == implementation_id)
-    result = await session.execute(query)
-    implementation = result.scalar_one_or_none()
-
-    if not implementation:
+    try:
+        implementation = await service.set_production_version(implementation_id)
+        return ImplementationRead.model_validate(implementation)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Implementation with id {implementation_id} not found",
+            detail=str(e),
         )
 
-    # Get the task
-    task_query = select(Task).where(Task.id == implementation.task_id)
-    task_result = await session.execute(task_query)
-    task = task_result.scalar_one()
-
-    # Set as production version
-    task.production_version_id = implementation.id
-    await session.commit()
-    await session.refresh(implementation)
-
-    return ImplementationRead.model_validate(implementation)

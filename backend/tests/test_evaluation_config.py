@@ -25,7 +25,10 @@ class EvaluationTestFixtures:
     @staticmethod
     async def create_test_task(session, project_id: int) -> Task:
         """Create a test task."""
-        task = Task(project_id=project_id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project_id)
         session.add(task)
         await session.flush()
         return task

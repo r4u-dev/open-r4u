@@ -18,7 +18,10 @@ async def test_create_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -57,7 +60,10 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -98,7 +104,10 @@ async def test_create_test_case_validation_error(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -118,7 +127,10 @@ async def test_list_test_cases(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -165,7 +177,10 @@ async def test_list_test_cases_empty(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -193,7 +208,10 @@ async def test_get_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -235,7 +253,10 @@ async def test_update_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -269,7 +290,10 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -315,7 +339,10 @@ async def test_delete_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -354,7 +381,10 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -396,7 +426,10 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -422,7 +455,10 @@ async def test_test_case_with_empty_arguments(client: AsyncClient, test_session)
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -446,7 +482,10 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
