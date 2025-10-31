@@ -10,10 +10,7 @@ OptimizationMutableField = Literal[
     "prompt",
     "model",
     "temperature",
-    "tools",
-    "tool_choice",
     "max_output_tokens",
-    "reasoning",
 ]
 
 

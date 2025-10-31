@@ -11,6 +11,7 @@ from app.services.evaluation_service import EvaluationService
 from app.models.tasks import Task, Implementation
 from app.models.evaluation import Evaluation
 from app.services.executor import LLMExecutor
+from app.services.pricing_service import PricingService
 
 
 class OptimizationService:
@@ -18,6 +19,7 @@ class OptimizationService:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.evaluation_service = EvaluationService(self.settings)
+        self.pricing_service = PricingService()
 
     async def run(
         self,
@@ -144,8 +146,6 @@ class OptimizationService:
         """
         if variants_per_iter <= 0:
             return []
-        if "prompt" not in set(changeable_fields):
-            return []
 
         # Load the baseline implementation to inform the meta prompt
         baseline_impl: Optional[Implementation] = None
@@ -163,9 +163,18 @@ class OptimizationService:
         if baseline_impl is None:
             return []
 
-        # Build a temporary meta-implementation and call repeatedly for single-string outputs
-        variables = {"original_prompt": baseline_impl.prompt}
-        variants: List[str] = []
+        # Build a temporary meta-implementation and call repeatedly to get JSON field overrides
+        # Fetch available models list for guidance/validation
+        by_provider = self.pricing_service.get_available_models()
+        available_models: List[str] = sorted({m for lst in by_provider.values() for m in lst})
+
+        variables = {"baseline": {
+            "prompt": baseline_impl.prompt,
+            "model": baseline_impl.model,
+            "temperature": baseline_impl.temperature,
+            "max_output_tokens": baseline_impl.max_output_tokens,
+        }, "available_models": available_models}
+        variants: List[dict] = []
         executor = LLMExecutor(self.settings)
 
         attempts = 0
@@ -174,7 +183,7 @@ class OptimizationService:
             meta_impl = Implementation(
                 task_id=None,
                 version="optimizer-meta",
-                prompt=self._build_prompt_variant_meta_prompt_single(),
+                prompt=self._build_variant_meta_prompt_json(changeable_fields),
                 model="gpt-4.1",
                 temperature=0.7,
                 reasoning={
@@ -186,11 +195,7 @@ class OptimizationService:
                 temp=True,
             )
             # Dummy task schema expecting a single string
-            temp_task = Task(
-                id=None,
-                project_id=None,
-                response_schema=None,
-            )
+            temp_task = Task(id=None, project_id=None, response_schema=self._build_response_schema_for_fields(changeable_fields, available_models))
             meta_impl.task = temp_task
 
             execution = await executor.execute(meta_impl, variables=variables, input=None)
@@ -198,26 +203,82 @@ class OptimizationService:
                 print(f"Error executing meta-prompt: {execution.error}")
                 continue
 
-            candidate: Optional[str] = None
-            if getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
-                candidate = execution.result_text.strip()
-            elif getattr(execution, "result_json", None) and isinstance(execution.result_json, str):
-                candidate = str(execution.result_json).strip()
+            candidate: Optional[dict] = None
+            result_obj = None
+            if getattr(execution, "result_json", None) and isinstance(execution.result_json, dict):
+                result_obj = execution.result_json
+            elif getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
+                try:
+                    import json as _json
+                    parsed = _json.loads(execution.result_text)
+                    if isinstance(parsed, dict):
+                        result_obj = parsed
+                except Exception:
+                    result_obj = None
 
-            if candidate and candidate not in variants:
-                variants.append(candidate)
+            if isinstance(result_obj, dict):
+                print(f"Result object: {result_obj}") 
+                # Filter to allowed keys only and drop None values
+                allowed = set(changeable_fields)
+                filtered = {k: v for k, v in result_obj.items() if k in allowed and v is not None}
+                # Skip empty/no-op
+                if filtered:
+                    # Deduplicate by stable json repr
+                    try:
+                        import json as _json
+                        key = _json.dumps(filtered, sort_keys=True)
+                        existing_keys = {
+                            _json.dumps(item, sort_keys=True) for item in variants
+                        }
+                        if key not in existing_keys:
+                            variants.append(filtered)
+                    except Exception:
+                        variants.append(filtered)
 
-        return [{"prompt": p} for p in variants]
+        return variants
 
-    def _build_prompt_variant_meta_prompt_single(self) -> str:
+    def _build_variant_meta_prompt_json(self, changeable_fields: List[OptimizationMutableField]) -> str:
+        fields_csv = ", ".join(changeable_fields)
         return (
-            "You are an expert prompt engineer. Improve the following system prompt while:\n"
-            "- Preserving its intent and variables (e.g., variable placeholders)\n"
-            "- Improving clarity, structure, constraints, and safety\n"
-            "- Avoiding excessive token growth\n\n"
-            "Return ONLY the improved prompt as plain text. No quotes, code fences, or JSON.\n\n"
-            "Original prompt:\n{{original_prompt}}\n"
+            "You are an expert prompt and configuration optimizer. Given a baseline implementation, "
+            "produce a JSON object with ONLY the fields to change, chosen from: "
+            f"{fields_csv}. Do not include unchanged fields.\n\n"
+            "Guidelines:\n"
+            "- Preserve task intent and variable placeholders.\n"
+            "- Keep outputs compatible with typical LLM provider constraints.\n"
+            "- Temperature in [0.0, 2.0]; max_output_tokens reasonable.\n"
+            "- If changing model, pick ONLY from available_models.\n\n"
+            "Return ONLY a JSON object. No extra text.\n\n"
+            "Baseline:\n{{baseline}}\n\n"
+            "Available models:\n{{available_models}}\n"
         )
+
+    def _build_response_schema_for_fields(self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[str]] = None) -> dict:
+        properties: dict = {}
+        required: List[str] = []
+        if "prompt" in changeable_fields:
+            properties["prompt"] = {"type": "string"}
+            required.append("prompt")
+        if "model" in changeable_fields:
+            if available_models:
+                properties["model"] = {"type": "string", "enum": available_models}
+            else:
+                properties["model"] = {"type": "string"}
+            required.append("model")
+        if "temperature" in changeable_fields:
+            properties["temperature"] = {"type": "number", "minimum": 0.0, "maximum": 1.0}
+            required.append("temperature")
+        if "max_output_tokens" in changeable_fields:
+            properties["max_output_tokens"] = {"type": "integer", "minimum": 1}
+            required.append("max_output_tokens")
+        # Only allow the explicitly supported fields above
+        schema = {
+            "type": "object",
+            "properties": properties,
+            "additionalProperties": False,
+            "required": required,
+        }
+        return schema
 
     async def _persist_variants(
         self,
