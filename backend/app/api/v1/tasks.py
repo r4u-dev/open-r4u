@@ -1,6 +1,6 @@
 """API endpoints for Task management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -21,20 +21,65 @@ def get_task_service(
 @router.get("", response_model=list[TaskSchema])
 async def list_tasks(
     project_id: int | None = None,
+    percentile: float = Query(
+        95.0,
+        ge=0,
+        le=100,
+        description="Percentile for cost and latency metrics",
+    ),
+    half_life_hours: float = Query(
+        168.0,
+        gt=0,
+        description="Hours for trace weight to decay to 50% (default: 168 = 7 days)",
+    ),
     service: TaskService = Depends(get_task_service),
 ) -> list[TaskSchema]:
-    """Return all tasks, optionally filtered by project_id."""
-    tasks = await service.list_tasks(project_id=project_id)
-    return [TaskSchema.model_validate(task) for task in tasks]
+    """Return all tasks with time-weighted cost and latency percentiles, optionally filtered by project_id.
+
+    Uses exponential time decay - older traces have exponentially less weight in the calculation.
+    """
+    tasks_with_percentiles = await service.list_tasks_with_percentiles(
+        project_id=project_id,
+        percentile=percentile,
+        half_life_hours=half_life_hours,
+    )
+
+    result = []
+    for task, cost_p, latency_p, last_activity in tasks_with_percentiles:
+        task_dict = TaskSchema.model_validate(task).model_dump()
+        task_dict["cost_percentile"] = cost_p
+        task_dict["latency_percentile"] = latency_p
+        task_dict["last_activity"] = last_activity
+        result.append(TaskSchema.model_validate(task_dict))
+
+    return result
 
 
 @router.get("/{task_id}", response_model=TaskSchema)
 async def get_task(
     task_id: int,
+    percentile: float = Query(
+        95.0,
+        ge=0,
+        le=100,
+        description="Percentile for cost and latency metrics",
+    ),
+    half_life_hours: float = Query(
+        168.0,
+        gt=0,
+        description="Hours for trace weight to decay to 50% (default: 168 = 7 days)",
+    ),
     service: TaskService = Depends(get_task_service),
 ) -> TaskSchema:
-    """Get a specific task by ID."""
-    task = await service.get_task(task_id)
+    """Get a specific task by ID with time-weighted cost and latency percentiles.
+
+    Uses exponential time decay - older traces have exponentially less weight in the calculation.
+    """
+    task, cost_p, latency_p, last_activity = await service.get_task_with_percentiles(
+        task_id=task_id,
+        percentile=percentile,
+        half_life_hours=half_life_hours,
+    )
 
     if not task:
         raise HTTPException(
@@ -42,7 +87,11 @@ async def get_task(
             detail=f"Task with id {task_id} not found",
         )
 
-    return TaskSchema.model_validate(task)
+    task_dict = TaskSchema.model_validate(task).model_dump()
+    task_dict["cost_percentile"] = cost_p
+    task_dict["latency_percentile"] = latency_p
+    task_dict["last_activity"] = last_activity
+    return TaskSchema.model_validate(task_dict)
 
 
 @router.post("", response_model=TaskSchema, status_code=status.HTTP_201_CREATED)
@@ -111,4 +160,3 @@ async def group_traces_into_tasks(
     )
 
     return [TaskSchema.model_validate(task) for task in created_tasks]
-
