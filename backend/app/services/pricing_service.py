@@ -239,3 +239,21 @@ class PricingService:
                 result[provider] = list(provider_data["models"].keys())
 
         return result
+
+    def get_models_with_pricing(self) -> list[dict[str, Any]]:
+        """Get list of models with their provider and per-1M token pricing."""
+        results = []
+        if not self._pricing_data or "providers" not in self._pricing_data:
+            return results
+        for provider, provider_data in self._pricing_data["providers"].items():
+            if "models" in provider_data:
+                for name, model in provider_data["models"].items():
+                    input_cost = model.get("input_usd_per_million")
+                    output_cost = model.get("output_usd_per_million")
+                    results.append({
+                        "name": name,
+                        "provider": provider,
+                        "input_cost_per_1m": input_cost,
+                        "output_cost_per_1m": output_cost,
+                    })
+        return results

@@ -213,10 +213,9 @@ class OptimizationService:
             )
         return None
     
-    def _get_available_models(self) -> List[str]:
-        """Get sorted list of all available models across providers."""
-        by_provider = self.pricing_service.get_available_models()
-        return sorted({m for models in by_provider.values() for m in models})
+    def _get_available_models(self) -> list[dict[str, Any]]:
+        """Get list of all available models and their pricing across providers, for the optimizer agent."""
+        return self.pricing_service.get_models_with_pricing()
     
     async def _get_evaluation_weights(
         self, session: AsyncSession, task_id: int
@@ -234,7 +233,7 @@ class OptimizationService:
     def _build_optimizer_variables(
         self,
         baseline: Optional[Implementation],
-        available_models: List[str],
+        available_models: List[dict[str, Any]],
         evaluation_weights: Optional[Dict[str, float]],
     ) -> Dict[str, Any]:
         """Build variables dict for optimizer agent execution."""
@@ -255,7 +254,7 @@ class OptimizationService:
         baseline: Optional[Implementation],
         changeable_fields: List[OptimizationMutableField],
         variants_per_iter: int,
-        available_models: List[str],
+        available_models: List[dict[str, Any]],
         variables: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Generate variant candidates by calling the optimizer agent repeatedly."""
@@ -287,7 +286,7 @@ class OptimizationService:
     def _create_meta_implementation(
         self,
         changeable_fields: List[OptimizationMutableField],
-        available_models: List[str],
+        available_models: List[dict[str, Any]],
     ) -> Implementation:
         """Create a temporary meta-implementation for the optimizer agent."""
         
@@ -381,33 +380,33 @@ class OptimizationService:
             "You are an expert prompt and configuration optimizer. Given a baseline implementation and evaluation feedback, "
             "Your goal is to increase quality score and decrease cost and time to execute by dividing focus depending on evaluation weights."
             "After each iteration, you will be given the evaluation feedback."
-            "produce a JSON object with ONLY the fields to change, chosen from: "
+            "Produce a JSON object with ONLY the fields to change, chosen from: "
             f"{fields_csv}. Do not include unchanged fields.\n\n"
             "Return ONLY a JSON object. No extra text.\n\n"
             "Baseline:\n{{baseline}}\n\n"
-            "Available models:\n{{available_models}}\n\n"
+            "Available models with pricing:\n{{available_models}}\n\n"
             "Evaluation weights:\n{{evaluation_weights}}\n"
         )
 
     def _build_response_schema_for_fields(
-        self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[str]] = None
+        self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[dict[str, Any]]] = None
     ) -> Dict[str, Any]:
-        """Build JSON schema for optimizer agent response based on changeable fields."""
+        """Build JSON schema for optimizer agent response based on changeable fields. available_models, if provided, should be a list of dicts with 'name', 'provider', and pricing keys."""
         properties: Dict[str, Any] = {"explanation": {"type": "string", "description": "Briefly justify why the proposed changes will improve the objective."}}
         required: List[str] = ["explanation"]
-        
+    
         # Make all fields optional to allow partial overrides
         if "prompt" in changeable_fields:
             properties["prompt"] = {"type": "string"}
             required.append("prompt")
-
+    
         if "model" in changeable_fields:
             properties["model"] = (
-                {"type": "string", "enum": available_models} if available_models
-                else {"type": "string"}
+                {"type": "string", "enum": [m["name"] for m in available_models]}
+                if available_models is not None else {"type": "string"}
             )
             required.append("model")
-
+    
         if "temperature" in changeable_fields:
             properties["temperature"] = {"type": "number", "minimum": 0.0, "maximum": 1.0}
             required.append("temperature")
@@ -415,7 +414,7 @@ class OptimizationService:
         if "max_output_tokens" in changeable_fields:
             properties["max_output_tokens"] = {"type": "integer", "minimum": 1}
             required.append("max_output_tokens")
-
+    
         return {
             "type": "object",
             "properties": properties,
@@ -611,16 +610,12 @@ class OptimizationService:
     ) -> None:
         """Summarize evaluation outcomes and append to conversation as a user message."""
         summary = await self._build_evaluation_summary(session, implementation_ids)
-        evaluation_weights = await self._get_evaluation_weights(session, task_id)
-        
         content_obj = {
             "evaluation_feedback": summary,
             "chosen_implementation_id": chosen_id,
-            "evaluation_weights": evaluation_weights,
         }
         content_str = json.dumps(content_obj)
         logger.debug(f"Evaluation feedback for task {task_id}: {content_str}")
-        
         self._conversation.setdefault(task_id, []).append(
             MessageItem(role=MessageRole.USER, content=content_str)
         )
