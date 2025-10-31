@@ -1,7 +1,7 @@
 """add_optimization_model
 
 Revision ID: 53914fdc7590
-Revises: 25b0e0bf095e
+Revises: 37309a4b1b2f
 Create Date: 2025-10-31 20:35:10.057534
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '53914fdc7590'
-down_revision: Union[str, Sequence[str], None] = '25b0e0bf095e'
+down_revision: Union[str, Sequence[str], None] = '37309a4b1b2f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
