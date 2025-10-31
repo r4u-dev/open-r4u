@@ -93,7 +93,10 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -515,7 +518,10 @@ async def test_list_grades_for_execution_result(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 

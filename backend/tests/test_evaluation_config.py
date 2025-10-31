@@ -1,13 +1,14 @@
 """Test configuration and utilities for evaluation system tests."""
 
+from datetime import UTC, datetime
+from typing import Any
+
 import pytest
-from datetime import datetime, timezone
-from typing import List, Dict, Any
 
 from app.enums import ScoreType
-from app.models.evaluation import Grader, TestCase, EvaluationConfig
+from app.models.evaluation import EvaluationConfig, Grader, TestCase
 from app.models.projects import Project
-from app.models.tasks import Task, Implementation
+from app.models.tasks import Implementation, Task
 from app.services.evaluation_service import EvaluationService
 
 
@@ -25,7 +26,10 @@ class EvaluationTestFixtures:
     @staticmethod
     async def create_test_task(session, project_id: int) -> Task:
         """Create a test task."""
-        task = Task(project_id=project_id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project_id)
         session.add(task)
         await session.flush()
         return task
@@ -44,10 +48,10 @@ class EvaluationTestFixtures:
         return implementation
 
     @staticmethod
-    async def create_test_graders(session, project_id: int) -> List[Grader]:
+    async def create_test_graders(session, project_id: int) -> list[Grader]:
         """Create test graders."""
         graders = []
-        
+
         # Accuracy grader
         accuracy_grader = Grader(
             project_id=project_id,
@@ -62,9 +66,9 @@ class EvaluationTestFixtures:
                 "type": "object",
                 "properties": {
                     "score": {"type": "number", "minimum": 0, "maximum": 1},
-                    "reasoning": {"type": "string"}
+                    "reasoning": {"type": "string"},
                 },
-                "required": ["score", "reasoning"]
+                "required": ["score", "reasoning"],
             })
         session.add(accuracy_grader)
         graders.append(accuracy_grader)
@@ -83,9 +87,9 @@ class EvaluationTestFixtures:
                 "type": "object",
                 "properties": {
                     "score": {"type": "boolean"},
-                    "reasoning": {"type": "string"}
+                    "reasoning": {"type": "string"},
                 },
-                "required": ["score", "reasoning"]
+                "required": ["score", "reasoning"],
             })
         session.add(toxicity_grader)
         graders.append(toxicity_grader)
@@ -104,9 +108,9 @@ class EvaluationTestFixtures:
                 "type": "object",
                 "properties": {
                     "score": {"type": "number", "minimum": 0, "maximum": 1},
-                    "reasoning": {"type": "string"}
+                    "reasoning": {"type": "string"},
                 },
-                "required": ["score", "reasoning"]
+                "required": ["score", "reasoning"],
             })
         session.add(helpfulness_grader)
         graders.append(helpfulness_grader)
@@ -115,34 +119,34 @@ class EvaluationTestFixtures:
         return graders
 
     @staticmethod
-    async def create_test_cases(session, task_id: int, evaluation_service: EvaluationService) -> List[TestCase]:
+    async def create_test_cases(session, task_id: int, evaluation_service: EvaluationService) -> list[TestCase]:
         """Create test cases."""
         test_case_data = [
             {
                 "description": "Basic math question",
                 "arguments": {"question": "What is 2+2?"},
-                "expected_output": "4"
+                "expected_output": "4",
             },
             {
                 "description": "Science question",
                 "arguments": {"question": "What is photosynthesis?"},
-                "expected_output": "The process by which plants convert light energy into chemical energy"
+                "expected_output": "The process by which plants convert light energy into chemical energy",
             },
             {
                 "description": "Creative writing",
                 "arguments": {"question": "Write a haiku about coding"},
-                "expected_output": "A short poem about programming"
+                "expected_output": "A short poem about programming",
             },
             {
                 "description": "Problem solving",
                 "arguments": {"question": "How do you calculate the area of a circle?"},
-                "expected_output": "π × radius²"
+                "expected_output": "π × radius²",
             },
             {
                 "description": "Historical question",
                 "arguments": {"question": "When did World War II end?"},
-                "expected_output": "1945"
-            }
+                "expected_output": "1945",
+            },
         ]
 
         test_cases = []
@@ -150,14 +154,14 @@ class EvaluationTestFixtures:
             test_case = await evaluation_service.create_test_case(
                 session=session,
                 task_id=task_id,
-                **data
+                **data,
             )
             test_cases.append(test_case)
 
         return test_cases
 
     @staticmethod
-    async def create_evaluation_config(session, task_id: int, grader_ids: List[int], evaluation_service: EvaluationService) -> EvaluationConfig:
+    async def create_evaluation_config(session, task_id: int, grader_ids: list[int], evaluation_service: EvaluationService) -> EvaluationConfig:
         """Create evaluation configuration."""
         config = await evaluation_service.create_or_update_evaluation_config(
             session=session,
@@ -169,7 +173,7 @@ class EvaluationTestFixtures:
         return config
 
     @staticmethod
-    def create_mock_execution_results(task_id: int, implementation_id: int, count: int) -> List[Dict[str, Any]]:
+    def create_mock_execution_results(task_id: int, implementation_id: int, count: int) -> list[dict[str, Any]]:
         """Create mock execution results."""
         results = []
         for i in range(count):
@@ -177,8 +181,8 @@ class EvaluationTestFixtures:
                 "id": i + 1,
                 "task_id": task_id,
                 "implementation_id": implementation_id,
-                "started_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
+                "started_at": datetime.now(UTC),
+                "completed_at": datetime.now(UTC),
                 "prompt_rendered": f"Test prompt {i}",
                 "result_text": f"Test result {i}",
                 "cost": 0.01 + (i * 0.002),
@@ -187,7 +191,7 @@ class EvaluationTestFixtures:
         return results
 
     @staticmethod
-    def create_mock_grades(grader_ids: List[int], execution_result_ids: List[int]) -> List[Dict[str, Any]]:
+    def create_mock_grades(grader_ids: list[int], execution_result_ids: list[int]) -> list[dict[str, Any]]:
         """Create mock grades."""
         grades = []
         for i, execution_id in enumerate(execution_result_ids):
@@ -200,8 +204,8 @@ class EvaluationTestFixtures:
                     "score_boolean": i % 2 == 0 if j % 2 == 1 else None,
                     "reasoning": f"Grader {grader_id} evaluation for execution {execution_id}",
                     "confidence": 0.8 + (i * 0.02),
-                    "grading_started_at": datetime.now(timezone.utc),
-                    "grading_completed_at": datetime.now(timezone.utc),
+                    "grading_started_at": datetime.now(UTC),
+                    "grading_completed_at": datetime.now(UTC),
                     "prompt_tokens": 50 + (i * 5),
                     "completion_tokens": 30 + (i * 3),
                     "total_tokens": 80 + (i * 8),
@@ -251,30 +255,30 @@ EVALUATION_TEST_DATA = {
             "score_type": "float",
             "model": "gpt-4o-mini",
             "temperature": 0.2,
-        }
+        },
     ],
     "test_cases": [
         {
             "description": "Basic math question",
             "arguments": {"question": "What is 2+2?"},
-            "expected_output": "4"
+            "expected_output": "4",
         },
         {
             "description": "Science question",
             "arguments": {"question": "What is photosynthesis?"},
-            "expected_output": "The process by which plants convert light energy into chemical energy"
+            "expected_output": "The process by which plants convert light energy into chemical energy",
         },
         {
             "description": "Creative writing",
             "arguments": {"question": "Write a haiku about coding"},
-            "expected_output": "A short poem about programming"
-        }
+            "expected_output": "A short poem about programming",
+        },
     ],
     "evaluation_config": {
         "quality_weight": 0.6,
         "cost_weight": 0.25,
         "time_weight": 0.15,
-    }
+    },
 }
 
 # Performance test data
@@ -290,21 +294,21 @@ ERROR_TEST_SCENARIOS = [
     {
         "name": "no_test_cases",
         "description": "Test evaluation with no test cases",
-        "expected_error": "No test cases found for task"
+        "expected_error": "No test cases found for task",
     },
     {
         "name": "no_graders",
         "description": "Test evaluation with no graders",
-        "expected_error": "No graders available for evaluation"
+        "expected_error": "No graders available for evaluation",
     },
     {
         "name": "execution_failure",
         "description": "Test evaluation with execution failure",
-        "expected_error": "Execution failed"
+        "expected_error": "Execution failed",
     },
     {
         "name": "invalid_weights",
         "description": "Test evaluation config with invalid weights",
-        "expected_error": "Quality, cost, and time weights must sum to 1.0"
-    }
+        "expected_error": "Quality, cost, and time weights must sum to 1.0",
+    },
 ]

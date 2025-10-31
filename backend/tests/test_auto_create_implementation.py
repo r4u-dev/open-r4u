@@ -1,5 +1,7 @@
 """Tests for automatic implementation creation from similar traces."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -20,6 +22,29 @@ async def project(test_session: AsyncSession) -> Project:
     return project
 
 
+@pytest_asyncio.fixture
+def mock_openai_client():
+    """Mock the OpenAI client to avoid requiring API keys."""
+    with patch("app.services.task_service.get_async_openai_client") as mock:
+        # Create mock client
+        mock_client = AsyncMock()
+
+        # Create mock response with parsed output
+        mock_response = MagicMock()
+        mock_parsed = MagicMock()
+        mock_parsed.name = "Auto-generated Task"
+        mock_parsed.description = "Auto-generated task description from instructions"
+        mock_response.output_parsed = mock_parsed
+
+        # Set up the client's responses.parse method
+        mock_client.responses.parse = AsyncMock(return_value=mock_response)
+
+        # Return the mock client
+        mock.return_value = mock_client
+
+        yield mock
+
+
 class TestAutoCreateImplementation:
     """Test automatic implementation creation from similar traces."""
 
@@ -27,7 +52,9 @@ class TestAutoCreateImplementation:
     async def test_auto_create_implementation_from_similar_traces(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that implementations are auto-created from similar traces."""
         # Create 3 similar traces (reaches min_cluster_size of 3)
         names = ["Alice", "Bob", "Charlie"]
@@ -62,7 +89,8 @@ class TestAutoCreateImplementation:
 
         # Check that implementation has inferred template
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
 
@@ -85,7 +113,9 @@ class TestAutoCreateImplementation:
     async def test_no_auto_create_with_insufficient_traces(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that implementations are NOT created when there aren't enough traces."""
         # Create only 2 traces (below min_cluster_size of 3)
         for name in ["Alice", "Bob"]:
@@ -125,7 +155,9 @@ class TestAutoCreateImplementation:
     async def test_auto_create_with_exact_min_cluster_size(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that implementation is created exactly at min_cluster_size threshold."""
         # Create exactly 3 traces (exactly min_cluster_size)
         for i in range(3):
@@ -157,7 +189,9 @@ class TestAutoCreateImplementation:
     async def test_auto_create_with_null_path(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that implementations ARE auto-created for traces with null paths."""
         # Create 3 traces without paths but with similar prompts
         for i in range(3):
@@ -191,7 +225,8 @@ class TestAutoCreateImplementation:
 
         # Verify implementation was created
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
         assert impl is not None
@@ -208,7 +243,9 @@ class TestAutoCreateImplementation:
     async def test_null_paths_separate_from_non_null_paths(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that traces with null paths are grouped separately from traces with paths."""
         # Create 3 traces with null path
         for i in range(3):
@@ -289,7 +326,9 @@ class TestAutoCreateImplementation:
     async def test_no_auto_create_without_system_prompt(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that implementations are not auto-created for traces without system prompts."""
         # Create 3 traces without system messages
         for i in range(3):
@@ -317,7 +356,9 @@ class TestAutoCreateImplementation:
     async def test_separate_implementations_for_different_paths(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that different paths create separate implementations."""
         # Create 3 traces for path A
         for name in ["Alice", "Bob", "Charlie"]:
@@ -373,7 +414,9 @@ class TestAutoCreateImplementation:
     async def test_separate_implementations_for_different_models(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that different models create separate implementations."""
         # Create 3 traces with gpt-4
         for i in range(3):
@@ -430,10 +473,17 @@ class TestAutoCreateImplementation:
         self,
         client: AsyncClient,
         test_session: AsyncSession,
-        project: Project):
+        project: Project,
+        mock_openai_client,
+    ):
         """Test that existing implementations are not replaced by auto-creation."""
         # Create a task and implementation manually
-        task = Task(project_id=project.id, path="/api/manual")
+        task = Task(
+            name="Manual Task",
+            description="Test task with manual implementation",
+            project_id=project.id,
+            path="/api/manual",
+        )
         test_session.add(task)
         await test_session.flush()
 
@@ -441,7 +491,8 @@ class TestAutoCreateImplementation:
             task_id=task.id,
             prompt="Manual template {name}",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -479,7 +530,9 @@ class TestAutoCreateImplementation:
     async def test_template_inference_with_complex_patterns(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that template inference works with complex patterns."""
         # Create traces with multiple variables
         test_cases = [
@@ -516,7 +569,8 @@ class TestAutoCreateImplementation:
         assert task.production_version_id is not None
 
         impl_query = select(Implementation).where(
-            Implementation.id == task.production_version_id)
+            Implementation.id == task.production_version_id,
+        )
         result = await test_session.execute(impl_query)
         impl = result.scalar_one()
 
@@ -532,7 +586,9 @@ class TestAutoCreateImplementation:
     async def test_project_isolation_in_auto_creation(
         self,
         client: AsyncClient,
-        test_session: AsyncSession):
+        test_session: AsyncSession,
+        mock_openai_client,
+    ):
         """Test that auto-creation respects project boundaries."""
         # Create 3 traces in Project A
         for i in range(3):

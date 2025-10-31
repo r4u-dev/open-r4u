@@ -75,6 +75,8 @@ class Task(Base):
     )
 
     id: Mapped[intpk]
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None]
     project_id: Mapped[int] = mapped_column(
         ForeignKey("project.id", ondelete="CASCADE"),
         nullable=False,
