@@ -1,6 +1,6 @@
 """Tests for task execution functionality."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -57,12 +57,12 @@ async def test_implementation(test_session: AsyncSession, test_task: Task) -> Im
     test_session.add(implementation)
     await test_session.commit()
     await test_session.refresh(implementation)
-    
+
     # Update the task to set this as the production version
     test_task.production_version_id = implementation.id
     await test_session.commit()
     await test_session.refresh(test_task)
-    
+
     return implementation
 
 
@@ -71,8 +71,9 @@ class TestExecutor:
 
     def test_render_prompt_simple(self):
         """Test simple prompt rendering without variables."""
-        from app.services.executor import LLMExecutor
         from unittest.mock import MagicMock
+
+        from app.services.executor import LLMExecutor
 
         mock_settings = MagicMock()
         mock_settings.openai_api_key = None
@@ -81,7 +82,7 @@ class TestExecutor:
         mock_settings.cohere_api_key = None
         mock_settings.mistral_api_key = None
         mock_settings.together_api_key = None
-        
+
         executor = LLMExecutor(mock_settings)
         prompt = "Hello, world!"
         result = executor._render_prompt(prompt)
@@ -89,8 +90,9 @@ class TestExecutor:
 
     def test_render_prompt_with_variables(self):
         """Test prompt rendering with variables."""
-        from app.services.executor import LLMExecutor
         from unittest.mock import MagicMock
+
+        from app.services.executor import LLMExecutor
 
         mock_settings = MagicMock()
         mock_settings.openai_api_key = None
@@ -99,7 +101,7 @@ class TestExecutor:
         mock_settings.cohere_api_key = None
         mock_settings.mistral_api_key = None
         mock_settings.together_api_key = None
-        
+
         executor = LLMExecutor(mock_settings)
         prompt = "Hello, {name}! You are {age} years old."
         variables = {"name": "Alice", "age": 30}
@@ -108,8 +110,9 @@ class TestExecutor:
 
     def test_render_prompt_missing_variable(self):
         """Test prompt rendering with missing variable raises error."""
-        from app.services.executor import LLMExecutor
         from unittest.mock import MagicMock
+
+        from app.services.executor import LLMExecutor
 
         mock_settings = MagicMock()
         mock_settings.openai_api_key = None
@@ -118,7 +121,7 @@ class TestExecutor:
         mock_settings.cohere_api_key = None
         mock_settings.mistral_api_key = None
         mock_settings.together_api_key = None
-        
+
         executor = LLMExecutor(mock_settings)
         prompt = "Hello, {name}!"
         variables = {"age": 30}
@@ -131,7 +134,7 @@ class TestExecutor:
         """Test successful LLM execution."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Mock settings
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
@@ -169,7 +172,7 @@ class TestExecutor:
 
             executor = LLMExecutor(mock_settings)
             result = await executor.execute(
-                implementation, variables={"text": "Test text"}
+                implementation, variables={"text": "Test text"},
             )
 
             assert result.result_text == "This is a test response."
@@ -185,7 +188,7 @@ class TestExecutor:
         """Test LLM execution with tool calls using proper schemas."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Mock settings
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
@@ -228,35 +231,35 @@ class TestExecutor:
 
             executor = LLMExecutor(mock_settings)
             result = await executor.execute(
-                implementation, variables={"text": "What's the weather?"}
+                implementation, variables={"text": "What's the weather?"},
             )
 
             # Verify tool calls are properly stored using schema
             assert result.tool_calls is not None
             assert len(result.tool_calls) == 1
-            
+
             tool_call = result.tool_calls[0]
             assert tool_call["id"] == "call_123"
             assert tool_call["tool_name"] == "get_weather"
             assert tool_call["arguments"] == {"location": "New York"}
             assert tool_call["type"] == "tool_call"
-            
+
             assert result.finish_reason == FinishReason.TOOL_CALLS
             assert result.result_text == "Made 1 tool call(s)"
 
     @pytest.mark.asyncio
     async def test_execute_task_with_overrides_creates_temp_implementation(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test that executing a task with overrides creates a temporary implementation."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
         task = implementation.task
-        
+
         # Mock the executor
         mock_result = ServiceExecutionResult(
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt with overrides",
             result_text="Test result with different model",
             finish_reason=FinishReason.STOP,
@@ -287,15 +290,16 @@ class TestExecutor:
             data = response.json()
             assert data["task_id"] == task.id
             assert data["result_text"] == "Test result with different model"
-            
+
             # Verify temp implementation was created
-            from app.models.tasks import Implementation
             from sqlalchemy import select
-            
+
+            from app.models.tasks import Implementation
+
             query = select(Implementation).where(Implementation.temp == True)
             result = await test_session.execute(query)
             temp_impls = result.scalars().all()
-            
+
             assert len(temp_impls) == 1
             temp_impl = temp_impls[0]
             assert temp_impl.model == "gpt-3.5-turbo"
@@ -308,7 +312,7 @@ class TestExecutor:
         """Test LLM execution with API error."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Mock settings
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
@@ -324,7 +328,7 @@ class TestExecutor:
 
             executor = LLMExecutor(mock_settings)
             result = await executor.execute(
-                implementation, variables={"text": "Test text"}
+                implementation, variables={"text": "Test text"},
             )
 
             assert result.error == "API Error"
@@ -332,12 +336,12 @@ class TestExecutor:
 
     @pytest.mark.asyncio
     async def test_llm_executor_template_error(
-        self, test_implementation
+        self, test_implementation,
     ):
         """Test LLM execution with template rendering error."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Mock settings
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
@@ -361,19 +365,19 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_execute_implementation_success(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test successful implementation execution via API."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Mock the service result (database ExecutionResult)
         mock_result = ExecutionResult(
             id=1,
             task_id=1,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Summarize this text: Hello world",
             arguments={"text": "Hello world"},
             result_text="A greeting message.",
@@ -383,8 +387,8 @@ class TestExecutionAPI:
             total_tokens=15,
             cached_tokens=2,
             reasoning_tokens=3,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc))
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC))
 
         with patch("app.api.v1.executions.svc.execute") as mock_execute:
             mock_execute.return_value = mock_result
@@ -403,7 +407,7 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_execute_implementation_with_tool_calls(
-        self, client: AsyncClient, test_implementation: Implementation
+        self, client: AsyncClient, test_implementation: Implementation,
     ):
         """Test implementation execution with tool calls via API."""
         # Mock the service result with tool calls
@@ -411,8 +415,8 @@ class TestExecutionAPI:
             id=1,
             task_id=1,
             implementation_id=test_implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="What's the weather?",
             result_text="Made 1 tool call(s)",
             tool_calls=[
@@ -420,8 +424,8 @@ class TestExecutionAPI:
                     "id": "call_123",
                     "type": "tool_call",
                     "tool_name": "get_weather",
-                    "arguments": {"location": "New York"}
-                }
+                    "arguments": {"location": "New York"},
+                },
             ],
             finish_reason=FinishReason.TOOL_CALLS,
             prompt_tokens=10,
@@ -429,8 +433,8 @@ class TestExecutionAPI:
             total_tokens=15,
             cached_tokens=2,
             reasoning_tokens=3,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc))
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC))
 
         with patch("app.api.v1.executions.svc.execute") as mock_execute:
             mock_execute.return_value = mock_result
@@ -445,7 +449,7 @@ class TestExecutionAPI:
             assert data["result_text"] == "Made 1 tool call(s)"
             assert data["tool_calls"] is not None
             assert len(data["tool_calls"]) == 1
-            
+
             tool_call = data["tool_calls"][0]
             assert tool_call["id"] == "call_123"
             assert tool_call["tool_name"] == "get_weather"
@@ -457,34 +461,34 @@ class TestExecutionAPI:
     async def test_execute_implementation_not_found(self, client: AsyncClient):
         """Test executing non-existent implementation returns 404."""
         response = await client.post(
-            "/v1/executions", json={"implementation_id": 999, "arguments": {}}
+            "/v1/executions", json={"implementation_id": 999, "arguments": {}},
         )
 
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_list_task_executions(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test listing executions for a task."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
         task = implementation.task
-        
+
         # Create some execution results
         execution1 = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt 1",
             arguments={"key": "value1"},
             result_text="Result 1")
         execution2 = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt 2",
             arguments={"key": "value2"},
             result_text="Result 2")
@@ -501,26 +505,26 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_list_implementation_executions(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test listing executions for an implementation."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
-        
+
         # Create some execution results
         execution1 = ExecutionResult(
             task_id=1,  # Mock task_id
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt 1",
             arguments={"key": "value1"},
             result_text="Result 1")
         execution2 = ExecutionResult(
             task_id=1,  # Mock task_id
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt 2",
             arguments={"key": "value2"},
             result_text="Result 2")
@@ -537,18 +541,18 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_get_execution(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test getting a specific execution by ID."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
         task = implementation.task
-        
+
         execution = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt",
             result_text="Test result",
             arguments={"key": "value"})
@@ -575,18 +579,18 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_list_all_executions(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test listing all executions."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
         task = implementation.task
-        
+
         execution = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt",
             result_text="Test result")
 
@@ -601,18 +605,18 @@ class TestExecutionAPI:
 
     @pytest.mark.asyncio
     async def test_delete_execution(
-        self, client: AsyncClient, test_session: AsyncSession, test_implementation
+        self, client: AsyncClient, test_session: AsyncSession, test_implementation,
     ):
         """Test deleting an execution."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
         task = implementation.task
-        
+
         execution = ExecutionResult(
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered="Test prompt",
             arguments={"key": "value"},
             result_text="Test result")

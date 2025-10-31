@@ -1,19 +1,19 @@
 """Tests for grading service."""
 
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy import select
 
 from app.config import Settings
 from app.enums import ScoreType
-from app.models.evaluation import Grade, Grader
+from app.models.evaluation import Grade
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
-from app.services.grading_service import GradingService, NotFoundError, BadRequestError
 from app.schemas.executions import ExecutionResultBase
+from app.services.grading_service import BadRequestError, GradingService, NotFoundError
 
 
 @pytest.fixture
@@ -117,7 +117,7 @@ async def test_list_graders(grading_service, test_session):
 
     graders = await grading_service.list_graders(test_session, project.id)
     assert len(graders) == 2
-    
+
     grader_names = [grader.name for grader in graders]
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
@@ -181,7 +181,7 @@ async def test_parse_grading_response_json_float(grading_service):
     result_json = {
         "score": 0.85,
         "reasoning": "The response is mostly accurate",
-        "confidence": 0.9
+        "confidence": 0.9,
     }
 
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
@@ -201,7 +201,7 @@ async def test_parse_grading_response_json_boolean(grading_service):
     result_json = {
         "score": False,
         "reasoning": "Content is not toxic",
-        "confidence": 0.95
+        "confidence": 0.95,
     }
 
     score_float, score_boolean, reasoning, confidence = grading_service._parse_grading_response(
@@ -295,15 +295,15 @@ async def test_execute_grading_trace_success(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
     # Mock the executor
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Rate accuracy: Test response",
         result_text='{"score": 0.8, "reasoning": "Good response", "confidence": 0.9}',
         result_json={"score": 0.8, "reasoning": "Good response", "confidence": 0.9},
@@ -312,7 +312,7 @@ async def test_execute_grading_trace_success(grading_service, test_session):
         total_tokens=80,
         system_fingerprint="fp-test")
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
@@ -373,8 +373,8 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
     execution_result = ExecutionResult(
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered",
         result_text="Test execution result")
     test_session.add(execution_result)
@@ -382,8 +382,8 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
 
     # Mock the executor
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Check toxicity: Test execution result",
         result_text='{"score": false, "reasoning": "Not toxic", "confidence": 0.95}',
         result_json={"score": False, "reasoning": "Not toxic", "confidence": 0.95},
@@ -391,7 +391,7 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
         completion_tokens=20,
         total_tokens=60)
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
@@ -431,8 +431,8 @@ async def test_execute_grading_inactive_grader(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
@@ -530,19 +530,19 @@ async def test_execute_grading_executor_error(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
     # Mock the executor to return an error
     mock_execution_result = ExecutionResultBase(
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt",
         error="API timeout")
 
-    with patch('app.services.grading_service.LLMExecutor') as mock_executor_class:
+    with patch("app.services.grading_service.LLMExecutor") as mock_executor_class:
         mock_executor = AsyncMock()
         mock_executor.execute.return_value = mock_execution_result
         mock_executor_class.return_value = mock_executor
@@ -579,8 +579,8 @@ async def test_list_grades_for_trace(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
@@ -589,8 +589,8 @@ async def test_list_grades_for_trace(grading_service, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
     test_session.add(grade1)
     await test_session.flush()  # Flush to get the first grade committed
 
@@ -602,14 +602,14 @@ async def test_list_grades_for_trace(grading_service, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
     test_session.add(grade2)
     await test_session.commit()
 
     grades = await grading_service.list_grades(test_session, trace_id=trace.id)
     assert len(grades) == 2
-    
+
     # Check that both grades are present (order may vary due to timing)
     scores = [grade.score_float for grade in grades]
     assert 0.8 in scores
@@ -651,8 +651,8 @@ async def test_list_grades_for_execution(grading_service, test_session):
     execution_result = ExecutionResult(
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered",
         result_text="Test execution result")
     test_session.add(execution_result)
@@ -662,8 +662,8 @@ async def test_list_grades_for_execution(grading_service, test_session):
         grader_id=grader.id,
         execution_result_id=execution_result.id,
         score_boolean=False,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
     test_session.add(grade)
     await test_session.commit()
 
@@ -690,8 +690,8 @@ async def test_list_grades_for_grader(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
@@ -699,8 +699,8 @@ async def test_list_grades_for_grader(grading_service, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.85,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
     test_session.add(grade)
     await test_session.commit()
 
@@ -727,8 +727,8 @@ async def test_delete_grade(grading_service, test_session):
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc))
+        model="gpt-4", started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC))
     test_session.add(trace)
     await test_session.flush()
 
@@ -736,8 +736,8 @@ async def test_delete_grade(grading_service, test_session):
         grader_id=grader.id,
         trace_id=trace.id,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
     test_session.add(grade)
     await test_session.commit()
 

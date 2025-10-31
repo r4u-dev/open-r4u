@@ -1,22 +1,26 @@
 """Tests for evaluation service."""
 
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
-from sqlalchemy import select
 
 from app.config import Settings
-from app.enums import ScoreType, EvaluationStatus
+from app.enums import EvaluationStatus, ScoreType
 from app.models.evaluation import (
-    Evaluation, EvaluationConfig, Grader, Grade, TestCase, TargetTaskMetrics
+    Evaluation,
+    Grade,
+    Grader,
+    TargetTaskMetrics,
 )
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.services.evaluation_service import (
-    EvaluationService, NotFoundError, BadRequestError
+    BadRequestError,
+    EvaluationService,
+    NotFoundError,
 )
-from app.models.executions import ExecutionResult
 
 
 @pytest.fixture
@@ -138,7 +142,7 @@ async def test_list_test_cases(evaluation_service, test_session):
 
     test_cases = await evaluation_service.list_test_cases(test_session, task.id)
     assert len(test_cases) == 2
-    
+
     # Should be ordered by created_at desc
     test_case_ids = [tc.id for tc in test_cases]
     assert test_case2.id in test_case_ids
@@ -390,8 +394,8 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         id=1,
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 1",
         result_text="Test result 1",
         cost=0.01)
@@ -400,8 +404,8 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         id=2,
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 2",
         result_text="Test result 2",
         cost=0.02)
@@ -412,20 +416,20 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         grader_id=grader.id,
         execution_result_id=1,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
     grade2 = Grade(
         id=2,
         grader_id=grader.id,
         execution_result_id=2,
         score_float=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
-    with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-        patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-        patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
+    with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+        patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+        patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
 
         # Mock execute_task to return execution results
         mock_execute.side_effect = [execution_result1, execution_result2]
@@ -444,7 +448,7 @@ async def test_run_evaluation_success(evaluation_service, test_session):
 
         # Simulate background execution by directly updating the evaluation
         evaluation.status = EvaluationStatus.COMPLETED
-        evaluation.completed_at = datetime.now(timezone.utc)
+        evaluation.completed_at = datetime.now(UTC)
         evaluation.grader_scores = {str(grader.id): 0.85}
         evaluation.quality_score = 0.85
         evaluation.avg_cost = 0.015
@@ -528,7 +532,7 @@ async def test_run_evaluation_no_graders(evaluation_service, test_session):
 
     # Simulate background execution - should create default grader and complete
     evaluation.status = EvaluationStatus.COMPLETED
-    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.completed_at = datetime.now(UTC)
     evaluation.grader_scores = {"1": 0.8}  # Mock grader score
     evaluation.quality_score = 0.8
     await test_session.commit()
@@ -596,7 +600,7 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
 
     # Simulate background execution failure
     evaluation.status = EvaluationStatus.FAILED
-    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.completed_at = datetime.now(UTC)
     evaluation.error = "Execution failed"
     await test_session.commit()
     await test_session.refresh(evaluation)
@@ -833,7 +837,7 @@ async def test_get_all_project_graders_create_default(evaluation_service, test_s
     test_session.add(project)
     await test_session.flush()
 
-    with patch.object(evaluation_service.grading_service, 'create_default_accuracy_grader') as mock_create:
+    with patch.object(evaluation_service.grading_service, "create_default_accuracy_grader") as mock_create:
         mock_grader = Grader(
             id=1,
             project_id=project.id,
@@ -845,7 +849,7 @@ async def test_get_all_project_graders_create_default(evaluation_service, test_s
         mock_create.return_value = mock_grader
 
         grader_ids = await evaluation_service._get_all_project_graders(test_session, project.id)
-        
+
         assert len(grader_ids) == 1
         assert grader_ids[0] == 1
         mock_create.assert_called_once_with(test_session, project.id)

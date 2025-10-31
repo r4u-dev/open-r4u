@@ -19,7 +19,8 @@ from app.models.tasks import Implementation, Task
 from app.models.traces import Trace, TraceInputItem
 from app.services.implementation_matcher import (
     ImplementationMatcher,
-    extract_system_prompt_from_trace)
+    extract_system_prompt_from_trace,
+)
 
 
 @pytest_asyncio.fixture

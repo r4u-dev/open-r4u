@@ -1,6 +1,6 @@
 """Tests for grader API endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -33,7 +33,7 @@ async def test_create_grader(client: AsyncClient, test_session):
 
     response = await client.post("/v1/graders", json={**payload, "project_id": project.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["name"] == "accuracy"
     assert data["description"] == "Evaluates response accuracy"
@@ -52,7 +52,7 @@ async def test_create_grader(client: AsyncClient, test_session):
     grader_query = select(Grader).where(Grader.id == data["id"])
     grader_result = await test_session.execute(grader_query)
     grader = grader_result.scalar_one()
-    
+
     assert grader.name == "accuracy"
     assert grader.description == "Evaluates response accuracy"
     assert grader.score_type == ScoreType.FLOAT
@@ -78,8 +78,8 @@ async def test_create_grader_with_reasoning_and_schema(client: AsyncClient, test
             "properties": {
                 "score": {"type": "boolean"},
                 "reasoning": {"type": "string"},
-                "confidence": {"type": "number"}
-            }
+                "confidence": {"type": "number"},
+            },
         },
         "max_output_tokens": 300,
         "is_active": True,
@@ -87,7 +87,7 @@ async def test_create_grader_with_reasoning_and_schema(client: AsyncClient, test
 
     response = await client.post("/v1/graders", json={**payload, "project_id": project.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["score_type"] == "boolean"
     assert data["reasoning"] == {"effort": "medium"}
@@ -141,14 +141,14 @@ async def test_list_graders(client: AsyncClient, test_session):
 
     response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 2
-    
+
     grader_names = [grader["name"] for grader in data]
     assert "accuracy" in grader_names
     assert "toxicity" in grader_names
-    
+
 
 
 @pytest.mark.asyncio
@@ -171,14 +171,14 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace1)
-    
+
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -187,22 +187,22 @@ async def test_list_graders_with_grades(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace1.id,
         score_float=0.8,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade1)
 
     grade2 = Grade(
         grader_id=grader.id,
         trace_id=trace2.id,
         score_float=0.9,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade2)
     await test_session.commit()
 
     response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 1
 
@@ -227,7 +227,7 @@ async def test_get_grader(client: AsyncClient, test_session):
 
     response = await client.get(f"/v1/graders/{grader.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["id"] == grader.id
     assert data["name"] == "accuracy"
@@ -244,7 +244,7 @@ async def test_get_grader_not_found(client: AsyncClient):
     """Test getting a non-existent grader."""
     response = await client.get("/v1/graders/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grader with id 999 not found" in data["detail"]
 
@@ -269,14 +269,14 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace1)
-    
+
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -285,22 +285,22 @@ async def test_get_grader_with_grades(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace1.id,
         score_float=0.8,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade1)
 
     grade2 = Grade(
         grader_id=grader.id,
         trace_id=trace2.id,
         score_float=0.9,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade2)
     await test_session.commit()
 
     response = await client.get(f"/v1/graders/{grader.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
 
 
@@ -333,7 +333,7 @@ async def test_update_grader(client: AsyncClient, test_session):
 
     response = await client.patch(f"/v1/graders/{grader.id}", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["name"] == "accuracy_v2"
     assert data["description"] == "Updated description"
@@ -372,7 +372,7 @@ async def test_update_grader_partial(client: AsyncClient, test_session):
 
     response = await client.patch(f"/v1/graders/{grader.id}", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["temperature"] == 0.7
     # Everything else should remain unchanged
@@ -391,7 +391,7 @@ async def test_update_grader_not_found(client: AsyncClient):
 
     response = await client.patch("/v1/graders/999", json=payload)
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grader with id 999 not found" in data["detail"]
 
@@ -428,7 +428,7 @@ async def test_delete_grader_not_found(client: AsyncClient):
     """Test deleting a non-existent grader."""
     response = await client.delete("/v1/graders/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Grader with id 999 not found" in data["detail"]
 
@@ -453,14 +453,14 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
     # Create traces first
     trace1 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace1)
-    
+
     trace2 = Trace(
         project_id=project.id,
-        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        model="gpt-4", started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(trace2)
     await test_session.flush()
 
@@ -469,16 +469,16 @@ async def test_delete_grader_with_grades(client: AsyncClient, test_session):
         grader_id=grader.id,
         trace_id=trace1.id,
         score_float=0.8,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade1)
 
     grade2 = Grade(
         grader_id=grader.id,
         trace_id=trace2.id,
         score_float=0.9,
-        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=timezone.utc))
+        grading_started_at=datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC),
+        grading_completed_at=datetime(2023, 1, 1, 0, 1, 0, tzinfo=UTC))
     test_session.add(grade2)
     await test_session.commit()
 
@@ -506,7 +506,7 @@ async def test_list_graders_empty_project(client: AsyncClient, test_session):
 
     response = await client.get(f"/v1/graders/projects/{project.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 0
 
@@ -516,6 +516,6 @@ async def test_list_graders_nonexistent_project(client: AsyncClient):
     """Test listing graders for a non-existent project."""
     response = await client.get("/v1/graders/projects/999")
     assert response.status_code == 200  # Should return empty list, not error
-    
+
     data = response.json()
     assert len(data) == 0

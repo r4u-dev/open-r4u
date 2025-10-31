@@ -1,14 +1,15 @@
 """Integration tests for the complete evaluation system."""
 
-import pytest
 import statistics
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
-from sqlalchemy import select
+from datetime import UTC, datetime
+from unittest.mock import patch
 
-from app.enums import ScoreType, EvaluationStatus
+import pytest
+
+from app.enums import EvaluationStatus, ScoreType
 from app.models.evaluation import (
-    Evaluation, EvaluationConfig, Grader, Grade, TestCase, TargetTaskMetrics
+    Grade,
+    Grader,
 )
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
@@ -65,9 +66,9 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             "type": "object",
             "properties": {
                 "score": {"type": "number", "minimum": 0, "maximum": 1},
-                "reasoning": {"type": "string"}
+                "reasoning": {"type": "string"},
             },
-            "required": ["score", "reasoning"]
+            "required": ["score", "reasoning"],
         })
     test_session.add(accuracy_grader)
 
@@ -84,9 +85,9 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             "type": "object",
             "properties": {
                 "score": {"type": "boolean"},
-                "reasoning": {"type": "string"}
+                "reasoning": {"type": "string"},
             },
-            "required": ["score", "reasoning"]
+            "required": ["score", "reasoning"],
         })
     test_session.add(toxicity_grader)
     await test_session.flush()
@@ -96,18 +97,18 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
         {
             "description": "Simple math question",
             "arguments": {"question": "What is 2+2?"},
-            "expected_output": "4"
+            "expected_output": "4",
         },
         {
             "description": "Complex reasoning question",
             "arguments": {"question": "If a train leaves at 2 PM and travels 60 mph, how far will it go by 4 PM?"},
-            "expected_output": "120 miles"
+            "expected_output": "120 miles",
         },
         {
             "description": "Creative writing prompt",
             "arguments": {"question": "Write a short story about a robot."},
-            "expected_output": "A story about a robot"
-        }
+            "expected_output": "A story about a robot",
+        },
     ]
 
     created_test_cases = []
@@ -115,7 +116,7 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
         test_case = await evaluation_service.create_test_case(
             session=test_session,
             task_id=task.id,
-            **test_case_data
+            **test_case_data,
         )
         created_test_cases.append(test_case)
 
@@ -135,8 +136,8 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             id=i + 1,
             task_id=task.id,
             implementation_id=implementation.id,
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
             prompt_rendered=f"You are a helpful assistant. Answer: {test_case.arguments['question']}",
             result_text=f"Test response {i + 1}",
             cost=0.01 + (i * 0.005),  # Varying costs
@@ -154,8 +155,8 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             score_float=0.8 + (i * 0.05),  # Varying accuracy scores
             reasoning=f"Response {i + 1} is mostly accurate",
             confidence=0.9,
-            grading_started_at=datetime.now(timezone.utc),
-            grading_completed_at=datetime.now(timezone.utc),
+            grading_started_at=datetime.now(UTC),
+            grading_completed_at=datetime.now(UTC),
             prompt_tokens=50,
             completion_tokens=30,
             total_tokens=80)
@@ -169,32 +170,31 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
             score_boolean=False,  # All responses are non-toxic
             reasoning=f"Response {i + 1} is not toxic",
             confidence=0.95,
-            grading_started_at=datetime.now(timezone.utc),
-            grading_completed_at=datetime.now(timezone.utc),
+            grading_started_at=datetime.now(UTC),
+            grading_completed_at=datetime.now(UTC),
             prompt_tokens=40,
             completion_tokens=20,
             total_tokens=60)
         grades.append(toxicity_grade)
 
     # 8. Mock the execution and grading process
-    with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-         patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-         patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
-        
+    with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+         patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+         patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
+
         # Mock execute_task to return execution results
         mock_execute.side_effect = execution_results
-        
+
         # Mock grader retrieval
         def get_grader_side_effect(session, grader_id):
             if grader_id == accuracy_grader.id:
                 return accuracy_grader
-            elif grader_id == toxicity_grader.id:
+            if grader_id == toxicity_grader.id:
                 return toxicity_grader
-            else:
-                raise ValueError(f"Unknown grader ID: {grader_id}")
-        
+            raise ValueError(f"Unknown grader ID: {grader_id}")
+
         mock_get_grader.side_effect = get_grader_side_effect
-        
+
         # Mock grading execution
         mock_execute_grading.side_effect = grades
 
@@ -205,11 +205,11 @@ async def test_complete_evaluation_workflow(evaluation_service, test_session):
 
         # Simulate background execution completion
         evaluation.status = EvaluationStatus.COMPLETED
-        evaluation.completed_at = datetime.now(timezone.utc)
+        evaluation.completed_at = datetime.now(UTC)
         # Calculate expected scores based on the mock data
         evaluation.grader_scores = {
             str(accuracy_grader.id): statistics.mean([0.8, 0.85, 0.9]),  # Average of accuracy scores
-            str(toxicity_grader.id): 1.0  # Boolean scores converted to 1.0 for non-toxic
+            str(toxicity_grader.id): 1.0,  # Boolean scores converted to 1.0 for non-toxic
         }
         evaluation.quality_score = statistics.mean(evaluation.grader_scores.values())
         evaluation.avg_cost = statistics.mean([0.01, 0.015, 0.02])  # Average of execution costs
@@ -301,7 +301,7 @@ async def test_evaluation_error_recovery(evaluation_service, test_session):
 
     # Simulate background execution failure
     evaluation.status = EvaluationStatus.FAILED
-    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.completed_at = datetime.now(UTC)
     evaluation.error = "API timeout"
     await test_session.commit()
     await test_session.refresh(evaluation)
@@ -367,8 +367,8 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         id=1,
         task_id=task.id,
         implementation_id=implementation1.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Simple prompt: What is 2+2?",
         result_text="4",
         cost=0.01)
@@ -377,8 +377,8 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         id=2,
         task_id=task.id,
         implementation_id=implementation2.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Detailed prompt: Please answer the following question: What is 2+2?",
         result_text="The answer is 4",
         cost=0.02)
@@ -388,22 +388,22 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
         grader_id=grader.id,
         execution_result_id=1,
         score_float=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
     grade2 = Grade(
         id=2,
         grader_id=grader.id,
         execution_result_id=2,
         score_float=0.95,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc))
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
     # Run evaluations for both implementations
-    with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-         patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-         patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading, \
-         patch.object(evaluation_service, 'calculate_target_metrics') as mock_calculate_targets:
+    with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+         patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+         patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading, \
+         patch.object(evaluation_service, "calculate_target_metrics") as mock_calculate_targets:
 
             # Mock target metrics calculation to avoid database constraint issues
             mock_calculate_targets.return_value = None
@@ -419,7 +419,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
 
             # Simulate completion
             evaluation1.status = EvaluationStatus.COMPLETED
-            evaluation1.completed_at = datetime.now(timezone.utc)
+            evaluation1.completed_at = datetime.now(UTC)
             evaluation1.grader_scores = {str(grader.id): 0.9}
             evaluation1.quality_score = 0.9
             evaluation1.avg_cost = 0.01
@@ -435,7 +435,7 @@ async def test_evaluation_with_multiple_implementations(evaluation_service, test
 
             # Simulate completion
             evaluation2.status = EvaluationStatus.COMPLETED
-            evaluation2.completed_at = datetime.now(timezone.utc)
+            evaluation2.completed_at = datetime.now(UTC)
             evaluation2.grader_scores = {str(grader.id): 0.95}
             evaluation2.quality_score = 0.95
             evaluation2.avg_cost = 0.02

@@ -1,6 +1,5 @@
 """Service for managing task operations."""
 
-from openai import AsyncClient
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +8,7 @@ from app.models.projects import Project
 from app.models.tasks import Task
 from app.schemas.tasks import ImplementationCreate, TaskCreate
 from app.services.implementation_service import ImplementationService
-
-openai_client = AsyncClient()
+from app.services.openai_client import get_async_openai_client
 
 PROMPT = """\
 An agentic workflow has been given the following instructions:
@@ -84,7 +82,8 @@ class TaskService:
 
         """
         if not task_data.name or not task_data.description:
-            response = await openai_client.responses.parse(
+            client = get_async_openai_client()
+            response = await client.responses.parse(
                 model="gpt-4.1",
                 input=PROMPT.format(
                     instructions=task_data.implementation.prompt,
