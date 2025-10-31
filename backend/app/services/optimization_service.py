@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple
+import json
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,15 +13,29 @@ from app.services.evaluation_service import EvaluationService
 from app.models.tasks import Task, Implementation
 from app.models.evaluation import Evaluation
 from app.services.executor import LLMExecutor
+from app.schemas.traces import MessageItem
+from app.enums import MessageRole
 from app.services.pricing_service import PricingService
+
+logger = logging.getLogger(__name__)
 
 
 class OptimizationService:
+    """Service for iterative task implementation optimization using LLM agents."""
+    
+    # Constants
+    DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
+    DEFAULT_OPTIMIZER_MAX_TOKENS = 1024
+    MAX_VARIANT_ATTEMPTS_MULTIPLIER = 2
+    DEFAULT_OPTIMIZER_MODEL = "gpt-4.1"
+    OPTIMIZER_META_VERSION = "optimizer-meta"
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.evaluation_service = EvaluationService(self.settings)
         self.pricing_service = PricingService()
+        # Conversation history per task_id for agent context
+        self._conversation: dict[int, list[MessageItem]] = {}
 
     async def run(
         self,
@@ -27,7 +43,7 @@ class OptimizationService:
         task_id: int,
         max_iterations: int,
         variants_per_iter: int,
-        changeable_fields: Sequence[OptimizationMutableField],
+        changeable_fields: List[OptimizationMutableField],
         improvement_threshold: float,
     ) -> OptimizationResult:
         """
@@ -40,17 +56,19 @@ class OptimizationService:
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
 
         iterations_completed = 0
+        # Reset conversation for a fresh optimization run to avoid over-constraining the agent
+        self._conversation[task_id] = []
         for iteration_index in range(max_iterations):
-            # Generate candidate variants off the current best
+            # Generate candidate variants using mocked agent
             candidate_specs = await self._generate_variants(
                 session=session,
                 task_id=task_id,
                 baseline_implementation_id=current_best_id,
+                changeable_fields=changeable_fields,
                 variants_per_iter=variants_per_iter,
-                changeable_fields=list(changeable_fields),
             )
 
-            # Persist candidates as new implementations, get their IDs
+            # Persist candidates as new implementations
             candidate_impl_ids = await self._persist_variants(
                 session=session,
                 task_id=task_id,
@@ -58,24 +76,34 @@ class OptimizationService:
                 candidate_specs=candidate_specs,
             )
 
-            # Evaluate candidates; returns mapping impl_id -> final score (or None on failure)
+            # Evaluate candidates and collect scores
             candidate_scores = await self._evaluate_implementations(
                 session=session,
-                task_id=task_id,
                 implementation_ids=candidate_impl_ids,
             )
 
-            # Select winner among current best and new candidates
+            # Choose best between current and candidates
             next_best_id, next_best_score = self._select_best(
                 current_best_id=current_best_id,
                 current_best_score=current_best_score,
                 candidate_scores=candidate_scores,
             )
 
-            # Count this iteration as executed, regardless of improvement
+            # Append evaluation feedback into conversation for future agent calls
+            try:
+                await self._append_evaluation_feedback_to_conversation(
+                    session=session,
+                    task_id=task_id,
+                    implementation_ids=candidate_impl_ids,
+                    chosen_id=next_best_id,
+                )
+            except Exception as e:
+                # Do not fail optimization run due to telemetry issues
+                logger.warning(f"Failed to append evaluation feedback: {e}")
+
             iterations_completed = iteration_index + 1
 
-            # Stop if no improvement or improvement below threshold
+            # Stop if no sufficient improvement
             if not self._is_improved(
                 previous_score=current_best_score,
                 new_score=next_best_score,
@@ -83,9 +111,11 @@ class OptimizationService:
             ):
                 break
 
-            # Accept improvement and continue
             current_best_id, current_best_score = next_best_id, next_best_score
 
+        for i in self._conversation[task_id]:
+            print(i)
+            print("--------------------------------")
         return OptimizationResult(
             best_implementation_id=current_best_id,
             best_score=current_best_score,
@@ -135,157 +165,270 @@ class OptimizationService:
         session: AsyncSession,
         task_id: int,
         baseline_implementation_id: Optional[int],
-        variants_per_iter: int,
         changeable_fields: List[OptimizationMutableField],
-    ) -> List[dict]:
-        """Return a list of variant specs to create new implementations from.
+        variants_per_iter: int,
+    ) -> List[Dict[str, Any]]:
+        """Return a list of variant specs to create new implementations from using an LLM agent.
 
-        First step: only generate prompt variations via an AI meta-prompt. If
-        `prompt` is not in changeable_fields, returns an empty list. Generates
-        ONE prompt per meta-call and repeats until reaching variants_per_iter.
+        The agent is prompted with a meta-prompt and the per-task conversation (which contains
+        prior evaluation feedback). The agent returns a JSON object with field overrides from
+        the allowed `changeable_fields`. We call it repeatedly until reaching `variants_per_iter`.
         """
         if variants_per_iter <= 0:
             return []
 
-        # Load the baseline implementation to inform the meta prompt
-        baseline_impl: Optional[Implementation] = None
-        if baseline_implementation_id is not None:
-            baseline_impl = await session.scalar(
-                select(Implementation).where(Implementation.id == baseline_implementation_id)
-            )
-        if baseline_impl is None:
-            # Fallback to production version of the task
-            task = await session.scalar(select(Task).where(Task.id == task_id))
-            if task and task.production_version_id:
-                baseline_impl = await session.scalar(
-                    select(Implementation).where(Implementation.id == task.production_version_id)
-                )
-        if baseline_impl is None:
-            return []
-
-        # Build a temporary meta-implementation and call repeatedly to get JSON field overrides
-        # Fetch available models list for guidance/validation
-        by_provider = self.pricing_service.get_available_models()
-        available_models: List[str] = sorted({m for lst in by_provider.values() for m in lst})
-
-        variables = {"baseline": {
-            "prompt": baseline_impl.prompt,
-            "model": baseline_impl.model,
-            "temperature": baseline_impl.temperature,
-            "max_output_tokens": baseline_impl.max_output_tokens,
-        }, "available_models": available_models}
-        variants: List[dict] = []
-        executor = LLMExecutor(self.settings)
-
-        attempts = 0
-        while len(variants) < variants_per_iter and attempts < variants_per_iter * 2:
-            attempts += 1
-            meta_impl = Implementation(
-                task_id=None,
-                version="optimizer-meta",
-                prompt=self._build_variant_meta_prompt_json(changeable_fields),
-                model="gpt-4.1",
-                temperature=0.7,
-                reasoning={
-                    "effort": "low",
-                },
-                tools=None,
-                tool_choice=None,
-                max_output_tokens=1024,
-                temp=True,
-            )
-            # Dummy task schema expecting a single string
-            temp_task = Task(id=None, project_id=None, response_schema=self._build_response_schema_for_fields(changeable_fields, available_models))
-            meta_impl.task = temp_task
-
-            execution = await executor.execute(meta_impl, variables=variables, input=None)
-            if execution.error:
-                print(f"Error executing meta-prompt: {execution.error}")
-                continue
-
-            candidate: Optional[dict] = None
-            result_obj = None
-            if getattr(execution, "result_json", None) and isinstance(execution.result_json, dict):
-                result_obj = execution.result_json
-            elif getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
-                try:
-                    import json as _json
-                    parsed = _json.loads(execution.result_text)
-                    if isinstance(parsed, dict):
-                        result_obj = parsed
-                except Exception:
-                    result_obj = None
-
-            if isinstance(result_obj, dict):
-                print(f"Result object: {result_obj}") 
-                # Filter to allowed keys only and drop None values
-                allowed = set(changeable_fields)
-                filtered = {k: v for k, v in result_obj.items() if k in allowed and v is not None}
-                # Skip empty/no-op
-                if filtered:
-                    # Deduplicate by stable json repr
-                    try:
-                        import json as _json
-                        key = _json.dumps(filtered, sort_keys=True)
-                        existing_keys = {
-                            _json.dumps(item, sort_keys=True) for item in variants
-                        }
-                        if key not in existing_keys:
-                            variants.append(filtered)
-                    except Exception:
-                        variants.append(filtered)
-
+        baseline = await self._load_baseline_implementation(session, task_id, baseline_implementation_id)
+        available_models = self._get_available_models()
+        evaluation_weights = await self._get_evaluation_weights(session, task_id)
+        
+        variables = self._build_optimizer_variables(baseline, available_models, evaluation_weights)
+        variants = await self._generate_variant_candidates(
+            task_id=task_id,
+            baseline=baseline,
+            changeable_fields=changeable_fields,
+            variants_per_iter=variants_per_iter,
+            available_models=available_models,
+            variables=variables,
+        )
+        
+        self._record_variants_in_conversation(task_id, variants)
         return variants
+    
+    async def _load_baseline_implementation(
+        self, session: AsyncSession, task_id: int, baseline_id: Optional[int]
+    ) -> Optional[Implementation]:
+        """Load baseline implementation for optimization context."""
+        if baseline_id is not None:
+            baseline = await session.scalar(
+                select(Implementation).where(Implementation.id == baseline_id)
+            )
+            if baseline:
+                return baseline
+        
+        # Fallback to production version baseline
+        task = await session.scalar(select(Task).where(Task.id == task_id))
+        if task and task.production_version_id:
+            return await session.scalar(
+                select(Implementation).where(Implementation.id == task.production_version_id)
+            )
+        return None
+    
+    def _get_available_models(self) -> List[str]:
+        """Get sorted list of all available models across providers."""
+        by_provider = self.pricing_service.get_available_models()
+        return sorted({m for models in by_provider.values() for m in models})
+    
+    async def _get_evaluation_weights(
+        self, session: AsyncSession, task_id: int
+    ) -> Optional[Dict[str, float]]:
+        """Get evaluation weights configuration for a task."""
+        cfg = await self.evaluation_service.get_evaluation_config(session, task_id)
+        if cfg:
+            return {
+                "quality_weight": cfg.quality_weight,
+                "cost_weight": cfg.cost_weight,
+                "time_weight": cfg.time_weight,
+            }
+        return None
+    
+    def _build_optimizer_variables(
+        self,
+        baseline: Optional[Implementation],
+        available_models: List[str],
+        evaluation_weights: Optional[Dict[str, float]],
+    ) -> Dict[str, Any]:
+        """Build variables dict for optimizer agent execution."""
+        return {
+            "baseline": {
+                "prompt": getattr(baseline, "prompt", None),
+                "model": getattr(baseline, "model", None),
+                "temperature": getattr(baseline, "temperature", None),
+                "max_output_tokens": getattr(baseline, "max_output_tokens", None),
+            },
+            "available_models": available_models,
+            "evaluation_weights": evaluation_weights,
+        }
+    
+    async def _generate_variant_candidates(
+        self,
+        task_id: int,
+        baseline: Optional[Implementation],
+        changeable_fields: List[OptimizationMutableField],
+        variants_per_iter: int,
+        available_models: List[str],
+        variables: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Generate variant candidates by calling the optimizer agent repeatedly."""
+        executor = LLMExecutor(self.settings)
+        variants: List[Dict[str, Any]] = []
+        attempts = 0
+        max_attempts = variants_per_iter * self.MAX_VARIANT_ATTEMPTS_MULTIPLIER
+        
+        while len(variants) < variants_per_iter and attempts < max_attempts:
+            attempts += 1
+            
+            meta_impl = self._create_meta_implementation(
+                changeable_fields, available_models
+            )
+            execution = await executor.execute(
+                meta_impl,
+                variables=variables,
+                input=self._conversation.get(task_id, []),
+            )
+            
+            result_obj = self._parse_execution_result(execution)
+            if result_obj:
+                filtered_variant = self._filter_and_validate_variant(result_obj, changeable_fields)
+                if filtered_variant and not self._is_duplicate_variant(filtered_variant, variants, changeable_fields):
+                    variants.append(filtered_variant)
+        
+        return variants
+    
+    def _create_meta_implementation(
+        self,
+        changeable_fields: List[OptimizationMutableField],
+        available_models: List[str],
+    ) -> Implementation:
+        """Create a temporary meta-implementation for the optimizer agent."""
+        
+        meta_impl = Implementation(
+            task_id=None,
+            version=self.OPTIMIZER_META_VERSION,
+            prompt=self._build_variant_meta_prompt_json(changeable_fields),
+            model=self.DEFAULT_OPTIMIZER_MODEL,
+            temperature=self.DEFAULT_OPTIMIZER_TEMPERATURE,
+            reasoning=None,
+            tools=None,
+            tool_choice=None,
+            max_output_tokens=self.DEFAULT_OPTIMIZER_MAX_TOKENS,
+            temp=True,
+        )
+        
+        temp_task = Task(
+            id=None,
+            project_id=None,
+            response_schema=self._build_response_schema_for_fields(changeable_fields, available_models)
+        )
+        meta_impl.task = temp_task
+        return meta_impl
+    
+    def _parse_execution_result(self, execution: Any) -> Optional[Dict[str, Any]]:
+        """Parse execution result into a dict, handling both JSON and text responses."""
+        if getattr(execution, "result_json", None) and isinstance(execution.result_json, dict):
+            return execution.result_json
+        
+        if getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
+            try:
+                parsed = json.loads(execution.result_text)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError as e:
+                logger.debug(f"Failed to parse execution result as JSON: {e}")
+        
+        return None
+    
+    def _filter_and_validate_variant(
+        self, result_obj: Dict[str, Any], changeable_fields: List[OptimizationMutableField]
+    ) -> Optional[Dict[str, Any]]:
+        """Filter to allowed fields, preserve optional 'explanation', and require at least one change."""
+        allowed = set(changeable_fields)
+        filtered: Dict[str, Any] = {k: v for k, v in result_obj.items() if k in allowed and v is not None}
+        explanation = result_obj.get("explanation")
+        if isinstance(explanation, str) and explanation.strip():
+            filtered["explanation"] = explanation
+        # Ensure at least one real change among allowed fields
+        if not any(k in allowed for k in filtered.keys()):
+            return None
+        return filtered
+    
+    def _is_duplicate_variant(
+        self,
+        variant: Dict[str, Any],
+        existing_variants: List[Dict[str, Any]],
+        changeable_fields: List[OptimizationMutableField],
+    ) -> bool:
+        """Check duplication ignoring non-functional fields like 'explanation'."""
+        try:
+            allowed = set(changeable_fields)
+            def key_of(v: Dict[str, Any]) -> str:
+                comparable = {k: v[k] for k in v.keys() if k in allowed}
+                return json.dumps(comparable, sort_keys=True)
+            variant_key = key_of(variant)
+            existing_keys = {key_of(v) for v in existing_variants}
+            return variant_key in existing_keys
+        except (TypeError, ValueError) as e:
+            logger.debug(f"Failed to check variant duplication: {e}")
+            return False
+    
+    def _record_variants_in_conversation(
+        self, task_id: int, variants: List[Dict[str, Any]]
+    ) -> None:
+        """Record generated variants in the conversation history."""
+        if not variants:
+            return
+        
+        try:
+            content_str = json.dumps({"proposed_changes": variants})
+            self._conversation.setdefault(task_id, []).append(
+                MessageItem(role=MessageRole.ASSISTANT, content=content_str)
+            )
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to record variants in conversation: {e}")
 
     def _build_variant_meta_prompt_json(self, changeable_fields: List[OptimizationMutableField]) -> str:
         fields_csv = ", ".join(changeable_fields)
         return (
-            "You are an expert prompt and configuration optimizer. Given a baseline implementation, "
+            "You are an expert prompt and configuration optimizer. Given a baseline implementation and evaluation feedback, "
+            "Your goal is to increase quality score and decrease cost and time to execute by dividing focus depending on evaluation weights."
+            "After each iteration, you will be given the evaluation feedback."
             "produce a JSON object with ONLY the fields to change, chosen from: "
             f"{fields_csv}. Do not include unchanged fields.\n\n"
-            "Guidelines:\n"
-            "- Preserve task intent and variable placeholders.\n"
-            "- Keep outputs compatible with typical LLM provider constraints.\n"
-            "- Temperature in [0.0, 2.0]; max_output_tokens reasonable.\n"
-            "- If changing model, pick ONLY from available_models.\n\n"
             "Return ONLY a JSON object. No extra text.\n\n"
             "Baseline:\n{{baseline}}\n\n"
-            "Available models:\n{{available_models}}\n"
+            "Available models:\n{{available_models}}\n\n"
+            "Evaluation weights:\n{{evaluation_weights}}\n"
         )
 
-    def _build_response_schema_for_fields(self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[str]] = None) -> dict:
-        properties: dict = {}
-        required: List[str] = []
+    def _build_response_schema_for_fields(
+        self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Build JSON schema for optimizer agent response based on changeable fields."""
+        properties: Dict[str, Any] = {"explanation": {"type": "string", "description": "Briefly justify why the proposed changes will improve the objective."}}
+        required: List[str] = ["explanation"]
+        
+        # Make all fields optional to allow partial overrides
         if "prompt" in changeable_fields:
             properties["prompt"] = {"type": "string"}
             required.append("prompt")
+
         if "model" in changeable_fields:
-            if available_models:
-                properties["model"] = {"type": "string", "enum": available_models}
-            else:
-                properties["model"] = {"type": "string"}
+            properties["model"] = (
+                {"type": "string", "enum": available_models} if available_models
+                else {"type": "string"}
+            )
             required.append("model")
+
         if "temperature" in changeable_fields:
             properties["temperature"] = {"type": "number", "minimum": 0.0, "maximum": 1.0}
             required.append("temperature")
+        
         if "max_output_tokens" in changeable_fields:
             properties["max_output_tokens"] = {"type": "integer", "minimum": 1}
             required.append("max_output_tokens")
-        # Only allow the explicitly supported fields above
-        schema = {
+
+        return {
             "type": "object",
             "properties": properties,
             "additionalProperties": False,
             "required": required,
         }
-        return schema
 
     async def _persist_variants(
         self,
         session: AsyncSession,
         task_id: int,
         current_implementation_id: Optional[int],
-        candidate_specs: List[dict],
+        candidate_specs: List[Dict[str, Any]],
     ) -> List[int]:
         """Persist variant specs as new Implementations and return their IDs.
 
@@ -296,98 +439,126 @@ class OptimizationService:
         if not candidate_specs:
             return []
 
-        # Load current implementation for inheritance if available
-        current_impl: Optional[Implementation] = None
-        if current_implementation_id is not None:
-            current_impl = await session.scalar(
-                select(Implementation).where(Implementation.id == current_implementation_id)
-            )
-
-        # Determine major version (prefix before first dot) and next minor counter
-        def parse_major(version: Optional[str]) -> int:
-            if not version:
-                return 0
-            parts = str(version).split(".")
-            try:
-                return int(parts[0])
-            except (ValueError, TypeError):
-                return 0
-
-        major = parse_major(current_impl.version if current_impl else None)
-        existing_versions = list(
-            (await session.execute(
-                select(Implementation.version).where(Implementation.task_id == task_id)
-            )).scalars().all()
-        )
-
-        def extract_minor_if_major_matches(version: str, major_expected: int) -> Optional[int]:
-            parts = str(version).split(".")
-            if not parts:
-                return None
-            try:
-                major_part = int(parts[0])
-            except (ValueError, TypeError):
-                return None
-            if major_part != major_expected:
-                return None
-            if len(parts) < 2:
-                return None
-            try:
-                return int(parts[1])
-            except (ValueError, TypeError):
-                return None
-
-        max_minor = 0
-        for v in existing_versions:
-            minor = extract_minor_if_major_matches(v, major)
-            if minor is not None and minor > max_minor:
-                max_minor = minor
-
-        next_minor = max_minor + 1
+        current_impl = await self._load_current_implementation(session, current_implementation_id)
+        next_minor = await self._calculate_next_minor_version(session, task_id, current_impl)
+        major = self._parse_major_version(current_impl.version if current_impl else None)
 
         created_ids: List[int] = []
         for spec in candidate_specs:
-            prompt = spec.get("prompt") or (current_impl.prompt if current_impl else None)
-            model = spec.get("model") or (current_impl.model if current_impl else None)
-            max_output_tokens = spec.get("max_output_tokens") or (
-                current_impl.max_output_tokens if current_impl else None
+            implementation = self._create_implementation_from_spec(
+                spec, current_impl, task_id, major, next_minor
             )
-
-            # Required fields guard
-            if prompt is None or model is None or max_output_tokens is None:
+            
+            if implementation is None:
                 continue
-
-            # Compute version as {major}.{latest+1} and increment per created variant
-            computed_version = f"{major}.{next_minor}"
-            next_minor += 1
-
-            implementation = Implementation(
-                task_id=task_id,
-                version=computed_version,
-                prompt=prompt,
-                model=model,
-                temperature=spec.get("temperature", current_impl.temperature if current_impl else None),
-                reasoning=spec.get("reasoning", current_impl.reasoning if current_impl else None),
-                tools=spec.get("tools", current_impl.tools if current_impl else None),
-                tool_choice=spec.get("tool_choice", current_impl.tool_choice if current_impl else None),
-                max_output_tokens=max_output_tokens,
-                temp=spec.get("temp", current_impl.temp if current_impl else False),
-            )
-
+            
             session.add(implementation)
             await session.flush()
             created_ids.append(implementation.id)
+            next_minor += 1
 
         if created_ids:
             await session.commit()
 
         return created_ids
+    
+    async def _load_current_implementation(
+        self, session: AsyncSession, implementation_id: Optional[int]
+    ) -> Optional[Implementation]:
+        """Load current implementation for field inheritance."""
+        if implementation_id is None:
+            return None
+        return await session.scalar(
+            select(Implementation).where(Implementation.id == implementation_id)
+        )
+    
+    def _parse_major_version(self, version: Optional[str]) -> int:
+        """Parse major version number from version string."""
+        if not version:
+            return 0
+        parts = str(version).split(".")
+        try:
+            return int(parts[0])
+        except (ValueError, TypeError):
+            return 0
+    
+    def _parse_minor_version(self, version: str, expected_major: int) -> Optional[int]:
+        """Parse minor version if major version matches expected."""
+        parts = str(version).split(".")
+        if not parts:
+            return None
+        
+        try:
+            major_part = int(parts[0])
+        except (ValueError, TypeError):
+            return None
+        
+        if major_part != expected_major or len(parts) < 2:
+            return None
+        
+        try:
+            return int(parts[1])
+        except (ValueError, TypeError):
+            return None
+    
+    async def _calculate_next_minor_version(
+        self, session: AsyncSession, task_id: int, current_impl: Optional[Implementation]
+    ) -> int:
+        """Calculate the next minor version number for new implementations."""
+        major = self._parse_major_version(current_impl.version if current_impl else None)
+        
+        existing_versions = list(
+            (await session.execute(
+                select(Implementation.version).where(Implementation.task_id == task_id)
+            )).scalars().all()
+        )
+        
+        max_minor = 0
+        for version in existing_versions:
+            minor = self._parse_minor_version(version, major)
+            if minor is not None and minor > max_minor:
+                max_minor = minor
+        
+        return max_minor + 1
+    
+    def _create_implementation_from_spec(
+        self,
+        spec: Dict[str, Any],
+        current_impl: Optional[Implementation],
+        task_id: int,
+        major: int,
+        minor: int,
+    ) -> Optional[Implementation]:
+        """Create an Implementation from a variant spec with field inheritance."""
+        # Inherit or extract required fields
+        prompt = spec.get("prompt") or (current_impl.prompt if current_impl else None)
+        model = spec.get("model") or (current_impl.model if current_impl else None)
+        max_output_tokens = spec.get("max_output_tokens") or (
+            current_impl.max_output_tokens if current_impl else None
+        )
+        
+        # Skip if required fields are missing
+        if prompt is None or model is None or max_output_tokens is None:
+            logger.warning(f"Skipping variant due to missing required fields: {spec}")
+            return None
+        
+        return Implementation(
+            task_id=task_id,
+            version=f"{major}.{minor}",
+            prompt=prompt,
+            model=model,
+            temperature=spec.get("temperature", current_impl.temperature if current_impl else None),
+            reasoning=spec.get("reasoning", current_impl.reasoning if current_impl else None),
+            tools=spec.get("tools", current_impl.tools if current_impl else None),
+            tool_choice=spec.get("tool_choice", current_impl.tool_choice if current_impl else None),
+            max_output_tokens=max_output_tokens,
+            temp=spec.get("temp", current_impl.temp if current_impl else False),
+        )
 
     async def _evaluate_implementations(
         self,
         session: AsyncSession,
-        task_id: int,
-        implementation_ids: Sequence[int],
+        implementation_ids: List[int],
     ) -> Dict[int, Optional[float]]:
         """Evaluate implementations and return mapping impl_id -> final score (or None)."""
         scores: Dict[int, Optional[float]] = {}
@@ -431,6 +602,118 @@ class OptimizationService:
 
         return scores
 
+    async def _append_evaluation_feedback_to_conversation(
+        self,
+        session: AsyncSession,
+        task_id: int,
+        implementation_ids: List[int],
+        chosen_id: Optional[int],
+    ) -> None:
+        """Summarize evaluation outcomes and append to conversation as a user message."""
+        summary = await self._build_evaluation_summary(session, implementation_ids)
+        evaluation_weights = await self._get_evaluation_weights(session, task_id)
+        
+        content_obj = {
+            "evaluation_feedback": summary,
+            "chosen_implementation_id": chosen_id,
+            "evaluation_weights": evaluation_weights,
+        }
+        content_str = json.dumps(content_obj)
+        logger.debug(f"Evaluation feedback for task {task_id}: {content_str}")
+        
+        self._conversation.setdefault(task_id, []).append(
+            MessageItem(role=MessageRole.USER, content=content_str)
+        )
+    
+    async def _build_evaluation_summary(
+        self, session: AsyncSession, implementation_ids: List[int]
+    ) -> List[Dict[str, Any]]:
+        """Build summary of evaluation metrics for implementations."""
+        summary: List[Dict[str, Any]] = []
+        
+        for impl_id in implementation_ids:
+            impl = await session.scalar(
+                select(Implementation).where(Implementation.id == impl_id)
+            )
+            evaluation = await session.scalar(
+                select(Evaluation)
+                .where(Evaluation.implementation_id == impl_id)
+                .order_by(Evaluation.completed_at.desc().nullslast())
+            )
+            
+            metrics = {
+                "implementation_id": impl_id,
+                "version": getattr(impl, "version", None),
+                "avg_cost": getattr(evaluation, "avg_cost", None) if evaluation else None,
+                "avg_execution_time_ms": getattr(evaluation, "avg_execution_time_ms", None) if evaluation else None,
+                "final_score": await self._get_final_score(session, evaluation) if evaluation else None,
+                # Include per-grader aggregates and reasonings
+                "graders": await self._get_grader_details(session, evaluation) if evaluation else [],
+            }
+            summary.append(metrics)
+        
+        return summary
+    
+    async def _get_final_score(
+        self, session: AsyncSession, evaluation: Evaluation
+    ) -> Optional[float]:
+        """Calculate final score for an evaluation, returning None on error."""
+        try:
+            return await self.evaluation_service.calculate_final_evaluation_score(
+                session=session, evaluation=evaluation
+            )
+        except Exception as e:
+            logger.warning(f"Failed to calculate final score for evaluation {evaluation.id}: {e}")
+            return None
+
+    async def _get_grader_details(
+        self, session: AsyncSession, evaluation: Evaluation
+    ) -> List[Dict[str, Any]]:
+        """Aggregate per-grader average score and collect reasonings for an evaluation.
+
+        Returns: [{ score, reasonings }]
+        """
+        try:
+            # Fetch per-execution results including grades
+            results = await self.evaluation_service.list_evaluation_results(
+                session=session, evaluation_id=evaluation.id
+            )
+        except Exception as e:
+            logger.warning(f"Failed to list evaluation results for evaluation {evaluation.id}: {e}")
+            return []
+
+        # Group by grader_id (fallback to name for readability)
+        by_grader: Dict[str, Dict[str, Any]] = {}
+        for item in results:
+            grades = getattr(item, "grades", None) or getattr(item, "grades", [])
+            for g in grades:
+                grader_key = str(getattr(g, "grader_id", None) or getattr(g, "grader_name", "unknown"))
+                score = getattr(g, "score_float", None)
+                reasoning = getattr(g, "reasoning", None)
+                bucket = by_grader.setdefault(grader_key, {
+                    "scores": [],
+                    "reasonings": [],
+                })
+                if isinstance(score, (int, float)):
+                    bucket["scores"].append(float(score))
+                if isinstance(reasoning, str) and reasoning.strip():
+                    bucket["reasonings"].append(reasoning)
+
+        details: List[Dict[str, Any]] = []
+        for _, data in by_grader.items():
+            scores: List[float] = data.get("scores", [])
+            avg_score = sum(scores) / len(scores) if scores else None
+            # Limit number of reasonings to avoid bloat
+            reasonings: List[str] = data.get("reasonings", [])[:5]
+            details.append({
+                "score": avg_score,
+                "reasonings": reasonings,
+            })
+
+        # Stable order by score descending when available
+        details.sort(key=lambda d: (d.get("score") is None, -(d.get("score") or 0.0)))
+        return details
+
     def _select_best(
         self,
         current_best_id: Optional[int],
@@ -439,31 +722,31 @@ class OptimizationService:
     ) -> Tuple[Optional[int], Optional[float]]:
         """Choose the best by final score among current best + candidates.
 
-        Contract: tie-breaking strategy to be defined in later milestones.
+        Contract: tie-breaking strategy favors current implementation (stability).
         """
-        # Filter candidates with a numeric score
-        scored_candidates: list[tuple[int, float]] = [
+        scored_candidates = self._filter_scored_candidates(candidate_scores)
+        
+        # If no candidate has a score, keep current
+        if not scored_candidates:
+            return current_best_id, current_best_score
+        
+        best_candidate_id, best_candidate_score = max(scored_candidates, key=lambda x: x[1])
+        
+        # Favor current implementation on ties (stability)
+        if current_best_score is not None and current_best_score >= best_candidate_score:
+            return current_best_id, current_best_score
+        
+        return best_candidate_id, best_candidate_score
+    
+    def _filter_scored_candidates(
+        self, candidate_scores: Dict[int, Optional[float]]
+    ) -> List[Tuple[int, float]]:
+        """Filter candidates that have numeric scores."""
+        return [
             (impl_id, score)
             for impl_id, score in candidate_scores.items()
             if score is not None
         ]
-
-        # If no candidate has a score
-        if not scored_candidates:
-            # If current has a score, keep it; otherwise, no change
-            return current_best_id, current_best_score
-
-        # Find candidate with max score
-        best_candidate_id, best_candidate_score = max(
-            scored_candidates, key=lambda x: x[1]
-        )
-
-        # If current has a score and is greater or equal, keep current (tie/no-op keeps current)
-        if current_best_score is not None and current_best_score >= best_candidate_score:
-            return current_best_id, current_best_score
-
-        # Otherwise, adopt the better candidate
-        return best_candidate_id, best_candidate_score
 
     def _is_improved(
         self,
