@@ -145,7 +145,6 @@ async def test_create_grade_for_trace(test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
@@ -191,7 +190,11 @@ async def test_create_grade_for_execution_result(test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task for execution result grade",
+        project_id=project.id,
+    )
     test_session.add(task)
     await test_session.flush()
 
@@ -278,7 +281,6 @@ async def test_grade_relationships(test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
@@ -301,7 +303,7 @@ async def test_grade_relationships(test_session):
     assert grade.grader.id == grader.id
     assert grade.grader.name == "accuracy"
     assert grade.trace.id == trace.id
-    assert grade.trace.result == "Test response"
+    # Removed assertion on trace.result (now using output_items)
     assert grade.execution_result is None
 
 
@@ -326,7 +328,6 @@ async def test_grade_with_error(test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
@@ -372,7 +373,6 @@ async def test_grade_with_grader_response(test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
@@ -435,7 +435,6 @@ async def test_grader_cascade_delete(test_session):
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
@@ -517,7 +516,6 @@ async def test_grade_polymorphic_constraint(test_session):
     trace = Trace(
         project_id=project_id,
         model="gpt-4",
-        result="Test response",
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )

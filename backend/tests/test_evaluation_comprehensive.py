@@ -4,14 +4,15 @@ This module provides a complete test coverage for the evaluation system,
 including all models, services, APIs, and integration scenarios.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, patch
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
-from app.enums import ScoreType, EvaluationStatus
+import pytest
+
+from app.enums import EvaluationStatus, ScoreType
 from app.models.evaluation import (
-    Evaluation, EvaluationConfig, Grader, Grade, TestCase, TargetTaskMetrics
+    Grade,
+    Grader,
 )
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
@@ -28,21 +29,23 @@ class TestEvaluationSystemComprehensive:
         from app.config import Settings
         settings = Settings(
             database_url="sqlite+aiosqlite:///:memory:",
-            openai_api_key="test-key",
-        )
+            openai_api_key="test-key")
         return EvaluationService(settings)
 
     @pytest.mark.asyncio
     async def test_evaluation_system_architecture(self, evaluation_service, test_session):
         """Test the complete evaluation system architecture."""
         # This test verifies that all components work together correctly
-        
+
         # 1. Project and Task Setup
         project = Project(name="Comprehensive Test Project")
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 
@@ -53,8 +56,7 @@ class TestEvaluationSystemComprehensive:
             prompt="You are a helpful AI assistant. Answer: {{question}}",
             model="gpt-4",
             max_output_tokens=1000,
-            temperature=0.7,
-        )
+            temperature=0.7)
         test_session.add(implementation)
         await test_session.flush()
 
@@ -73,10 +75,10 @@ class TestEvaluationSystemComprehensive:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0, "maximum": 1},
-                        "reasoning": {"type": "string"}
+                        "reasoning": {"type": "string"},
                     },
-                    "required": ["score", "reasoning"]
-                }
+                    "required": ["score", "reasoning"],
+                },
             },
             {
                 "name": "toxicity",
@@ -90,10 +92,10 @@ class TestEvaluationSystemComprehensive:
                     "type": "object",
                     "properties": {
                         "score": {"type": "boolean"},
-                        "reasoning": {"type": "string"}
+                        "reasoning": {"type": "string"},
                     },
-                    "required": ["score", "reasoning"]
-                }
+                    "required": ["score", "reasoning"],
+                },
             },
             {
                 "name": "helpfulness",
@@ -107,21 +109,21 @@ class TestEvaluationSystemComprehensive:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0, "maximum": 1},
-                        "reasoning": {"type": "string"}
+                        "reasoning": {"type": "string"},
                     },
-                    "required": ["score", "reasoning"]
-                }
-            }
+                    "required": ["score", "reasoning"],
+                },
+            },
         ]
 
         for config in grader_configs:
             grader = Grader(
                 project_id=project.id,
-                **config
+                **config,
             )
             test_session.add(grader)
             graders.append(grader)
-        
+
         await test_session.flush()
 
         # 4. Test Case Setup
@@ -129,28 +131,28 @@ class TestEvaluationSystemComprehensive:
             {
                 "description": "Basic math question",
                 "arguments": {"question": "What is 2+2?"},
-                "expected_output": "4"
+                "expected_output": "4",
             },
             {
                 "description": "Science question",
                 "arguments": {"question": "What is photosynthesis?"},
-                "expected_output": "The process by which plants convert light energy into chemical energy"
+                "expected_output": "The process by which plants convert light energy into chemical energy",
             },
             {
                 "description": "Creative writing",
                 "arguments": {"question": "Write a haiku about coding"},
-                "expected_output": "A short poem about programming"
+                "expected_output": "A short poem about programming",
             },
             {
                 "description": "Problem solving",
                 "arguments": {"question": "How do you calculate the area of a circle?"},
-                "expected_output": "π × radius²"
+                "expected_output": "π × radius²",
             },
             {
                 "description": "Historical question",
                 "arguments": {"question": "When did World War II end?"},
-                "expected_output": "1945"
-            }
+                "expected_output": "1945",
+            },
         ]
 
         created_test_cases = []
@@ -158,7 +160,7 @@ class TestEvaluationSystemComprehensive:
             test_case = await evaluation_service.create_test_case(
                 session=test_session,
                 task_id=task.id,
-                **test_case_data
+                **test_case_data,
             )
             created_test_cases.append(test_case)
 
@@ -169,21 +171,20 @@ class TestEvaluationSystemComprehensive:
             quality_weight=0.6,
             cost_weight=0.25,
             time_weight=0.15,
-            grader_ids=[g.id for g in graders],
-        )
+            grader_ids=[g.id for g in graders])
 
         # 6. Mock Execution and Grading
         execution_results = []
         grades = []
-        
+
         for i, test_case in enumerate(created_test_cases):
             # Create execution result
             execution_result = ExecutionResult(
                 id=i + 1,
                 task_id=task.id,
                 implementation_id=implementation.id,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc) + timedelta(seconds=1),  # Add 1 second duration
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC) + timedelta(seconds=1),  # Add 1 second duration
                 prompt_rendered=f"You are a helpful AI assistant. Answer: {test_case.arguments['question']}",
                 result_text=f"Test response {i + 1}",
                 cost=0.01 + (i * 0.002),  # Varying costs
@@ -207,42 +208,40 @@ class TestEvaluationSystemComprehensive:
                     score_boolean=score_boolean,
                     reasoning=f"Grader {grader.name} evaluation for test case {i + 1}",
                     confidence=0.8 + (i * 0.02),
-                    grading_started_at=datetime.now(timezone.utc),
-                    grading_completed_at=datetime.now(timezone.utc),
+                    grading_started_at=datetime.now(UTC),
+                    grading_completed_at=datetime.now(UTC),
                     prompt_tokens=50 + (i * 5),
                     completion_tokens=30 + (i * 3),
-                    total_tokens=80 + (i * 8),
-                )
+                    total_tokens=80 + (i * 8))
                 grades.append(grade)
 
         # 7. Run Evaluation
-        with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-             patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-             patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
-            
+        with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+             patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+             patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
+
             # Mock execution
             mock_execute.side_effect = execution_results
-            
+
             # Mock grader retrieval
             def get_grader_side_effect(session, grader_id):
                 for grader in graders:
                     if grader.id == grader_id:
                         return grader
                 raise ValueError(f"Unknown grader ID: {grader_id}")
-            
+
             mock_get_grader.side_effect = get_grader_side_effect
-            
+
             # Mock grading
             mock_execute_grading.side_effect = grades
 
             # Run evaluation
             evaluation = await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation.id,
-            )
+                implementation_id=implementation.id)
             # Simulate background execution completion
             evaluation.status = EvaluationStatus.COMPLETED
-            evaluation.completed_at = datetime.now(timezone.utc)
+            evaluation.completed_at = datetime.now(UTC)
             evaluation.grader_scores = {}
             for grader in graders:
                 if grader.score_type == ScoreType.FLOAT:
@@ -288,8 +287,7 @@ class TestEvaluationSystemComprehensive:
         # 9. Test Efficiency Score Calculation
         evaluation_with_scores = await evaluation_service.get_evaluation(
             session=test_session,
-            evaluation_id=evaluation.id,
-        )
+            evaluation_id=evaluation.id)
 
         # Should have calculated efficiency scores (may be None if no target metrics)
         # This is expected behavior when no target metrics exist yet
@@ -310,8 +308,7 @@ class TestEvaluationSystemComprehensive:
         # 10. Test Evaluation Listing
         evaluations = await evaluation_service.list_evaluations(
             session=test_session,
-            implementation_id=implementation.id,
-        )
+            implementation_id=implementation.id)
 
         assert len(evaluations) == 1
         assert evaluations[0].id == evaluation.id
@@ -320,8 +317,7 @@ class TestEvaluationSystemComprehensive:
         # 12. Test Test Case Management
         all_test_cases = await evaluation_service.list_test_cases(
             session=test_session,
-            task_id=task.id,
-        )
+            task_id=task.id)
 
         assert len(all_test_cases) == len(created_test_cases)
         for test_case in all_test_cases:
@@ -330,8 +326,7 @@ class TestEvaluationSystemComprehensive:
         # 13. Test Configuration Management
         retrieved_config = await evaluation_service.get_evaluation_config(
             session=test_session,
-            task_id=task.id,
-        )
+            task_id=task.id)
 
         assert retrieved_config.id == config.id
         assert retrieved_config.quality_weight == config.quality_weight
@@ -357,8 +352,7 @@ class TestEvaluationSystemComprehensive:
                 task_id=999,
                 description="Test",
                 arguments={},
-                expected_output="Expected",
-            )
+                expected_output="Expected")
 
         # 15. Test Edge Cases - Simplified to avoid database constraint issues
         # These edge cases are covered in other test files to avoid database conflicts
@@ -371,7 +365,10 @@ class TestEvaluationSystemComprehensive:
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 
@@ -380,8 +377,7 @@ class TestEvaluationSystemComprehensive:
             version="0.1",
             prompt="Test prompt",
             model="gpt-4",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         test_session.add(implementation)
         await test_session.flush()
 
@@ -392,8 +388,7 @@ class TestEvaluationSystemComprehensive:
             prompt="Rate performance: {{context}}",
             score_type=ScoreType.FLOAT,
             model="gpt-4",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         test_session.add(grader)
         await test_session.flush()
 
@@ -405,60 +400,56 @@ class TestEvaluationSystemComprehensive:
                 task_id=task.id,
                 description=f"Performance test case {i}",
                 arguments={"input": f"test_input_{i}"},
-                expected_output=f"expected_output_{i}",
-            )
+                expected_output=f"expected_output_{i}")
             test_cases.append(test_case)
 
         # Mock execution results with varying performance
         execution_results = []
         grades = []
-        
+
         for i, test_case in enumerate(test_cases):
             # Varying costs and times
             cost = 0.01 + (i * 0.005)
             execution_time_ms = 1000 + (i * 100)
-            
+
             execution_result = ExecutionResult(
                 id=i + 1,
                 task_id=task.id,
                 implementation_id=implementation.id,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
                 prompt_rendered=f"Test prompt {i}",
                 result_text=f"Test result {i}",
-                cost=cost,
-            )
+                cost=cost)
             execution_results.append(execution_result)
 
             # Varying quality scores
             quality_score = 0.5 + (i * 0.05)  # 0.5 to 0.95
-            
+
             grade = Grade(
                 id=i + 1,
                 grader_id=grader.id,
                 execution_result_id=execution_result.id,
                 score_float=quality_score,
-                grading_started_at=datetime.now(timezone.utc),
-                grading_completed_at=datetime.now(timezone.utc),
-            )
+                grading_started_at=datetime.now(UTC),
+                grading_completed_at=datetime.now(UTC))
             grades.append(grade)
 
         # Run evaluation
-        with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-             patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-             patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
-            
+        with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+             patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+             patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
+
             mock_execute.side_effect = execution_results
             mock_get_grader.return_value = grader
             mock_execute_grading.side_effect = grades
 
             evaluation = await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation.id,
-            )
+                implementation_id=implementation.id)
             # Simulate background execution completion
             evaluation.status = EvaluationStatus.COMPLETED
-            evaluation.completed_at = datetime.now(timezone.utc)
+            evaluation.completed_at = datetime.now(UTC)
             valid_grades = [grade.score_float for grade in grades if grade.score_float is not None]
             evaluation.grader_scores = {str(grader.id): sum(valid_grades) / len(valid_grades)} if valid_grades else {}
             evaluation.quality_score = evaluation.grader_scores.get(str(grader.id))
@@ -493,7 +484,10 @@ class TestEvaluationSystemComprehensive:
         test_session.add(project)
         await test_session.flush()
 
-        task = Task(project_id=project.id)
+        task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
         test_session.add(task)
         await test_session.flush()
 
@@ -502,8 +496,7 @@ class TestEvaluationSystemComprehensive:
             version="0.1",
             prompt="Test prompt",
             model="gpt-4",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         test_session.add(implementation)
         await test_session.flush()
 
@@ -511,8 +504,7 @@ class TestEvaluationSystemComprehensive:
         with pytest.raises(Exception):  # BadRequestError
             await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation.id,
-            )
+                implementation_id=implementation.id)
 
         # Test 2: No graders (system should create default grader)
         test_case = await evaluation_service.create_test_case(
@@ -520,25 +512,23 @@ class TestEvaluationSystemComprehensive:
             task_id=task.id,
             description="Test case",
             arguments={},
-            expected_output="Expected",
-        )
+            expected_output="Expected")
 
         # Mock execution to avoid actual LLM calls
-        with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-             patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-             patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
-            
+        with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+             patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+             patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
+
             mock_execute.return_value = ExecutionResult(
                 id=1,
                 task_id=task.id,
                 implementation_id=implementation.id,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC) + timedelta(seconds=1),
                 prompt_rendered="Test prompt",
                 result_text="Test result",
-                cost=0.01,
-            )
-            
+                cost=0.01)
+
             # Mock grader (default grader will be created)
             mock_grader = Grader(
                 id=1,
@@ -547,27 +537,24 @@ class TestEvaluationSystemComprehensive:
                 prompt="Rate accuracy: {{context}}",
                 score_type=ScoreType.FLOAT,
                 model="gpt-4",
-                max_output_tokens=500,
-            )
+                max_output_tokens=500)
             mock_get_grader.return_value = mock_grader
-            
+
             mock_execute_grading.return_value = Grade(
                 id=1,
                 grader_id=1,
                 execution_result_id=1,
                 score_float=0.8,
-                grading_started_at=datetime.now(timezone.utc),
-                grading_completed_at=datetime.now(timezone.utc),
-            )
-            
+                grading_started_at=datetime.now(UTC),
+                grading_completed_at=datetime.now(UTC))
+
             # This should succeed because default grader is created
             evaluation = await evaluation_service.create_evaluation(
                 session=test_session,
-                implementation_id=implementation.id,
-            )
+                implementation_id=implementation.id)
             # Simulate background execution completion
             evaluation.status = EvaluationStatus.COMPLETED
-            evaluation.completed_at = datetime.now(timezone.utc)
+            evaluation.completed_at = datetime.now(UTC)
             evaluation.grader_scores = {"1": 0.8}
             evaluation.quality_score = 0.8
             evaluation.avg_cost = 0.01
@@ -584,20 +571,18 @@ class TestEvaluationSystemComprehensive:
             prompt="Test prompt",
             score_type=ScoreType.FLOAT,
             model="gpt-4",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         test_session.add(grader)
         await test_session.flush()
 
         # Create evaluation first
         evaluation = await evaluation_service.create_evaluation(
             session=test_session,
-            implementation_id=implementation.id,
-        )
+            implementation_id=implementation.id)
 
         # Simulate background execution failure
         evaluation.status = EvaluationStatus.FAILED
-        evaluation.completed_at = datetime.now(timezone.utc)
+        evaluation.completed_at = datetime.now(UTC)
         evaluation.error = "Execution failed"
         await test_session.commit()
         await test_session.refresh(evaluation)

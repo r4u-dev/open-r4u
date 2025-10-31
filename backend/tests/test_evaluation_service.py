@@ -1,22 +1,26 @@
 """Tests for evaluation service."""
 
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
-from sqlalchemy import select
 
 from app.config import Settings
-from app.enums import ScoreType, EvaluationStatus
+from app.enums import EvaluationStatus, ScoreType
 from app.models.evaluation import (
-    Evaluation, EvaluationConfig, Grader, Grade, TestCase, TargetTaskMetrics
+    Evaluation,
+    Grade,
+    Grader,
+    TargetTaskMetrics,
 )
 from app.models.executions import ExecutionResult
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.services.evaluation_service import (
-    EvaluationService, NotFoundError, BadRequestError
+    BadRequestError,
+    EvaluationService,
+    NotFoundError,
 )
-from app.models.executions import ExecutionResult
 
 
 @pytest.fixture
@@ -24,8 +28,7 @@ def settings():
     """Create test settings."""
     return Settings(
         database_url="sqlite+aiosqlite:///:memory:",
-        openai_api_key="test-key",
-    )
+        openai_api_key="test-key")
 
 
 @pytest.fixture
@@ -42,7 +45,10 @@ async def test_create_test_case(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -51,8 +57,7 @@ async def test_create_test_case(evaluation_service, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test input"},
-        expected_output="expected output",
-    )
+        expected_output="expected output")
 
     assert test_case.id is not None
     assert test_case.task_id == task.id
@@ -70,8 +75,7 @@ async def test_create_test_case_task_not_found(evaluation_service, test_session)
             task_id=999,
             description="Test case",
             arguments={},
-            expected_output="expected",
-        )
+            expected_output="expected")
 
 
 @pytest.mark.asyncio
@@ -81,7 +85,10 @@ async def test_get_test_case(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -90,8 +97,7 @@ async def test_get_test_case(evaluation_service, test_session):
         task_id=task.id,
         description="Test case",
         arguments={},
-        expected_output="expected",
-    )
+        expected_output="expected")
 
     retrieved = await evaluation_service.get_test_case(test_session, test_case.id)
     assert retrieved.id == test_case.id
@@ -112,7 +118,10 @@ async def test_list_test_cases(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -122,20 +131,18 @@ async def test_list_test_cases(evaluation_service, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1",
-    )
+        expected_output="expected1")
 
     test_case2 = await evaluation_service.create_test_case(
         session=test_session,
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2",
-    )
+        expected_output="expected2")
 
     test_cases = await evaluation_service.list_test_cases(test_session, task.id)
     assert len(test_cases) == 2
-    
+
     # Should be ordered by created_at desc
     test_case_ids = [tc.id for tc in test_cases]
     assert test_case2.id in test_case_ids
@@ -149,7 +156,10 @@ async def test_update_test_case(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -158,15 +168,13 @@ async def test_update_test_case(evaluation_service, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original"},
-        expected_output="original expected",
-    )
+        expected_output="original expected")
 
     updated = await evaluation_service.update_test_case(
         session=test_session,
         test_case_id=test_case.id,
         description="Updated description",
-        expected_output="Updated expected",
-    )
+        expected_output="Updated expected")
 
     assert updated.description == "Updated description"
     assert updated.expected_output == "Updated expected"
@@ -180,7 +188,10 @@ async def test_delete_test_case(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -189,8 +200,7 @@ async def test_delete_test_case(evaluation_service, test_session):
         task_id=task.id,
         description="Test case",
         arguments={},
-        expected_output="expected",
-    )
+        expected_output="expected")
 
     await evaluation_service.delete_test_case(test_session, test_case.id)
 
@@ -207,7 +217,10 @@ async def test_create_evaluation_config(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -217,8 +230,7 @@ async def test_create_evaluation_config(evaluation_service, test_session):
         quality_weight=0.6,
         cost_weight=0.3,
         time_weight=0.1,
-        grader_ids=[1, 2, 3],
-    )
+        grader_ids=[1, 2, 3])
 
     assert config.task_id == task.id
     assert config.quality_weight == 0.6
@@ -234,7 +246,10 @@ async def test_create_evaluation_config_invalid_weights(evaluation_service, test
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -255,7 +270,10 @@ async def test_update_evaluation_config(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -265,8 +283,7 @@ async def test_update_evaluation_config(evaluation_service, test_session):
         task_id=task.id,
         quality_weight=0.5,
         cost_weight=0.3,
-        time_weight=0.2,
-    )
+        time_weight=0.2)
 
     # Update config
     updated_config = await evaluation_service.create_or_update_evaluation_config(
@@ -275,8 +292,7 @@ async def test_update_evaluation_config(evaluation_service, test_session):
         quality_weight=0.7,
         cost_weight=0.2,
         time_weight=0.1,
-        grader_ids=[1, 2],
-    )
+        grader_ids=[1, 2])
 
     assert updated_config.id == config.id  # Same record
     assert updated_config.quality_weight == 0.7
@@ -292,7 +308,10 @@ async def test_get_evaluation_config(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -306,8 +325,7 @@ async def test_get_evaluation_config(evaluation_service, test_session):
         task_id=task.id,
         quality_weight=0.5,
         cost_weight=0.3,
-        time_weight=0.2,
-    )
+        time_weight=0.2)
 
     # Get config
     retrieved_config = await evaluation_service.get_evaluation_config(test_session, task.id)
@@ -323,7 +341,10 @@ async def test_run_evaluation_success(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -332,8 +353,7 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -344,8 +364,7 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
@@ -355,46 +374,41 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1",
-    )
+        expected_output="expected1")
 
     test_case2 = await evaluation_service.create_test_case(
         session=test_session,
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2",
-    )
+        expected_output="expected2")
 
     # Create evaluation config
     config = await evaluation_service.create_or_update_evaluation_config(
         session=test_session,
         task_id=task.id,
-        grader_ids=[grader.id],
-    )
+        grader_ids=[grader.id])
 
     # Mock execution results
     execution_result1 = ExecutionResult(
         id=1,
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 1",
         result_text="Test result 1",
-        cost=0.01,
-    )
+        cost=0.01)
 
     execution_result2 = ExecutionResult(
         id=2,
         task_id=task.id,
         implementation_id=implementation.id,
-        started_at=datetime.now(timezone.utc),
-        completed_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 2",
         result_text="Test result 2",
-        cost=0.02,
-    )
+        cost=0.02)
 
     # Mock grade results
     grade1 = Grade(
@@ -402,22 +416,20 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         grader_id=grader.id,
         execution_result_id=1,
         score_float=0.8,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
     grade2 = Grade(
         id=2,
         grader_id=grader.id,
         execution_result_id=2,
         score_float=0.9,
-        grading_started_at=datetime.now(timezone.utc),
-        grading_completed_at=datetime.now(timezone.utc),
-    )
+        grading_started_at=datetime.now(UTC),
+        grading_completed_at=datetime.now(UTC))
 
-    with patch('app.services.evaluation_service.execute_task') as mock_execute, \
-        patch.object(evaluation_service.grading_service, 'get_grader') as mock_get_grader, \
-        patch.object(evaluation_service.grading_service, 'execute_grading') as mock_execute_grading:
+    with patch("app.services.evaluation_service.execute_task") as mock_execute, \
+        patch.object(evaluation_service.grading_service, "get_grader") as mock_get_grader, \
+        patch.object(evaluation_service.grading_service, "execute_grading") as mock_execute_grading:
 
         # Mock execute_task to return execution results
         mock_execute.side_effect = [execution_result1, execution_result2]
@@ -431,13 +443,12 @@ async def test_run_evaluation_success(evaluation_service, test_session):
         # Create evaluation
         evaluation = await evaluation_service.create_evaluation(
             session=test_session,
-            implementation_id=implementation.id,
-        )
+            implementation_id=implementation.id)
         assert evaluation.status == EvaluationStatus.RUNNING
 
         # Simulate background execution by directly updating the evaluation
         evaluation.status = EvaluationStatus.COMPLETED
-        evaluation.completed_at = datetime.now(timezone.utc)
+        evaluation.completed_at = datetime.now(UTC)
         evaluation.grader_scores = {str(grader.id): 0.85}
         evaluation.quality_score = 0.85
         evaluation.avg_cost = 0.015
@@ -461,7 +472,10 @@ async def test_run_evaluation_no_test_cases(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -470,16 +484,14 @@ async def test_run_evaluation_no_test_cases(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
     with pytest.raises(BadRequestError, match="No test cases found for task"):
         await evaluation_service.create_evaluation(
             session=test_session,
-            implementation_id=implementation.id,
-        )
+            implementation_id=implementation.id)
 
 
 @pytest.mark.asyncio
@@ -489,7 +501,10 @@ async def test_run_evaluation_no_graders(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -498,8 +513,7 @@ async def test_run_evaluation_no_graders(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -509,18 +523,16 @@ async def test_run_evaluation_no_graders(evaluation_service, test_session):
         task_id=task.id,
         description="Test case",
         arguments={},
-        expected_output="expected",
-    )
+        expected_output="expected")
 
     # The evaluation should succeed and create a default grader
     evaluation = await evaluation_service.create_evaluation(
         session=test_session,
-        implementation_id=implementation.id,
-    )
+        implementation_id=implementation.id)
 
     # Simulate background execution - should create default grader and complete
     evaluation.status = EvaluationStatus.COMPLETED
-    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.completed_at = datetime.now(UTC)
     evaluation.grader_scores = {"1": 0.8}  # Mock grader score
     evaluation.quality_score = 0.8
     await test_session.commit()
@@ -540,7 +552,10 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -549,8 +564,7 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -560,8 +574,7 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
         task_id=task.id,
         description="Test case",
         arguments={},
-        expected_output="expected",
-    )
+        expected_output="expected")
 
     # Create grader
     grader = Grader(
@@ -570,8 +583,7 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(grader)
     await test_session.flush()
 
@@ -579,18 +591,16 @@ async def test_run_evaluation_error_handling(evaluation_service, test_session):
     await evaluation_service.create_or_update_evaluation_config(
         session=test_session,
         task_id=task.id,
-        grader_ids=[grader.id],
-    )
+        grader_ids=[grader.id])
 
     # Create evaluation first
     evaluation = await evaluation_service.create_evaluation(
         session=test_session,
-        implementation_id=implementation.id,
-    )
+        implementation_id=implementation.id)
 
     # Simulate background execution failure
     evaluation.status = EvaluationStatus.FAILED
-    evaluation.completed_at = datetime.now(timezone.utc)
+    evaluation.completed_at = datetime.now(UTC)
     evaluation.error = "Execution failed"
     await test_session.commit()
     await test_session.refresh(evaluation)
@@ -607,7 +617,10 @@ async def test_calculate_efficiency_scores(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -615,8 +628,7 @@ async def test_calculate_efficiency_scores(evaluation_service, test_session):
     target_metrics = TargetTaskMetrics(
         task_id=task.id,
         cost=0.01,
-        time_ms=1000.0,
-    )
+        time_ms=1000.0)
     test_session.add(target_metrics)
     await test_session.commit()
 
@@ -625,13 +637,11 @@ async def test_calculate_efficiency_scores(evaluation_service, test_session):
         implementation_id=1,
         task_id=task.id,
         avg_cost=0.02,
-        avg_execution_time_ms=2000.0,
-    )
+        avg_execution_time_ms=2000.0)
 
     cost_efficiency, time_efficiency = await evaluation_service.calculate_efficiency_scores(
         session=test_session,
-        evaluation=evaluation,
-    )
+        evaluation=evaluation)
 
     assert cost_efficiency == 0.5  # 0.01 / 0.02
     assert time_efficiency == 0.5  # 1000.0 / 2000.0
@@ -644,7 +654,10 @@ async def test_calculate_efficiency_scores_no_targets(evaluation_service, test_s
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -652,13 +665,11 @@ async def test_calculate_efficiency_scores_no_targets(evaluation_service, test_s
         implementation_id=1,
         task_id=task.id,
         avg_cost=0.02,
-        avg_execution_time_ms=2000.0,
-    )
+        avg_execution_time_ms=2000.0)
 
     cost_efficiency, time_efficiency = await evaluation_service.calculate_efficiency_scores(
         session=test_session,
-        evaluation=evaluation,
-    )
+        evaluation=evaluation)
 
     assert cost_efficiency is None
     assert time_efficiency is None
@@ -671,7 +682,10 @@ async def test_calculate_final_evaluation_score(evaluation_service, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -681,15 +695,13 @@ async def test_calculate_final_evaluation_score(evaluation_service, test_session
         task_id=task.id,
         quality_weight=0.6,
         cost_weight=0.3,
-        time_weight=0.1,
-    )
+        time_weight=0.1)
 
     # Create target metrics
     target_metrics = TargetTaskMetrics(
         task_id=task.id,
         cost=0.01,
-        time_ms=1000.0,
-    )
+        time_ms=1000.0)
     test_session.add(target_metrics)
     await test_session.commit()
 
@@ -699,13 +711,11 @@ async def test_calculate_final_evaluation_score(evaluation_service, test_session
         task_id=task.id,
         quality_score=0.8,
         avg_cost=0.02,
-        avg_execution_time_ms=2000.0,
-    )
+        avg_execution_time_ms=2000.0)
 
     final_score = await evaluation_service.calculate_final_evaluation_score(
         session=test_session,
-        evaluation=evaluation,
-    )
+        evaluation=evaluation)
 
     # Expected: 0.8 * 0.6 + 0.5 * 0.3 + 0.5 * 0.1 = 0.48 + 0.15 + 0.05 = 0.68
     assert final_score == 0.68
@@ -719,7 +729,10 @@ async def test_get_task(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -741,7 +754,10 @@ async def test_get_implementation(evaluation_service, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -750,8 +766,7 @@ async def test_get_implementation(evaluation_service, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500,
-    )
+        max_output_tokens=500)
     test_session.add(implementation)
     await test_session.flush()
 
@@ -782,8 +797,7 @@ async def test_get_all_project_graders_with_existing(evaluation_service, test_se
         score_type=ScoreType.FLOAT,
         model="gpt-4",
         max_output_tokens=500,
-        is_active=True,
-    )
+        is_active=True)
     test_session.add(grader1)
 
     grader2 = Grader(
@@ -793,8 +807,7 @@ async def test_get_all_project_graders_with_existing(evaluation_service, test_se
         score_type=ScoreType.BOOLEAN,
         model="gpt-4",
         max_output_tokens=300,
-        is_active=True,
-    )
+        is_active=True)
     test_session.add(grader2)
 
     grader3 = Grader(
@@ -824,7 +837,7 @@ async def test_get_all_project_graders_create_default(evaluation_service, test_s
     test_session.add(project)
     await test_session.flush()
 
-    with patch.object(evaluation_service.grading_service, 'create_default_accuracy_grader') as mock_create:
+    with patch.object(evaluation_service.grading_service, "create_default_accuracy_grader") as mock_create:
         mock_grader = Grader(
             id=1,
             project_id=project.id,
@@ -832,12 +845,11 @@ async def test_get_all_project_graders_create_default(evaluation_service, test_s
             prompt="Default prompt",
             score_type=ScoreType.BOOLEAN,
             model="gpt-4o-mini",
-            max_output_tokens=500,
-        )
+            max_output_tokens=500)
         mock_create.return_value = mock_grader
 
         grader_ids = await evaluation_service._get_all_project_graders(test_session, project.id)
-        
+
         assert len(grader_ids) == 1
         assert grader_ids[0] == 1
         mock_create.assert_called_once_with(test_session, project.id)

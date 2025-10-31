@@ -4,6 +4,7 @@ import { Trace, HTTPTrace } from "@/lib/types/trace";
 import { tracesApi } from "@/services/tracesApi";
 import { formatHTTPRequest, formatHTTPResponse } from "@/lib/utils";
 import { InputItemRenderer } from "./InputItemRenderer";
+import { OutputItemRenderer } from "./OutputItemRenderer";
 
 interface TraceDetailPanelProps {
     trace: Trace;
@@ -197,6 +198,24 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                     </div>
                 </Section>
 
+                <Section title="Output" section="output">
+                    <div className="space-y-3">
+                        {trace.outputItems.length > 0 ? (
+                            trace.outputItems.map((item, idx) => (
+                                <OutputItemRenderer
+                                    key={idx}
+                                    item={item}
+                                    index={idx}
+                                />
+                            ))
+                        ) : (
+                            <span className="text-muted-foreground italic">
+                                No output
+                            </span>
+                        )}
+                    </div>
+                </Section>
+
                 <Section title="Model Settings" section="modelSettings">
                     <div className="space-y-1 font-mono">
                         {Object.keys(trace.modelSettings).length > 0 ? (
@@ -246,12 +265,6 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                                 No metrics available
                             </span>
                         )}
-                    </div>
-                </Section>
-
-                <Section title="Output" section="output">
-                    <div className="whitespace-pre-wrap break-words text-foreground">
-                        {trace.output}
                     </div>
                 </Section>
 

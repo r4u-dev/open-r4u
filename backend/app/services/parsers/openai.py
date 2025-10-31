@@ -7,10 +7,14 @@ from urllib.parse import urlparse
 
 from app.enums import FinishReason, MessageRole
 from app.schemas.traces import (
+    FunctionCallItem,
+    FunctionToolCallItem,
     InputItem,
     MessageItem,
+    OutputItem,
+    OutputMessageContent,
+    OutputMessageItem,
     Reasoning,
-    ToolCallItem,
     ToolDefinition,
     ToolResultItem,
     TraceCreate,
@@ -320,17 +324,33 @@ class OpenAIParser(ProviderParser):
             except ValueError:
                 role = MessageRole.USER
 
-            # Regular message without tool calls
-            input_items.append(
-                MessageItem(
-                    role=role,
-                    content=msg.get("content"),
-                ),
-            )
+            if msg.get("content"):
+                input_items.append(
+                    MessageItem(
+                        role=role,
+                        content=msg.get("content"),
+                    ),
+                )
+            elif msg.get("tool_calls"):
+                # Handle tool calls in messages
+                tool_calls_data = msg.get("tool_calls")
+                for tc in tool_calls_data:
+                    function_data = tc.get("function", {})
+                    arguments_str = function_data.get("arguments", "")
+
+                    input_items.append(
+                        FunctionCallItem(
+                            call_id=tc.get("id", ""),
+                            name=function_data.get("name", ""),
+                            arguments=arguments_str,
+                        ),
+                    )
 
         # Extract result from response
         result = None
+        # Parse response
         finish_reason = None
+        output_items: list[OutputItem] = []
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
@@ -343,7 +363,17 @@ class OpenAIParser(ProviderParser):
             if choices:
                 choice = choices[0]
                 message = choice.get("message", {})
-                result = message.get("content")
+                content = message.get("content")
+
+                # Create output message item if content exists
+                if content:
+                    output_items.append(
+                        OutputMessageItem(
+                            id=f"msg_{response_body.get('id', 'unknown')}",
+                            content=[OutputMessageContent(type="text", text=content)],
+                            status="completed",
+                        ),
+                    )
 
                 # Handle tool calls from assistant response
                 tool_calls_data = message.get("tool_calls")
@@ -352,23 +382,14 @@ class OpenAIParser(ProviderParser):
                         function_data = tc.get("function", {})
                         arguments_str = function_data.get("arguments", "")
 
-                        # Parse arguments if they're a JSON string
-                        import json
-
-                        try:
-                            arguments = (
-                                json.loads(arguments_str)
-                                if isinstance(arguments_str, str)
-                                else arguments_str
-                            )
-                        except (json.JSONDecodeError, TypeError):
-                            arguments = {"raw": arguments_str}
-
-                        input_items.append(
-                            ToolCallItem(
+                        # Also add to output items
+                        output_items.append(
+                            FunctionToolCallItem(
                                 id=tc.get("id", ""),
-                                tool_name=function_data.get("name", ""),
-                                arguments=arguments,
+                                call_id=tc.get("id", ""),
+                                name=function_data.get("name", ""),
+                                arguments=arguments_str,
+                                status="completed",
                             ),
                         )
 
@@ -441,13 +462,12 @@ class OpenAIParser(ProviderParser):
         return TraceCreate(
             project=project,
             model=model,
-            result=result,
+            output=output_items,
             error=error,
             started_at=started_at,
             completed_at=completed_at,
             input=input_items,
             path=call_path,
-            task_id=task_id,
             tools=tools,
             instructions=instructions,
             prompt=None,  # Not directly available in OpenAI format
@@ -494,29 +514,31 @@ class OpenAIParser(ProviderParser):
         # Handle different input formats
         if isinstance(request_input, list):
             for item in request_input:
-                if isinstance(item, dict):
-                    # If it looks like a message
-                    if "role" in item:
-                        role_str = item.get("role", "user")
-                        try:
-                            role = MessageRole(role_str)
-                        except ValueError:
-                            role = MessageRole.USER
+                if not isinstance(item, dict):
+                    raise ValueError("Invalid input item format in Responses API")
 
-                        input_items.append(
-                            MessageItem(
-                                role=role,
-                                content=item.get("content"),
-                            ),
-                        )
-                    else:
-                        # Generic content
-                        input_items.append(
-                            MessageItem(
-                                role=MessageRole.USER,
-                                content=str(item),
-                            ),
-                        )
+                if "type" not in item or item["type"] == "message":
+                    role_str = item.get("role", "user")
+                    try:
+                        role = MessageRole(role_str)
+                    except ValueError:
+                        role = MessageRole.USER
+
+                    input_items.append(
+                        MessageItem(
+                            role=role,
+                            content=item["content"],
+                        ),
+                    )
+                elif item["type"] == "function_call":
+                    input_items.append(
+                        FunctionCallItem(
+                            call_id=item.get("call_id", ""),
+                            name=item.get("name", ""),
+                            arguments=item.get("arguments", ""),
+                        ),
+                    )
+
         elif isinstance(request_input, str):
             # Simple string input
             input_items.append(
@@ -529,6 +551,7 @@ class OpenAIParser(ProviderParser):
         # Extract result from response
         result = None
         finish_reason = None
+        output_items: list[OutputItem] = []
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
@@ -541,18 +564,65 @@ class OpenAIParser(ProviderParser):
             output = response_body.get("output")
             if output:
                 if isinstance(output, str):
-                    result = output
+                    # String output - create a simple message item
+                    output_items.append(
+                        OutputMessageItem(
+                            id=f"msg_{response_body.get('id', 'unknown')}",
+                            content=[OutputMessageContent(type="text", text=output)],
+                            status="completed",
+                        ),
+                    )
                 elif isinstance(output, dict):
-                    result = output.get("content") or output.get("text")
+                    # Dict output - extract text content
+                    text = output.get("content") or output.get("text")
+                    if text:
+                        output_items.append(
+                            OutputMessageItem(
+                                id=f"msg_{response_body.get('id', 'unknown')}",
+                                content=[OutputMessageContent(type="text", text=text)],
+                                status="completed",
+                            ),
+                        )
                 elif isinstance(output, list) and output:
-                    # If output is a list, join text content
-                    texts = []
-                    for item in output:
+                    # List output - this is the proper Responses API format
+                    for idx, item in enumerate(output):
                         if isinstance(item, str):
-                            texts.append(item)
+                            output_items.append(
+                                OutputMessageItem(
+                                    id=f"msg_{response_body.get('id', 'unknown')}_{idx}",
+                                    content=[
+                                        OutputMessageContent(type="text", text=item),
+                                    ],
+                                    status="completed",
+                                ),
+                            )
                         elif isinstance(item, dict):
-                            texts.append(item.get("content") or item.get("text") or "")
-                    result = "\n".join(texts) if texts else None
+                            item_type = item.get("type", "message")
+                            if item_type == "message":
+                                # Proper message item from Responses API
+                                output_items.append(
+                                    OutputMessageItem(
+                                        id=item.get("id", f"msg_{idx}"),
+                                        content=item.get("content", []),
+                                        status=item.get("status", "completed"),
+                                    ),
+                                )
+                            else:
+                                # Other types - extract text if possible
+                                text = item.get("content") or item.get("text")
+                                if text:
+                                    output_items.append(
+                                        OutputMessageItem(
+                                            id=f"msg_{response_body.get('id', 'unknown')}_{idx}",
+                                            content=[
+                                                OutputMessageContent(
+                                                    type="text",
+                                                    text=str(text),
+                                                ),
+                                            ],
+                                            status="completed",
+                                        ),
+                                    )
 
             # Extract finish reason
             finish_reason_str = response_body.get("finish_reason")
@@ -621,7 +691,7 @@ class OpenAIParser(ProviderParser):
         return TraceCreate(
             project=project,
             model=model,
-            result=result,
+            output=output_items,
             error=error,
             started_at=started_at,
             completed_at=completed_at,

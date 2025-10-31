@@ -5,10 +5,10 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from app.models.projects import Project
-from app.models.traces import Trace, TraceInputItem
+from app.models.traces import Trace, TraceInputItem, TraceOutputItem
 from app.schemas.traces import TraceCreate
 from app.services.implementation_matcher import (
     extract_system_prompt_from_trace,
@@ -60,7 +60,6 @@ class TracesService:
             project_id=project.id,
             http_trace_id=http_trace_id,
             model=trace_data.model,
-            result=trace_data.result,
             error=trace_data.error,
             started_at=trace_data.started_at,
             completed_at=trace_data.completed_at,
@@ -93,6 +92,18 @@ class TracesService:
                     position=position,
                 ),
             )
+
+        # Add output items if present
+        if trace_data.output:
+            for position, item in enumerate(trace_data.output):
+                item_data = item.model_dump(mode="json", exclude={"type"})
+                trace.output_items.append(
+                    TraceOutputItem(
+                        type=item.type,
+                        data=item_data,
+                        position=position,
+                    ),
+                )
 
         # Save trace
         session.add(trace)
@@ -208,11 +219,14 @@ class TracesService:
         """
         query = (
             select(Trace)
-            .options(selectinload(Trace.input_items))
+            .options(
+                joinedload(Trace.input_items),
+                joinedload(Trace.output_items),
+            )
             .where(Trace.id == trace_id)
         )
         result = await session.execute(query)
-        return result.scalar_one()
+        return result.unique().scalar_one()
 
     def _serialize_tools(
         self,
@@ -335,21 +349,20 @@ class TracesService:
             )
 
             # Use TaskGrouper to create task and implementations
-            grouper = TaskGrouper(min_cluster_size=self.min_cluster_size)
+            grouper = TaskGrouper(session, min_cluster_size=self.min_cluster_size)
 
             # Reload trace with input items for grouper
             reload_query = (
                 select(Trace)
                 .where(Trace.id == trace.id)
-                .options(selectinload(Trace.input_items))
+                .options(joinedload(Trace.input_items))
             )
             reload_result = await session.execute(reload_query)
-            trace_with_items = reload_result.scalar_one()
+            trace_with_items = reload_result.unique().scalar_one()
 
             # Try to find or create task
             task = await grouper.find_or_create_task_for_trace(
                 trace_with_items.id,
-                session,
             )
 
             if task:

@@ -17,15 +17,19 @@ class TestTraceEndpoints:
     """Test trace CRUD operations."""
 
     async def test_create_trace_with_default_project(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
+        self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test creating a trace with default project."""
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-            "result": "Hi there!",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Hi there!"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Default Project",
@@ -36,7 +40,8 @@ class TestTraceEndpoints:
 
         data = response.json()
         assert data["model"] == "gpt-4"
-        assert data["result"] == "Hi there!"
+        assert len(data["output"]) == 1
+        assert data["output"][0]["type"] == "message"
         assert data["project_id"] == 1  # First project
         assert len(data["input"]) == 1
         assert data["input"][0]["data"]["role"] == "user"
@@ -51,15 +56,19 @@ class TestTraceEndpoints:
         assert project.name == "Default Project"
 
     async def test_create_trace_with_custom_project(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
+        self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test creating a trace with a custom project."""
         payload = {
             "model": "gpt-3.5-turbo",
             "input": [{"type": "message", "role": "user", "content": "Test"}],
-            "result": "Response",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Custom Project",
@@ -89,7 +98,13 @@ class TestTraceEndpoints:
                 {"type": "message", "role": "assistant", "content": "Hi!"},
                 {"type": "message", "role": "user", "content": "How are you?"},
             ],
-            "result": "I'm doing well!",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "I'm doing well!"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:02Z",
         }
@@ -111,7 +126,13 @@ class TestTraceEndpoints:
             "input": [
                 {"type": "message", "role": "user", "content": "Search for weather"},
             ],
-            "result": "Searching...",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Searching..."}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "tools": [
@@ -168,7 +189,13 @@ class TestTraceEndpoints:
                     "result": "Sunny, 72F",
                 },
             ],
-            "result": "It's sunny and 72F in NYC",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "It's sunny and 72F in NYC"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:03Z",
         }
@@ -196,14 +223,20 @@ class TestTraceEndpoints:
 
         data = response.json()
         assert data["error"] == "API rate limit exceeded"
-        assert data["result"] is None
+        assert len(data["output"]) == 0
 
     async def test_create_trace_with_path(self, client: AsyncClient):
         """Test creating a trace with a call path."""
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Test"}],
-            "result": "Response",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response"}],
+                },
+            ],
             "path": "module.function:123 -> helpers.process:45",
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
@@ -351,21 +384,25 @@ class TestTraceEndpoints:
 
         data = response.json()
         assert data["model"] == "gpt-4"
-        assert data["result"] is None
+        assert len(data["output"]) == 0
         assert data["error"] is None
         assert data["input"] == []
 
     async def test_create_trace_reuses_existing_project(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
+        self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test that creating traces with same project name reuses the project."""
         # Create first trace with project
         payload1 = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "First"}],
-            "result": "Response 1",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response 1"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Shared Project",
@@ -378,7 +415,13 @@ class TestTraceEndpoints:
         payload2 = {
             "model": "gpt-3.5-turbo",
             "input": [{"type": "message", "role": "user", "content": "Second"}],
-            "result": "Response 2",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response 2"}],
+                },
+            ],
             "started_at": "2025-10-15T10:01:00Z",
             "completed_at": "2025-10-15T10:01:01Z",
             "project": "Shared Project",
@@ -402,7 +445,13 @@ class TestTraceEndpoints:
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Test"}],
-            "result": "Response",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -415,7 +464,7 @@ class TestTraceEndpoints:
         assert "id" in data
         assert "project_id" in data
         assert "model" in data
-        assert "result" in data
+        assert "output" in data
         assert "error" in data
         assert "path" in data
         assert "started_at" in data
@@ -499,7 +548,13 @@ class TestTraceEndpoints:
         payload = {
             "model": "gpt-3.5-turbo",
             "input": [{"type": "message", "role": "user", "content": "Quick test"}],
-            "result": "Quick response",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Quick response"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "total_tokens": 100,  # Only total_tokens provided
@@ -514,9 +569,7 @@ class TestTraceEndpoints:
         assert data["completion_tokens"] is None
 
     async def test_create_trace_with_implementation_id(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
+        self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test creating a trace with an associated implementation_id."""
         from app.models.tasks import Implementation, Task
@@ -528,6 +581,8 @@ class TestTraceEndpoints:
 
         # Create a task
         task = Task(
+            name="Test Task",
+            description="Test task for trace with implementation",
             project_id=project.id,
         )
         test_session.add(task)
@@ -556,7 +611,13 @@ class TestTraceEndpoints:
                     "content": "What is the weather in NYC?",
                 },
             ],
-            "result": "It's sunny and 72F",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "It's sunny and 72F"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
             "project": "Test Project",
@@ -571,9 +632,7 @@ class TestTraceEndpoints:
         assert data["model"] == "gpt-4"
 
         # Verify the trace is linked to the implementation in the database
-        result = await test_session.execute(
-            select(Trace).where(Trace.id == data["id"]),
-        )
+        result = await test_session.execute(select(Trace).where(Trace.id == data["id"]))
         trace = result.scalar_one()
         assert trace.implementation_id == implementation.id
 
@@ -582,7 +641,13 @@ class TestTraceEndpoints:
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Test"}],
-            "result": "Response",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Response"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -631,7 +696,15 @@ class TestTraceEndpoints:
                     "result": {"width": 1920, "height": 1080},
                 },
             ],
-            "result": "The image contains a cat and a dog",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [
+                        {"type": "text", "text": "The image contains a cat and a dog"},
+                    ],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:05Z",
             "finish_reason": "stop",
@@ -673,7 +746,18 @@ class TestTraceEndpoints:
                     },
                 },
             ],
-            "result": "Autumn leaves fall down\nCrisp air whispers through the trees\nNature's canvas glows",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Autumn leaves fall down\nCrisp air whispers through the trees\nNature's canvas glows",
+                        },
+                    ],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:03Z",
             "prompt_tokens": 45,
@@ -707,7 +791,13 @@ class TestTraceEndpoints:
                 "effort": "high",
                 "summary": "auto",
             },
-            "result": "x = 4",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "x = 4"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:05Z",
             "prompt_tokens": 20,
@@ -729,9 +819,7 @@ class TestTraceEndpoints:
         assert data["temperature"] == 1.0
 
     async def test_get_trace_http_trace(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
+        self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test fetching HTTP trace data for a trace."""
         # First create an HTTP trace
@@ -756,7 +844,13 @@ class TestTraceEndpoints:
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-            "result": "Hi there!",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Hi there!"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -795,16 +889,19 @@ class TestTraceEndpoints:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    async def test_get_trace_http_trace_no_http_trace(
-        self,
-        client: AsyncClient,
-    ):
+    async def test_get_trace_http_trace_no_http_trace(self, client: AsyncClient):
         """Test fetching HTTP trace for trace without HTTP trace."""
         # Create a trace without HTTP trace
         payload = {
             "model": "gpt-4",
             "input": [{"type": "message", "role": "user", "content": "Hello"}],
-            "result": "Hi there!",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Hi there!"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -837,7 +934,18 @@ class TestTraceEndpoints:
                 },
                 {"type": "message", "role": "user", "content": "Tell me more."},
             ],
-            "result": "Python is a high-level, interpreted programming language.",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Python is a high-level, interpreted programming language.",
+                        },
+                    ],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -881,7 +989,13 @@ class TestTraceEndpoints:
                     "content": "System instruction 2",
                 },
             ],
-            "result": "Result",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Result"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }
@@ -902,7 +1016,13 @@ class TestTraceEndpoints:
                 {"type": "message", "role": "user", "content": "Hello"},
                 {"type": "message", "role": "assistant", "content": "Hi"},
             ],
-            "result": "Hi",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg-1",
+                    "content": [{"type": "text", "text": "Hi"}],
+                },
+            ],
             "started_at": "2025-10-15T10:00:00Z",
             "completed_at": "2025-10-15T10:00:01Z",
         }

@@ -1,7 +1,7 @@
 """Tests for test cases API endpoints."""
 
+
 import pytest
-from datetime import datetime, timezone
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -18,19 +18,22 @@ async def test_create_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": "Test case for accuracy",
         "arguments": {"input": "What is 2+2?", "user_id": "123"},
-        "expected_output": "4"
+        "expected_output": "4",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["description"] == "Test case for accuracy"
     assert data["arguments"] == {"input": "What is 2+2?", "user_id": "123"}
@@ -44,7 +47,7 @@ async def test_create_test_case(client: AsyncClient, test_session):
     test_case_query = select(TestCase).where(TestCase.id == data["id"])
     test_case_result = await test_session.execute(test_case_query)
     test_case = test_case_result.scalar_one()
-    
+
     assert test_case.description == "Test case for accuracy"
     assert test_case.arguments == {"input": "What is 2+2?", "user_id": "123"}
     assert test_case.expected_output == "4"
@@ -57,17 +60,20 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
-        "expected_output": "Expected result"
+        "expected_output": "Expected result",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None
@@ -81,12 +87,12 @@ async def test_create_test_case_task_not_found(client: AsyncClient):
     payload = {
         "task_id": 999,
         "description": "Test case",
-        "expected_output": "Expected result"
+        "expected_output": "Expected result",
     }
 
     response = await client.post("/v1/test-cases", json=payload)
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Task with id 999 not found" in data["detail"]
 
@@ -98,7 +104,10 @@ async def test_create_test_case_validation_error(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -118,7 +127,10 @@ async def test_list_test_cases(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -127,31 +139,29 @@ async def test_list_test_cases(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1",
-    )
+        expected_output="expected1")
     test_session.add(test_case1)
 
     test_case2 = TestCase(
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2",
-    )
+        expected_output="expected2")
     test_session.add(test_case2)
 
     await test_session.commit()
 
     response = await client.get(f"/v1/test-cases?task_id={task.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 2
-    
+
     # Check that both test cases are present
     descriptions = [tc["description"] for tc in data]
     assert "Test case 1" in descriptions
     assert "Test case 2" in descriptions
-    
+
     # Check response format
     for test_case in data:
         assert "id" in test_case
@@ -167,13 +177,16 @@ async def test_list_test_cases_empty(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     response = await client.get(f"/v1/test-cases?task_id={task.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert len(data) == 0
 
@@ -183,7 +196,7 @@ async def test_list_test_cases_task_not_found(client: AsyncClient):
     """Test listing test cases for non-existent task."""
     response = await client.get("/v1/test-cases?task_id=999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Task with id 999 not found" in data["detail"]
 
@@ -195,7 +208,10 @@ async def test_get_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -203,14 +219,13 @@ async def test_get_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case for retrieval",
         arguments={"input": "test input"},
-        expected_output="expected output",
-    )
+        expected_output="expected output")
     test_session.add(test_case)
     await test_session.commit()
 
     response = await client.get(f"/v1/test-cases/{test_case.id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["id"] == test_case.id
     assert data["description"] == "Test case for retrieval"
@@ -226,7 +241,7 @@ async def test_get_test_case_not_found(client: AsyncClient):
     """Test getting a non-existent test case."""
     response = await client.get("/v1/test-cases/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Test case with id 999 not found" in data["detail"]
 
@@ -238,7 +253,10 @@ async def test_update_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -246,19 +264,18 @@ async def test_update_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected",
-    )
+        expected_output="original expected")
     test_session.add(test_case)
     await test_session.commit()
 
     payload = {
         "description": "Updated description",
-        "expected_output": "Updated expected output"
+        "expected_output": "Updated expected output",
     }
 
     response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["description"] == "Updated description"
     assert data["expected_output"] == "Updated expected output"
@@ -273,7 +290,10 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -281,18 +301,17 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected",
-    )
+        expected_output="original expected")
     test_session.add(test_case)
     await test_session.commit()
 
     payload = {
-        "description": "Updated description only"
+        "description": "Updated description only",
     }
 
     response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["description"] == "Updated description only"
     assert data["expected_output"] == "original expected"  # Should remain unchanged
@@ -303,12 +322,12 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
 async def test_update_test_case_not_found(client: AsyncClient):
     """Test updating a non-existent test case."""
     payload = {
-        "description": "Updated description"
+        "description": "Updated description",
     }
 
     response = await client.patch("/v1/test-cases/999", json=payload)
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Test case with id 999 not found" in data["detail"]
 
@@ -320,7 +339,10 @@ async def test_delete_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -328,8 +350,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case to delete",
         arguments={"input": "test input"},
-        expected_output="expected output",
-    )
+        expected_output="expected output")
     test_session.add(test_case)
     await test_session.commit()
 
@@ -348,7 +369,7 @@ async def test_delete_test_case_not_found(client: AsyncClient):
     """Test deleting a non-existent test case."""
     response = await client.delete("/v1/test-cases/999")
     assert response.status_code == 404
-    
+
     data = response.json()
     assert "Test case with id 999 not found" in data["detail"]
 
@@ -360,7 +381,10 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -368,7 +392,7 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
         "messages": [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
-            {"role": "user", "content": "What's 2+2?"}
+            {"role": "user", "content": "What's 2+2?"},
         ],
         "temperature": 0.7,
         "max_tokens": 100,
@@ -376,20 +400,20 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
             "session_id": "abc123",
             "user_preferences": {
                 "language": "en",
-                "style": "formal"
-            }
-        }
+                "style": "formal",
+            },
+        },
     }
 
     payload = {
         "description": "Complex test case with nested arguments",
         "arguments": complex_arguments,
-        "expected_output": "4"
+        "expected_output": "4",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["arguments"] == complex_arguments
     assert data["description"] == "Complex test case with nested arguments"
@@ -402,7 +426,10 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -410,12 +437,12 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
 
     payload = {
         "description": long_description,
-        "expected_output": "Expected result"
+        "expected_output": "Expected result",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 422
-    
+
     data = response.json()
     # Check that validation error occurred for description length
     assert "detail" in data
@@ -428,19 +455,22 @@ async def test_test_case_with_empty_arguments(client: AsyncClient, test_session)
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": "Test case with empty arguments",
         "arguments": {},
-        "expected_output": "Expected result"
+        "expected_output": "Expected result",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["arguments"] == {}
 
@@ -452,19 +482,22 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": None,
         "arguments": None,
-        "expected_output": "Expected result"
+        "expected_output": "Expected result",
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
     assert response.status_code == 201
-    
+
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None

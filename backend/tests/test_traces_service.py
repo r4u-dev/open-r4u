@@ -27,7 +27,10 @@ async def project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def task(test_session: AsyncSession, project: Project) -> Task:
     """Create a test task."""
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
     return task
@@ -40,8 +43,7 @@ async def implementation(test_session: AsyncSession, task: Task) -> Implementati
         task_id=task.id,
         prompt="Hello, {name}! You are user #{user_id}.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.flush()
     return impl
@@ -61,8 +63,7 @@ class TestTracesServiceCreate:
         self,
         test_session: AsyncSession,
         traces_service: TracesService,
-        implementation: Implementation,
-    ):
+        implementation: Implementation):
         """Test creating a trace that auto-matches an implementation."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -75,10 +76,9 @@ class TestTracesServiceCreate:
                 },
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi there!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi there!"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -86,7 +86,7 @@ class TestTracesServiceCreate:
         assert trace.implementation_id == implementation.id
         assert trace.prompt_variables == {"name": "Alice", "user_id": "42"}
         assert trace.model == "gpt-4"
-        assert trace.result == "Hi there!"
+        assert len(trace.output_items) == 1
 
         # Verify in database
         result = await test_session.execute(select(Trace).where(Trace.id == trace.id))
@@ -99,8 +99,7 @@ class TestTracesServiceCreate:
         self,
         test_session: AsyncSession,
         traces_service: TracesService,
-        implementation: Implementation,
-    ):
+        implementation: Implementation):
         """Test creating a trace with explicit implementation_id (no auto-matching)."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -113,10 +112,9 @@ class TestTracesServiceCreate:
                     "content": "Different prompt that won't match.",
                 },
             ],
-            result="Response",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Response"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -128,8 +126,7 @@ class TestTracesServiceCreate:
         self,
         test_session: AsyncSession,
         traces_service: TracesService,
-        project: Project,
-    ):
+        project: Project):
         """Test creating a trace when no implementation matches."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -141,24 +138,22 @@ class TestTracesServiceCreate:
                     "content": "This won't match any implementation.",
                 },
             ],
-            result="Response",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Response"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
         assert trace.id is not None
         assert trace.implementation_id is None
         assert trace.prompt_variables is None
-        assert trace.result == "Response"
+        assert len(trace.output_items) == 1
 
     @pytest.mark.asyncio
     async def test_create_trace_with_new_project(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test creating a trace that auto-creates a new project."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -166,10 +161,9 @@ class TestTracesServiceCreate:
             input=[
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi!"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -178,8 +172,7 @@ class TestTracesServiceCreate:
 
         # Verify project was created
         result = await test_session.execute(
-            select(Project).where(Project.name == "New Project"),
-        )
+            select(Project).where(Project.name == "New Project"))
         project = result.scalar_one_or_none()
         assert project is not None
         assert trace.project_id == project.id
@@ -188,8 +181,7 @@ class TestTracesServiceCreate:
     async def test_create_trace_with_http_trace_id(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test creating a trace with http_trace_id."""
         # Create HTTP trace first
         http_trace = HTTPTrace(
@@ -199,8 +191,7 @@ class TestTracesServiceCreate:
             request="POST /v1/chat/completions",
             request_headers={},
             response='{"choices":[]}',
-            response_headers={},
-        )
+            response_headers={})
         test_session.add(http_trace)
         await test_session.flush()
 
@@ -210,16 +201,14 @@ class TestTracesServiceCreate:
             input=[
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi!"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(
             trace_data,
             test_session,
-            http_trace_id=http_trace.id,
-        )
+            http_trace_id=http_trace.id)
 
         assert trace.http_trace_id == http_trace.id
 
@@ -227,8 +216,7 @@ class TestTracesServiceCreate:
     async def test_create_trace_with_all_fields(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test creating a trace with all optional fields."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -237,7 +225,7 @@ class TestTracesServiceCreate:
                 {"type": "message", "role": "system", "content": "You are helpful."},
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi there!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi there!"}]}],
             error=None,
             path="/api/chat",
             started_at="2025-10-15T10:00:00Z",
@@ -254,8 +242,7 @@ class TestTracesServiceCreate:
             finish_reason="stop",
             system_fingerprint="fp_123",
             response_schema={"type": "object"},
-            trace_metadata={"custom": "data"},
-        )
+            trace_metadata={"custom": "data"})
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -277,8 +264,7 @@ class TestTracesServiceCreate:
     async def test_create_trace_with_tools(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test creating a trace with tool definitions."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -286,7 +272,7 @@ class TestTracesServiceCreate:
             input=[
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi!"}]}],
             started_at="2025-10-15T10:00:00Z",
             completed_at="2025-10-15T10:00:01Z",
             tools=[
@@ -298,8 +284,7 @@ class TestTracesServiceCreate:
                         "parameters": {"type": "object"},
                     },
                 },
-            ],
-        )
+            ])
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -312,8 +297,7 @@ class TestTracesServiceCreate:
     async def test_create_trace_with_reasoning(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test creating a trace with reasoning configuration."""
         from app.schemas.traces import Reasoning
 
@@ -323,11 +307,10 @@ class TestTracesServiceCreate:
             input=[
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi!"}]}],
             started_at="2025-10-15T10:00:00Z",
             completed_at="2025-10-15T10:00:01Z",
-            reasoning=Reasoning(effort="high", summary="detailed"),
-        )
+            reasoning=Reasoning(effort="high", summary="detailed"))
 
         trace = await traces_service.create_trace(trace_data, test_session)
 
@@ -341,8 +324,7 @@ class TestTracesServiceCreate:
         test_session: AsyncSession,
         traces_service: TracesService,
         implementation: Implementation,
-        monkeypatch,
-    ):
+        monkeypatch):
         """Test that trace creation succeeds even if matching fails."""
         from app.services import implementation_matcher
 
@@ -353,8 +335,7 @@ class TestTracesServiceCreate:
         monkeypatch.setattr(
             implementation_matcher,
             "find_matching_implementation",
-            mock_find_matching,
-        )
+            mock_find_matching)
 
         trace_data = TraceCreate(
             model="gpt-4",
@@ -362,10 +343,9 @@ class TestTracesServiceCreate:
             input=[
                 {"type": "message", "role": "user", "content": "Hello!"},
             ],
-            result="Hi!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi!"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         # Should not raise, trace should be created
         trace = await traces_service.create_trace(trace_data, test_session)
@@ -378,8 +358,7 @@ class TestTracesServiceCreate:
     async def test_create_trace_with_input_items(
         self,
         test_session: AsyncSession,
-        traces_service: TracesService,
-    ):
+        traces_service: TracesService):
         """Test that input items are properly created."""
         trace_data = TraceCreate(
             model="gpt-4",
@@ -389,10 +368,9 @@ class TestTracesServiceCreate:
                 {"type": "message", "role": "user", "content": "Hello!"},
                 {"type": "message", "role": "assistant", "content": "Hi there!"},
             ],
-            result="Hi there!",
+            output=[{"type": "message", "id": "msg-1", "content": [{"type": "text", "text": "Hi there!"}]}],
             started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
+            completed_at="2025-10-15T10:00:01Z")
 
         trace = await traces_service.create_trace(trace_data, test_session)
 

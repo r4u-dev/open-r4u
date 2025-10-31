@@ -35,7 +35,10 @@ async def project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def task(test_session: AsyncSession, project: Project) -> Task:
     """Create a test task."""
-    task = Task(project_id=project.id)
+    task = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id)
     test_session.add(task)
     await test_session.flush()
     return task
@@ -50,10 +53,7 @@ async def test_extract_system_prompt_from_input_items(test_session: AsyncSession
 
     trace = Trace(
         project_id=project.id,
-        model="gpt-4",
-        result="Response",
-        started_at=datetime(2025, 10, 17, 10, 0, 0, tzinfo=UTC),
-    )
+        model="gpt-4", started_at=datetime(2025, 10, 17, 10, 0, 0, tzinfo=UTC))
     test_session.add(trace)
     await test_session.flush()
 
@@ -62,8 +62,7 @@ async def test_extract_system_prompt_from_input_items(test_session: AsyncSession
         trace_id=trace.id,
         type=ItemType.MESSAGE,
         data={"role": "system", "content": "You are a helpful assistant."},
-        position=0,
-    )
+        position=0)
     test_session.add(input_item)
     await test_session.commit()
 
@@ -87,16 +86,14 @@ async def test_extract_system_prompt_from_input_items(test_session: AsyncSession
 async def test_trace_auto_matches_to_implementation(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test that a trace automatically matches an implementation."""
     # Create an implementation with a template
     impl = Implementation(
         task_id=task.id,
         prompt="Greet user {name} politely.",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -129,16 +126,14 @@ async def test_trace_auto_matches_to_implementation(
 async def test_multiple_traces_match_same_implementation(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test that multiple traces match the same implementation with different variables."""
     # Create an implementation
     impl = Implementation(
         task_id=task.id,
         prompt="Say hello to {name} from {location}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -177,12 +172,17 @@ async def test_multiple_traces_match_same_implementation(
 async def test_traces_with_different_paths_match_different_implementations(
     test_session: AsyncSession,
     client: AsyncClient,
-    project: Project,
-):
+    project: Project):
     """Test that traces with different contexts match different implementations."""
     # Create task and implementations for different purposes
-    task1 = Task(project_id=project.id, path="/api/greet")
-    task2 = Task(project_id=project.id, path="/api/weather")
+    task1 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/greet")
+    task2 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project.id, path="/api/weather")
     test_session.add_all([task1, task2])
     await test_session.flush()
 
@@ -190,14 +190,12 @@ async def test_traces_with_different_paths_match_different_implementations(
         task_id=task1.id,
         prompt="Greet user {name}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     impl2 = Implementation(
         task_id=task2.id,
         prompt="Get weather for {city}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add_all([impl1, impl2])
     await test_session.commit()
 
@@ -236,15 +234,13 @@ async def test_traces_with_different_paths_match_different_implementations(
 async def test_placeholder_extraction_with_special_characters(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test placeholder extraction with special characters like emails and numbers."""
     impl = Implementation(
         task_id=task.id,
         prompt="User {email} from account {account_id}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -277,15 +273,13 @@ async def test_placeholder_extraction_with_special_characters(
 async def test_no_match_when_structure_differs(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test that traces don't match when the structure is completely different."""
     impl = Implementation(
         task_id=task.id,
         prompt="Greet user {name}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -333,8 +327,7 @@ async def test_template_matching_is_case_sensitive():
 async def test_multiline_template_matching(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test matching with multiline templates."""
     impl = Implementation(
         task_id=task.id,
@@ -342,8 +335,7 @@ async def test_multiline_template_matching(
 User: {name}
 Task: {task}""",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -379,8 +371,7 @@ Task: Review code""",
 async def test_first_implementation_wins_when_multiple_match(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test that when multiple implementations match, the first one is used."""
     # Create two implementations with same template
     impl1 = Implementation(
@@ -388,8 +379,7 @@ async def test_first_implementation_wins_when_multiple_match(
         prompt="Hello {name}",
         model="gpt-4",
         max_output_tokens=1000,
-        version="1.0",
-    )
+        version="1.0")
     test_session.add(impl1)
     await test_session.flush()
 
@@ -398,8 +388,7 @@ async def test_first_implementation_wins_when_multiple_match(
         prompt="Hello {name}",
         model="gpt-4",
         max_output_tokens=2000,
-        version="2.0",
-    )
+        version="2.0")
     test_session.add(impl2)
     await test_session.commit()
 
@@ -425,15 +414,13 @@ async def test_first_implementation_wins_when_multiple_match(
 async def test_model_must_match_for_implementation_matching(
     test_session: AsyncSession,
     client: AsyncClient,
-    task: Task,
-):
+    task: Task):
     """Test that model name must match for implementation matching."""
     impl = Implementation(
         task_id=task.id,
         prompt="Hello {name}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add(impl)
     await test_session.commit()
 
@@ -458,8 +445,7 @@ async def test_model_must_match_for_implementation_matching(
 @pytest.mark.asyncio
 async def test_project_isolation_in_matching(
     test_session: AsyncSession,
-    client: AsyncClient,
-):
+    client: AsyncClient):
     """Test that implementations from different projects don't match."""
     # Create two projects with similar implementations
     project1 = Project(name="Project 1")
@@ -467,8 +453,14 @@ async def test_project_isolation_in_matching(
     test_session.add_all([project1, project2])
     await test_session.flush()
 
-    task1 = Task(project_id=project1.id)
-    task2 = Task(project_id=project2.id)
+    task1 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project1.id)
+    task2 = Task(
+        name="Test Task",
+        description="Test task",
+        project_id=project2.id)
     test_session.add_all([task1, task2])
     await test_session.flush()
 
@@ -476,14 +468,12 @@ async def test_project_isolation_in_matching(
         task_id=task1.id,
         prompt="Hello {name}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     impl2 = Implementation(
         task_id=task2.id,
         prompt="Hello {name}",
         model="gpt-4",
-        max_output_tokens=1000,
-    )
+        max_output_tokens=1000)
     test_session.add_all([impl1, impl2])
     await test_session.commit()
 
@@ -510,16 +500,12 @@ async def test_project_isolation_in_matching(
 async def test_api_group_endpoint_is_disabled(
     client: AsyncClient,
     test_session: AsyncSession,
-    project: Project,
-):
+    project: Project):
     """Test that the old /traces/{id}/group endpoint is disabled/no-op."""
     trace = Trace(
         project_id=project.id,
         model="gpt-4",
-        instructions="Test",
-        result="Response",
-        started_at=datetime(2025, 10, 17, 10, 0, 0, tzinfo=UTC),
-    )
+        instructions="Test", started_at=datetime(2025, 10, 17, 10, 0, 0, tzinfo=UTC))
     test_session.add(trace)
     await test_session.commit()
 

@@ -8,8 +8,12 @@ from app.enums import FinishReason, MessageRole
 from app.schemas.traces import (
     FunctionCallItem,
     FunctionResultItem,
+    FunctionToolCallItem,
     InputItem,
     MessageItem,
+    OutputItem,
+    OutputMessageContent,
+    OutputMessageItem,
     TraceCreate,
 )
 from app.services.parsers.base import ProviderParser
@@ -79,7 +83,7 @@ class GoogleGenAIParser(ProviderParser):
 
                     input_items.append(
                         FunctionCallItem(
-                            id=func_id,
+                            call_id=func_id,
                             name=func_name,
                             arguments=func_args,
                         ),
@@ -119,6 +123,7 @@ class GoogleGenAIParser(ProviderParser):
         # Extract result from response
         result = None
         finish_reason = None
+        output_items: list[OutputItem] = []
         prompt_tokens = None
         completion_tokens = None
         total_tokens = None
@@ -147,13 +152,38 @@ class GoogleGenAIParser(ProviderParser):
 
                         input_items.append(
                             FunctionCallItem(
-                                id=func_id,
+                                call_id=func_id,
                                 name=func_name,
                                 arguments=func_args,
                             ),
                         )
 
-                result = "\n".join(text_parts) if text_parts else None
+                        # Also add to output items
+                        import json
+
+                        output_items.append(
+                            FunctionToolCallItem(
+                                id=func_id,
+                                call_id=func_id,
+                                name=func_name,
+                                arguments=json.dumps(func_args),
+                                status="completed",
+                            ),
+                        )
+
+                # Create output message item if we have text content
+                if text_parts:
+                    combined_text = "\n".join(text_parts)
+                    output_items.insert(
+                        0,
+                        OutputMessageItem(
+                            id=f"msg_{response_body.get('name', 'unknown')}",
+                            content=[
+                                OutputMessageContent(type="text", text=combined_text),
+                            ],
+                            status="completed",
+                        ),
+                    )
 
                 # Extract finish reason
                 finish_reason_str = candidate.get("finishReason")
@@ -193,7 +223,7 @@ class GoogleGenAIParser(ProviderParser):
         return TraceCreate(
             project=project,
             model=model,
-            result=result,
+            output=output_items,
             error=error,
             started_at=started_at,
             completed_at=completed_at,

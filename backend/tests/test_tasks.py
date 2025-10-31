@@ -14,6 +14,8 @@ async def test_create_task(client: AsyncClient, test_session):
     payload = {
         "project": "Test Project",
         "path": "/api/chat",
+        "name": "Test Chat Task",
+        "description": "A test task for chat functionality",
         "implementation": {
             "version": "0.1",
             "prompt": "You are a helpful assistant",
@@ -50,6 +52,8 @@ async def test_create_task_with_tools(client: AsyncClient, test_session):
     payload = {
         "project": "Test Project",
         "path": "/api/weather",
+        "name": "Weather Task",
+        "description": "A test task for weather information",
         "implementation": {
             "prompt": "Get weather information",
             "model": "gpt-4",
@@ -95,22 +99,29 @@ async def test_list_tasks(client: AsyncClient, test_session):
     await test_session.flush()
 
     # Create tasks with implementations
-    task1 = Task(project_id=project.id, path="/api/chat")
+    task1 = Task(
+        project_id=project.id,
+        path="/api/chat",
+        name="Chat Task",
+        description="Chat assistant task",
+    )
     test_session.add(task1)
     await test_session.flush()
 
     impl1 = Implementation(
-        task_id=task1.id,
-        prompt="Chat assistant",
-        model="gpt-4",
-        max_output_tokens=1000,
+        task_id=task1.id, prompt="Chat assistant", model="gpt-4", max_output_tokens=1000,
     )
     test_session.add(impl1)
     await test_session.flush()
 
     task1.production_version_id = impl1.id
 
-    task2 = Task(project_id=project.id, path="/api/search")
+    task2 = Task(
+        project_id=project.id,
+        path="/api/search",
+        name="Search Task",
+        description="Search assistant task",
+    )
     test_session.add(task2)
     await test_session.flush()
 
@@ -147,8 +158,18 @@ async def test_list_tasks_by_project(client: AsyncClient, test_session):
     await test_session.flush()
 
     # Create tasks
-    task1 = Task(project_id=project1.id, path="/api/v1")
-    task2 = Task(project_id=project2.id, path="/api/v2")
+    task1 = Task(
+        project_id=project1.id,
+        path="/api/v1",
+        name="V1 Task",
+        description="Version 1 task",
+    )
+    task2 = Task(
+        project_id=project2.id,
+        path="/api/v2",
+        name="V2 Task",
+        description="Version 2 task",
+    )
     test_session.add_all([task1, task2])
     await test_session.flush()
 
@@ -183,18 +204,17 @@ async def test_get_task(client: AsyncClient, test_session):
     await test_session.flush()
 
     task = Task(
-        project_id=project.id, 
+        project_id=project.id,
         path="/api/test",
-        response_schema={"type": "object"}
+        name="Test Task",
+        description="A test task",
+        response_schema={"type": "object"},
     )
     test_session.add(task)
     await test_session.flush()
 
     implementation = Implementation(
-        task_id=task.id,
-        prompt="Test prompt",
-        model="gpt-4",
-        max_output_tokens=2000,
+        task_id=task.id, prompt="Test prompt", model="gpt-4", max_output_tokens=2000,
     )
     test_session.add(implementation)
     await test_session.flush()
@@ -226,15 +246,17 @@ async def test_delete_task(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(project_id=project.id, path="/api/test")
+    task = Task(
+        project_id=project.id,
+        path="/api/test",
+        name="Deletable Task",
+        description="A task to be deleted",
+    )
     test_session.add(task)
     await test_session.flush()
 
     implementation = Implementation(
-        task_id=task.id,
-        prompt="Test",
-        model="gpt-4",
-        max_output_tokens=1000,
+        task_id=task.id, prompt="Test", model="gpt-4", max_output_tokens=1000,
     )
     test_session.add(implementation)
     await test_session.flush()
@@ -275,6 +297,8 @@ async def test_create_task_with_reasoning(client: AsyncClient):
     payload = {
         "project": "Test Project",
         "path": "/api/reason",
+        "name": "Reasoning Task",
+        "description": "A task with reasoning configuration",
         "implementation": {
             "prompt": "Solve this problem",
             "model": "o1-preview",
@@ -298,13 +322,15 @@ async def test_create_task_with_response_schema(client: AsyncClient, test_sessio
     payload = {
         "project": "Test Project",
         "path": "/api/structured",
+        "name": "Structured Response Task",
+        "description": "A task with structured response schema",
         "response_schema": {
             "type": "object",
             "properties": {
                 "summary": {"type": "string"},
-                "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
             },
-            "required": ["summary"]
+            "required": ["summary"],
         },
         "implementation": {
             "prompt": "Provide a structured response",
