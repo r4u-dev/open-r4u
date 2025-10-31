@@ -102,7 +102,7 @@ class TestExecutor:
         mock_settings.together_api_key = None
         
         executor = LLMExecutor(mock_settings)
-        prompt = "Hello, {name}! You are {age} years old."
+        prompt = "Hello, {{name}}! You are {{age}} years old."
         variables = {"name": "Alice", "age": 30}
         result = executor._render_prompt(prompt, variables)
         assert result == "Hello, Alice! You are 30 years old."
@@ -121,7 +121,7 @@ class TestExecutor:
         mock_settings.together_api_key = None
         
         executor = LLMExecutor(mock_settings)
-        prompt = "Hello, {name}!"
+        prompt = "Hello, {{name}}!"
         variables = {"age": 30}
 
         with pytest.raises(ValueError, match="Missing variable"):
