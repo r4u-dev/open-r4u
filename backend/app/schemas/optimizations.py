@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 
 from pydantic import BaseModel, Field, conlist, confloat, validator
 
@@ -34,3 +34,26 @@ class OptimizationResult(BaseModel):
     best_implementation_id: Optional[int]
     best_score: Optional[float]
     iterations_run: int
+    iterations: List["OptimizationIterationDetail"] = Field(default_factory=list)
+
+
+class OptimizationIterationGraderDetail(BaseModel):
+    score: Optional[float]
+    reasonings: List[str] = Field(default_factory=list)
+
+
+class OptimizationIterationEval(BaseModel):
+    implementation_id: int
+    version: Optional[str]
+    avg_cost: Optional[float]
+    avg_execution_time_ms: Optional[float]
+    final_score: Optional[float]
+    graders: List[OptimizationIterationGraderDetail] = Field(default_factory=list)
+
+
+class OptimizationIterationDetail(BaseModel):
+    iteration: int
+    proposed_changes: dict
+    candidate_implementation_id: Optional[int]
+    evaluation: Optional[OptimizationIterationEval]
+

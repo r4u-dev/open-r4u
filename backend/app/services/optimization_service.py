@@ -7,7 +7,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.schemas.optimizations import OptimizationResult, OptimizationMutableField
+from app.schemas.optimizations import (
+    OptimizationResult,
+    OptimizationMutableField,
+    OptimizationIterationDetail,
+    OptimizationIterationEval,
+    OptimizationIterationGraderDetail,
+)
 from app.config import get_settings, Settings
 from app.services.evaluation_service import EvaluationService
 from app.models.tasks import Task, Implementation
@@ -42,7 +48,6 @@ class OptimizationService:
         session: AsyncSession,
         task_id: int,
         max_iterations: int,
-        variants_per_iter: int,
         changeable_fields: List[OptimizationMutableField],
         improvement_threshold: float,
     ) -> OptimizationResult:
@@ -56,30 +61,30 @@ class OptimizationService:
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
 
         iterations_completed = 0
+        iteration_details: list[OptimizationIterationDetail] = []
         # Reset conversation for a fresh optimization run to avoid over-constraining the agent
         self._conversation[task_id] = []
         for iteration_index in range(max_iterations):
-            # Generate candidate variants using mocked agent
-            candidate_specs = await self._generate_variants(
+            # Generate a single candidate variant using the agent
+            candidate_spec = await self._generate_variant(
                 session=session,
                 task_id=task_id,
                 baseline_implementation_id=current_best_id,
                 changeable_fields=changeable_fields,
-                variants_per_iter=variants_per_iter,
             )
 
-            # Persist candidates as new implementations
-            candidate_impl_ids = await self._persist_variants(
+            # Persist the candidate as a new implementation
+            candidate_impl_id = await self._persist_variant(
                 session=session,
                 task_id=task_id,
                 current_implementation_id=current_best_id,
-                candidate_specs=candidate_specs,
+                candidate_spec=candidate_spec,
             )
 
-            # Evaluate candidates and collect scores
+            # Evaluate the candidate and collect score
             candidate_scores = await self._evaluate_implementations(
                 session=session,
-                implementation_ids=candidate_impl_ids,
+                implementation_ids=[candidate_impl_id] if candidate_impl_id is not None else [],
             )
 
             # Choose best between current and candidates
@@ -91,15 +96,30 @@ class OptimizationService:
 
             # Append evaluation feedback into conversation for future agent calls
             try:
-                await self._append_evaluation_feedback_to_conversation(
+                eval_summary_list = await self._append_evaluation_feedback_to_conversation(
                     session=session,
                     task_id=task_id,
-                    implementation_ids=candidate_impl_ids,
+                    implementation_ids=[candidate_impl_id] if candidate_impl_id is not None else [],
                     chosen_id=next_best_id,
                 )
             except Exception as e:
                 # Do not fail optimization run due to telemetry issues
                 logger.warning(f"Failed to append evaluation feedback: {e}")
+                eval_summary_list = []
+
+            eval_detail: Optional[OptimizationIterationEval] = None
+            if eval_summary_list:
+                eval_detail = self._convert_eval_summary_to_model(eval_summary_list[0])
+
+            # Record iteration detail
+            iteration_details.append(
+                OptimizationIterationDetail(
+                    iteration=iteration_index + 1,
+                    proposed_changes=candidate_spec or {},
+                    candidate_implementation_id=candidate_impl_id,
+                    evaluation=eval_detail,
+                )
+            )
 
             iterations_completed = iteration_index + 1
 
@@ -120,6 +140,27 @@ class OptimizationService:
             best_implementation_id=current_best_id,
             best_score=current_best_score,
             iterations_run=iterations_completed,
+            iterations=iteration_details,
+        )
+
+    def _convert_eval_summary_to_model(self, summary: Dict[str, Any]) -> OptimizationIterationEval:
+        """Convert internal evaluation summary dict to the schema model."""
+        graders_raw = summary.get("graders") or []
+        graders: list[OptimizationIterationGraderDetail] = []
+        for g in graders_raw:
+            graders.append(
+                OptimizationIterationGraderDetail(
+                    score=g.get("score"),
+                    reasonings=g.get("reasonings") or [],
+                )
+            )
+        return OptimizationIterationEval(
+            implementation_id=summary.get("implementation_id"),
+            version=summary.get("version"),
+            avg_cost=summary.get("avg_cost"),
+            avg_execution_time_ms=summary.get("avg_execution_time_ms"),
+            final_score=summary.get("final_score"),
+            graders=graders,
         )
 
     async def _load_baseline(
@@ -160,39 +201,34 @@ class OptimizationService:
 
         return best_impl_id, best_score
 
-    async def _generate_variants(
+    async def _generate_variant(
         self,
         session: AsyncSession,
         task_id: int,
         baseline_implementation_id: Optional[int],
         changeable_fields: List[OptimizationMutableField],
-        variants_per_iter: int,
-    ) -> List[Dict[str, Any]]:
-        """Return a list of variant specs to create new implementations from using an LLM agent.
+    ) -> Optional[Dict[str, Any]]:
+        """Return a single variant spec to create a new implementation using an LLM agent.
 
         The agent is prompted with a meta-prompt and the per-task conversation (which contains
         prior evaluation feedback). The agent returns a JSON object with field overrides from
-        the allowed `changeable_fields`. We call it repeatedly until reaching `variants_per_iter`.
+        the allowed `changeable_fields`.
         """
-        if variants_per_iter <= 0:
-            return []
-
         baseline = await self._load_baseline_implementation(session, task_id, baseline_implementation_id)
         available_models = self._get_available_models()
         evaluation_weights = await self._get_evaluation_weights(session, task_id)
         
         variables = self._build_optimizer_variables(baseline, available_models, evaluation_weights)
-        variants = await self._generate_variant_candidates(
+        variant = await self._generate_single_variant_candidate(
             task_id=task_id,
             baseline=baseline,
             changeable_fields=changeable_fields,
-            variants_per_iter=variants_per_iter,
             available_models=available_models,
             variables=variables,
         )
         
-        self._record_variants_in_conversation(task_id, variants)
-        return variants
+        self._record_variant_in_conversation(task_id, variant)
+        return variant
     
     async def _load_baseline_implementation(
         self, session: AsyncSession, task_id: int, baseline_id: Optional[int]
@@ -248,22 +284,20 @@ class OptimizationService:
             "evaluation_weights": evaluation_weights,
         }
     
-    async def _generate_variant_candidates(
+    async def _generate_single_variant_candidate(
         self,
         task_id: int,
         baseline: Optional[Implementation],
         changeable_fields: List[OptimizationMutableField],
-        variants_per_iter: int,
         available_models: List[dict[str, Any]],
         variables: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        """Generate variant candidates by calling the optimizer agent repeatedly."""
+    ) -> Optional[Dict[str, Any]]:
+        """Generate a single variant candidate by calling the optimizer agent with retry."""
         executor = LLMExecutor(self.settings)
-        variants: List[Dict[str, Any]] = []
         attempts = 0
-        max_attempts = variants_per_iter * self.MAX_VARIANT_ATTEMPTS_MULTIPLIER
+        max_attempts = 2 * self.MAX_VARIANT_ATTEMPTS_MULTIPLIER
         
-        while len(variants) < variants_per_iter and attempts < max_attempts:
+        while attempts < max_attempts:
             attempts += 1
             
             meta_impl = self._create_meta_implementation(
@@ -278,10 +312,10 @@ class OptimizationService:
             result_obj = self._parse_execution_result(execution)
             if result_obj:
                 filtered_variant = self._filter_and_validate_variant(result_obj, changeable_fields)
-                if filtered_variant and not self._is_duplicate_variant(filtered_variant, variants, changeable_fields):
-                    variants.append(filtered_variant)
+                if filtered_variant:
+                    return filtered_variant
         
-        return variants
+        return None
     
     def _create_meta_implementation(
         self,
@@ -359,20 +393,20 @@ class OptimizationService:
             logger.debug(f"Failed to check variant duplication: {e}")
             return False
     
-    def _record_variants_in_conversation(
-        self, task_id: int, variants: List[Dict[str, Any]]
+    def _record_variant_in_conversation(
+        self, task_id: int, variant: Optional[Dict[str, Any]]
     ) -> None:
-        """Record generated variants in the conversation history."""
-        if not variants:
+        """Record generated single variant in the conversation history."""
+        if not variant:
             return
         
         try:
-            content_str = json.dumps({"proposed_changes": variants})
+            content_str = json.dumps({"proposed_change": variant})
             self._conversation.setdefault(task_id, []).append(
                 MessageItem(role=MessageRole.ASSISTANT, content=content_str)
             )
         except (TypeError, ValueError) as e:
-            logger.warning(f"Failed to record variants in conversation: {e}")
+            logger.warning(f"Failed to record variant in conversation: {e}")
 
     def _build_variant_meta_prompt_json(self, changeable_fields: List[OptimizationMutableField]) -> str:
         fields_csv = ", ".join(changeable_fields)
@@ -422,44 +456,37 @@ class OptimizationService:
             "required": required,
         }
 
-    async def _persist_variants(
+    async def _persist_variant(
         self,
         session: AsyncSession,
         task_id: int,
         current_implementation_id: Optional[int],
-        candidate_specs: List[Dict[str, Any]],
-    ) -> List[int]:
-        """Persist variant specs as new Implementations and return their IDs.
+        candidate_spec: Optional[Dict[str, Any]],
+    ) -> Optional[int]:
+        """Persist a single variant spec as a new Implementation and return its ID (or None).
 
         Unspecified fields inherit from the current implementation when provided.
         If no current implementation is available, unspecified required fields
-        must be present in the spec, otherwise the spec is skipped.
+        must be present in the spec, otherwise it is skipped.
         """
-        if not candidate_specs:
-            return []
+        if not candidate_spec:
+            return None
 
         current_impl = await self._load_current_implementation(session, current_implementation_id)
         next_minor = await self._calculate_next_minor_version(session, task_id, current_impl)
         major = self._parse_major_version(current_impl.version if current_impl else None)
 
-        created_ids: List[int] = []
-        for spec in candidate_specs:
-            implementation = self._create_implementation_from_spec(
-                spec, current_impl, task_id, major, next_minor
-            )
-            
-            if implementation is None:
-                continue
-            
-            session.add(implementation)
-            await session.flush()
-            created_ids.append(implementation.id)
-            next_minor += 1
+        implementation = self._create_implementation_from_spec(
+            candidate_spec, current_impl, task_id, major, next_minor
+        )
 
-        if created_ids:
-            await session.commit()
+        if implementation is None:
+            return None
 
-        return created_ids
+        session.add(implementation)
+        await session.flush()
+        await session.commit()
+        return implementation.id
     
     async def _load_current_implementation(
         self, session: AsyncSession, implementation_id: Optional[int]
@@ -607,8 +634,8 @@ class OptimizationService:
         task_id: int,
         implementation_ids: List[int],
         chosen_id: Optional[int],
-    ) -> None:
-        """Summarize evaluation outcomes and append to conversation as a user message."""
+    ) -> List[Dict[str, Any]]:
+        """Summarize evaluation outcomes, append to conversation as a user message, and return the summary."""
         summary = await self._build_evaluation_summary(session, implementation_ids)
         content_obj = {
             "evaluation_feedback": summary,
@@ -619,6 +646,7 @@ class OptimizationService:
         self._conversation.setdefault(task_id, []).append(
             MessageItem(role=MessageRole.USER, content=content_str)
         )
+        return summary
     
     async def _build_evaluation_summary(
         self, session: AsyncSession, implementation_ids: List[int]

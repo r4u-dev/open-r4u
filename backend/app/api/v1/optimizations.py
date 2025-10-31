@@ -27,7 +27,6 @@ async def run_optimization(
             session=session,
             task_id=payload.task_id,
             max_iterations=payload.max_iterations,
-            variants_per_iter=payload.variants_per_iter,
             changeable_fields=payload.changeable_fields,
             improvement_threshold=payload.improvement_threshold,
         )
