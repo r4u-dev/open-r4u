@@ -57,19 +57,33 @@ class OptimizationService:
         This is the orchestration only. Sub-steps are defined as contracts and
         intentionally left unimplemented for subsequent milestones.
         """
+
         # Load baseline implementation and score (score may be None)
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
 
         iterations_completed = 0
         iteration_details: list[OptimizationIterationDetail] = []
+
         # Reset conversation for a fresh optimization run to avoid over-constraining the agent
+
         self._conversation[task_id] = []
+        # Provide the initial baseline to the agent context if available
+
+        try:
+            if current_best_id is not None:
+                await self._append_baseline_to_conversation(
+                    session=session,
+                    task_id=task_id,
+                    implementation_id=current_best_id,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to append initial baseline context: {e}")
+
         for iteration_index in range(max_iterations):
             # Generate a single candidate variant using the agent
             candidate_spec = await self._generate_variant(
                 session=session,
                 task_id=task_id,
-                baseline_implementation_id=current_best_id,
                 changeable_fields=changeable_fields,
             )
 
@@ -123,13 +137,24 @@ class OptimizationService:
 
             iterations_completed = iteration_index + 1
 
-            # Stop if no sufficient improvement
-            if not self._is_improved(
-                previous_score=current_best_score,
-                new_score=next_best_score,
-                threshold=improvement_threshold,
-            ):
-                break
+            # # Stop if no sufficient improvement
+            # if not self._is_improved(
+            #     previous_score=current_best_score,
+            #     new_score=next_best_score,
+            #     threshold=improvement_threshold,
+            # ):
+            #     break
+
+            # If we found a better implementation, add it as the new baseline context for the agent
+            try:
+                if next_best_id is not None and next_best_id != current_best_id:
+                    await self._append_baseline_to_conversation(
+                        session=session,
+                        task_id=task_id,
+                        implementation_id=next_best_id,
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to append baseline context: {e}")
 
             current_best_id, current_best_score = next_best_id, next_best_score
 
@@ -205,7 +230,6 @@ class OptimizationService:
         self,
         session: AsyncSession,
         task_id: int,
-        baseline_implementation_id: Optional[int],
         changeable_fields: List[OptimizationMutableField],
     ) -> Optional[Dict[str, Any]]:
         """Return a single variant spec to create a new implementation using an LLM agent.
@@ -214,14 +238,12 @@ class OptimizationService:
         prior evaluation feedback). The agent returns a JSON object with field overrides from
         the allowed `changeable_fields`.
         """
-        baseline = await self._load_baseline_implementation(session, task_id, baseline_implementation_id)
         available_models = self._get_available_models()
         evaluation_weights = await self._get_evaluation_weights(session, task_id)
         
-        variables = self._build_optimizer_variables(baseline, available_models, evaluation_weights)
+        variables = self._build_optimizer_variables(available_models, evaluation_weights)
         variant = await self._generate_single_variant_candidate(
             task_id=task_id,
-            baseline=baseline,
             changeable_fields=changeable_fields,
             available_models=available_models,
             variables=variables,
@@ -229,26 +251,7 @@ class OptimizationService:
         
         self._record_variant_in_conversation(task_id, variant)
         return variant
-    
-    async def _load_baseline_implementation(
-        self, session: AsyncSession, task_id: int, baseline_id: Optional[int]
-    ) -> Optional[Implementation]:
-        """Load baseline implementation for optimization context."""
-        if baseline_id is not None:
-            baseline = await session.scalar(
-                select(Implementation).where(Implementation.id == baseline_id)
-            )
-            if baseline:
-                return baseline
-        
-        # Fallback to production version baseline
-        task = await session.scalar(select(Task).where(Task.id == task_id))
-        if task and task.production_version_id:
-            return await session.scalar(
-                select(Implementation).where(Implementation.id == task.production_version_id)
-            )
-        return None
-    
+
     def _get_available_models(self) -> list[dict[str, Any]]:
         """Get list of all available models and their pricing across providers, for the optimizer agent."""
         return self.pricing_service.get_models_with_pricing()
@@ -268,18 +271,11 @@ class OptimizationService:
     
     def _build_optimizer_variables(
         self,
-        baseline: Optional[Implementation],
         available_models: List[dict[str, Any]],
         evaluation_weights: Optional[Dict[str, float]],
     ) -> Dict[str, Any]:
         """Build variables dict for optimizer agent execution."""
         return {
-            "baseline": {
-                "prompt": getattr(baseline, "prompt", None),
-                "model": getattr(baseline, "model", None),
-                "temperature": getattr(baseline, "temperature", None),
-                "max_output_tokens": getattr(baseline, "max_output_tokens", None),
-            },
             "available_models": available_models,
             "evaluation_weights": evaluation_weights,
         }
@@ -287,7 +283,6 @@ class OptimizationService:
     async def _generate_single_variant_candidate(
         self,
         task_id: int,
-        baseline: Optional[Implementation],
         changeable_fields: List[OptimizationMutableField],
         available_models: List[dict[str, Any]],
         variables: Dict[str, Any],
@@ -417,10 +412,37 @@ class OptimizationService:
             "Produce a JSON object with ONLY the fields to change, chosen from: "
             f"{fields_csv}. Do not include unchanged fields.\n\n"
             "Return ONLY a JSON object. No extra text.\n\n"
-            "Baseline:\n{{baseline}}\n\n"
             "Available models with pricing:\n{{available_models}}\n\n"
             "Evaluation weights:\n{{evaluation_weights}}\n"
         )
+
+    async def _append_baseline_to_conversation(
+        self,
+        session: AsyncSession,
+        task_id: int,
+        implementation_id: int,
+    ) -> None:
+        """Append the new best implementation details as user context for the optimizer agent."""
+        impl = await session.scalar(
+            select(Implementation).where(Implementation.id == implementation_id)
+        )
+        if not impl:
+            return
+        try:
+            baseline_payload = {
+                "implementation_id": implementation_id,
+                "version": getattr(impl, "version", None),
+                "prompt": getattr(impl, "prompt", None),
+                "model": getattr(impl, "model", None),
+                "temperature": getattr(impl, "temperature", None),
+                "max_output_tokens": getattr(impl, "max_output_tokens", None),
+            }
+            content_str = "Current best implementation: " + json.dumps(baseline_payload)
+            self._conversation.setdefault(task_id, []).append(
+                MessageItem(role=MessageRole.USER, content=content_str)
+            )
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to record baseline in conversation: {e}")
 
     def _build_response_schema_for_fields(
         self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[dict[str, Any]]] = None

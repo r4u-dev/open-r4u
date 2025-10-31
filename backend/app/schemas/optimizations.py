@@ -17,7 +17,6 @@ OptimizationMutableField = Literal[
 class OptimizationRunRequest(BaseModel):
     task_id: int = Field(..., ge=1)
     max_iterations: int = Field(..., ge=1, le=100)
-    variants_per_iter: int = Field(..., ge=1, le=50)
     changeable_fields: conlist(OptimizationMutableField, min_length=1)
     improvement_threshold: confloat(ge=0.0, le=1.0) = 0.01
 
