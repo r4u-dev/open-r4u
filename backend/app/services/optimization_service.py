@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.schemas.optimizations import (
-    OptimizationResult,
     OptimizationMutableField,
     OptimizationIterationDetail,
     OptimizationIterationEval,
@@ -18,9 +18,10 @@ from app.config import get_settings, Settings
 from app.services.evaluation_service import EvaluationService
 from app.models.tasks import Task, Implementation
 from app.models.evaluation import Evaluation
+from app.models.optimizations import Optimization
 from app.services.executor import LLMExecutor
 from app.schemas.traces import MessageItem
-from app.enums import MessageRole
+from app.enums import MessageRole, OptimizationStatus
 from app.services.pricing_service import PricingService
 
 logger = logging.getLogger(__name__)
@@ -43,30 +44,125 @@ class OptimizationService:
         # Conversation history per task_id for agent context
         self._conversation: dict[int, list[MessageItem]] = {}
 
-    async def run(
+    async def create_optimization(
         self,
         session: AsyncSession,
         task_id: int,
         max_iterations: int,
         changeable_fields: List[OptimizationMutableField],
         max_consecutive_no_improvements: int = 3,
-    ) -> OptimizationResult:
-        """
-        Execute iterative optimization for a task's implementation and return the result summary.
+    ) -> Optimization:
+        """Create an optimization record and return it immediately."""
+        # Verify task exists
+        task = await session.scalar(select(Task).where(Task.id == task_id))
+        if task is None:
+            raise ValueError(f"Task with id {task_id} not found")
 
-        This is the orchestration only. Sub-steps are defined as contracts and
-        intentionally left unimplemented for subsequent milestones.
+        optimization = Optimization(
+            task_id=task_id,
+            status=OptimizationStatus.PENDING,
+            max_iterations=max_iterations,
+            changeable_fields=[f for f in changeable_fields],  # Convert to list of strings
+            max_consecutive_no_improvements=max_consecutive_no_improvements,
+            iterations_run=0,
+            iterations=[],
+        )
+        session.add(optimization)
+        await session.commit()
+        await session.refresh(optimization)
+        return optimization
+
+    async def execute_optimization_in_background(
+        self, optimization_id: int
+    ) -> None:
+        """Execute optimization logic in the background, updating the optimization record continuously."""
+        from app.database import AsyncSessionMaker
+        
+        # Create a new session for the background task
+        async with AsyncSessionMaker() as session:
+            try:
+                # Load optimization
+                optimization = await session.scalar(
+                    select(Optimization).where(Optimization.id == optimization_id)
+                )
+                
+                if not optimization:
+                    logger.warning(f"Optimization {optimization_id} not found")
+                    return
+                
+                # Update status to RUNNING
+                optimization.status = OptimizationStatus.RUNNING
+                optimization.started_at = datetime.now(timezone.utc)
+                await session.commit()
+                
+                # Execute the optimization loop
+                await self._run_optimization_loop(
+                    session=session,
+                    optimization=optimization,
+                    task_id=optimization.task_id,
+                    max_iterations=optimization.max_iterations,
+                    changeable_fields=optimization.changeable_fields,
+                    max_consecutive_no_improvements=optimization.max_consecutive_no_improvements,
+                )
+                
+                # Mark as completed
+                optimization.status = OptimizationStatus.COMPLETED
+                optimization.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+                
+            except Exception as e:
+                logger.exception(f"Optimization {optimization_id} failed: {e}")
+                try:
+                    # Try to update status using the same session if still valid
+                    opt = await session.scalar(
+                        select(Optimization).where(Optimization.id == optimization_id)
+                    )
+                    if opt:
+                        opt.status = OptimizationStatus.FAILED
+                        opt.error = str(e)
+                        opt.completed_at = datetime.now(timezone.utc)
+                        await session.commit()
+                except Exception as update_error:
+                    logger.exception(f"Failed to update optimization status: {update_error}")
+                    # If session is invalid, create a new one
+                    async with AsyncSessionMaker() as error_session:
+                        opt = await error_session.scalar(
+                            select(Optimization).where(Optimization.id == optimization_id)
+                        )
+                        if opt:
+                            opt.status = OptimizationStatus.FAILED
+                            opt.error = str(e)
+                            opt.completed_at = datetime.now(timezone.utc)
+                            await error_session.commit()
+
+    async def _run_optimization_loop(
+        self,
+        session: AsyncSession,
+        optimization: Optimization,
+        task_id: int,
+        max_iterations: int,
+        changeable_fields: list[str],
+        max_consecutive_no_improvements: int = 3,
+    ) -> None:
+        """
+        Execute iterative optimization loop, updating the optimization record continuously.
+        
+        This is the refactored version of the original run() method.
         """
 
         # Load baseline implementation and score (score may be None)
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
+        
+        # Update optimization with initial baseline
+        optimization.best_implementation_id = current_best_id
+        optimization.best_score = current_best_score
+        await session.commit()
 
         iterations_completed = 0
         iteration_details: list[OptimizationIterationDetail] = []
         consecutive_no_improvements = 0
 
         # Reset conversation for a fresh optimization run to avoid over-constraining the agent
-
         self._conversation[task_id] = []
         # Provide the initial baseline to the agent context if available
 
@@ -81,6 +177,13 @@ class OptimizationService:
             logger.warning(f"Failed to append initial baseline context: {e}")
 
         for iteration_index in range(max_iterations):
+            # Refresh optimization object to ensure we have latest state
+            await session.refresh(optimization)
+            
+            # Update current iteration
+            optimization.current_iteration = iteration_index + 1
+            await session.flush()
+            
             # Generate a single candidate variant using the agent
             candidate_spec = await self._generate_variant(
                 session=session,
@@ -127,14 +230,31 @@ class OptimizationService:
                 eval_detail = self._convert_eval_summary_to_model(eval_summary_list[0])
 
             # Record iteration detail
-            iteration_details.append(
-                OptimizationIterationDetail(
-                    iteration=iteration_index + 1,
-                    proposed_changes=candidate_spec or {},
-                    candidate_implementation_id=candidate_impl_id,
-                    evaluation=eval_detail,
-                )
+            iteration_detail = OptimizationIterationDetail(
+                iteration=iteration_index + 1,
+                proposed_changes=candidate_spec or {},
+                candidate_implementation_id=candidate_impl_id,
+                evaluation=eval_detail,
             )
+            iteration_details.append(iteration_detail)
+            
+            # Convert to dict for storage
+            iteration_dict = iteration_detail.model_dump()
+            
+            # Refresh optimization before modifying to ensure session is aware of it
+            await session.refresh(optimization)
+            
+            # Update optimization record with new iteration
+            # Create a new list to ensure SQLAlchemy detects the change
+            optimization.iterations = optimization.iterations + [iteration_dict]
+            optimization.iterations_run = iteration_index + 1
+            
+            # Update best if improved
+            if next_best_id != current_best_id:
+                optimization.best_implementation_id = next_best_id
+                optimization.best_score = next_best_score
+            
+            await session.commit()
 
             iterations_completed = iteration_index + 1
 
@@ -160,6 +280,7 @@ class OptimizationService:
                     logger.warning(f"Failed to append baseline context: {e}")
 
                 current_best_id, current_best_score = next_best_id, next_best_score
+
             else:
                 # Increment consecutive no-improvements counter
                 consecutive_no_improvements += 1
@@ -173,13 +294,10 @@ class OptimizationService:
                     break
         
         logger.info(f"Stopping optimization after max iterations: {max_iterations}")
-
-        return OptimizationResult(
-            best_implementation_id=current_best_id,
-            best_score=current_best_score,
-            iterations_run=iterations_completed,
-            iterations=iteration_details,
-        )
+        
+        # Final update
+        optimization.current_iteration = None
+        await session.commit()
 
     def _convert_eval_summary_to_model(self, summary: Dict[str, Any]) -> OptimizationIterationEval:
         """Convert internal evaluation summary dict to the schema model."""

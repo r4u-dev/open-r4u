@@ -15,6 +15,7 @@ from app.models.base import Base
 # Import all models so they're registered with SQLAlchemy
 from app.models.evaluation import Grade, Grader  # noqa: F401
 from app.models.executions import ExecutionResult  # noqa: F401
+from app.models.optimizations import Optimization  # noqa: F401
 from app.models.projects import Project  # noqa: F401
 from app.models.tasks import Implementation, Task  # noqa: F401
 from app.models.traces import Trace, TraceInputItem  # noqa: F401
