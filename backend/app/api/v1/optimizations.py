@@ -28,7 +28,7 @@ async def run_optimization(
             task_id=payload.task_id,
             max_iterations=payload.max_iterations,
             changeable_fields=payload.changeable_fields,
-            improvement_threshold=payload.improvement_threshold,
+            max_consecutive_no_improvements=payload.patience,
         )
         return result
     except HTTPException:

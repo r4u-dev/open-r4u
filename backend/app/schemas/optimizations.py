@@ -18,7 +18,7 @@ class OptimizationRunRequest(BaseModel):
     task_id: int = Field(..., ge=1)
     max_iterations: int = Field(..., ge=1, le=100)
     changeable_fields: conlist(OptimizationMutableField, min_length=1)
-    improvement_threshold: confloat(ge=0.0, le=1.0) = 0.01
+    patience: int = Field(default=3, ge=1, le=20)
 
     @validator("changeable_fields")
     def ensure_unique_fields(cls, value: list[OptimizationMutableField]) -> list[OptimizationMutableField]:

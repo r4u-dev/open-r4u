@@ -49,7 +49,7 @@ class OptimizationService:
         task_id: int,
         max_iterations: int,
         changeable_fields: List[OptimizationMutableField],
-        improvement_threshold: float,
+        max_consecutive_no_improvements: int = 3,
     ) -> OptimizationResult:
         """
         Execute iterative optimization for a task's implementation and return the result summary.
@@ -63,6 +63,7 @@ class OptimizationService:
 
         iterations_completed = 0
         iteration_details: list[OptimizationIterationDetail] = []
+        consecutive_no_improvements = 0
 
         # Reset conversation for a fresh optimization run to avoid over-constraining the agent
 
@@ -137,30 +138,42 @@ class OptimizationService:
 
             iterations_completed = iteration_index + 1
 
-            # # Stop if no sufficient improvement
-            # if not self._is_improved(
-            #     previous_score=current_best_score,
-            #     new_score=next_best_score,
-            #     threshold=improvement_threshold,
-            # ):
-            #     break
+            # Check if this iteration resulted in improvement
+            is_improved = self._is_improved(
+                previous_score=current_best_score,
+                new_score=next_best_score,
+            )
 
-            # If we found a better implementation, add it as the new baseline context for the agent
-            try:
-                if next_best_id is not None and next_best_id != current_best_id:
-                    await self._append_baseline_to_conversation(
-                        session=session,
-                        task_id=task_id,
-                        implementation_id=next_best_id,
+            if is_improved:
+                # Reset consecutive no-improvements counter on improvement
+                consecutive_no_improvements = 0
+                
+                # If we found a better implementation, add it as the new baseline context for the agent
+                try:
+                    if next_best_id is not None and next_best_id != current_best_id:
+                        await self._append_baseline_to_conversation(
+                            session=session,
+                            task_id=task_id,
+                            implementation_id=next_best_id,
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to append baseline context: {e}")
+
+                current_best_id, current_best_score = next_best_id, next_best_score
+            else:
+                # Increment consecutive no-improvements counter
+                consecutive_no_improvements += 1
+                
+                # Stop if we've hit the consecutive no-improvements limit
+                if consecutive_no_improvements >= max_consecutive_no_improvements:
+                    logger.info(
+                        f"Stopping optimization after {consecutive_no_improvements} "
+                        f"consecutive iterations without improvement (limit: {max_consecutive_no_improvements})"
                     )
-            except Exception as e:
-                logger.warning(f"Failed to append baseline context: {e}")
+                    break
+        
+        logger.info(f"Stopping optimization after max iterations: {max_iterations}")
 
-            current_best_id, current_best_score = next_best_id, next_best_score
-
-        for i in self._conversation[task_id]:
-            print(i)
-            print("--------------------------------")
         return OptimizationResult(
             best_implementation_id=current_best_id,
             best_score=current_best_score,
@@ -797,11 +810,10 @@ class OptimizationService:
         self,
         previous_score: Optional[float],
         new_score: Optional[float],
-        threshold: float,
     ) -> bool:
-        """Check if new_score improves over previous_score by at least threshold."""
+        """Check if new_score is strictly better than previous_score."""
         if new_score is None:
             return False
         if previous_score is None:
             return True
-        return (new_score - previous_score) >= threshold
+        return new_score > previous_score
