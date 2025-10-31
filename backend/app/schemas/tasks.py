@@ -58,4 +58,7 @@ class TaskSchema(TaskBase):
     production_version_id: int | None = None
     created_at: datetime
     updated_at: datetime
+    cost_percentile: float | None = None
+    latency_percentile: float | None = None
+    last_activity: datetime | None = None
     model_config = ConfigDict(from_attributes=True)

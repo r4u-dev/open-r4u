@@ -1,14 +1,22 @@
 """Service for managing task operations."""
 
+from datetime import UTC, datetime
+
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.projects import Project
-from app.models.tasks import Task
+from app.models.tasks import Implementation, Task
+from app.models.traces import Trace
 from app.schemas.tasks import ImplementationCreate, TaskCreate
 from app.services.implementation_service import ImplementationService
 from app.services.openai_client import get_async_openai_client
+from app.utils.cost import calculate_traces_cost
+from app.utils.statistics import (
+    calculate_time_decay_weight,
+    calculate_weighted_percentile,
+)
 
 PROMPT = """\
 An agentic workflow has been given the following instructions:
@@ -67,6 +75,219 @@ class TaskService:
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def get_traces_for_task(
+        self,
+        task_id: int,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[Trace]:
+        """Get all traces for a task (across all implementations).
+
+        Args:
+            task_id: ID of the task
+            limit: Maximum number of traces to return
+            offset: Number of traces to skip for pagination
+
+        Returns:
+            List of traces
+
+        """
+        # Get all implementation IDs for this task
+        impl_query = select(Implementation.id).where(Implementation.task_id == task_id)
+        impl_result = await self.session.execute(impl_query)
+        implementation_ids = [row[0] for row in impl_result.all()]
+
+        if not implementation_ids:
+            return []
+
+        # Query traces for these implementations
+        query = select(Trace).where(Trace.implementation_id.in_(implementation_ids))
+        query = query.order_by(Trace.started_at.desc())
+
+        if offset:
+            query = query.offset(offset)
+        if limit:
+            query = query.limit(limit)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def calculate_task_cost_percentile(
+        self,
+        task_id: int,
+        percentile: float = 95.0,
+        half_life_hours: float = 168.0,
+    ) -> float | None:
+        """Calculate the weighted cost percentile for all traces in a task.
+
+        Uses exponential time decay - older traces have less weight.
+
+        Args:
+            task_id: ID of the task
+            percentile: Percentile to calculate (0-100), defaults to 95
+            half_life_hours: Hours for trace weight to decay to 50% (default: 168 = 7 days)
+
+        Returns:
+            Cost at the given percentile in USD, or None if no traces
+
+        """
+        traces = await self.get_traces_for_task(task_id)
+        if not traces:
+            return None
+
+        costs = calculate_traces_cost(traces)
+
+        # Calculate time-based weights for each trace
+        reference_time = datetime.now(UTC)
+        weights = [
+            calculate_time_decay_weight(
+                trace.started_at,
+                reference_time,
+                half_life_hours,
+            )
+            for trace in traces
+        ]
+
+        return calculate_weighted_percentile(costs, weights, percentile)
+
+    async def calculate_task_latency_percentile(
+        self,
+        task_id: int,
+        percentile: float = 95.0,
+        half_life_hours: float = 168.0,
+    ) -> float | None:
+        """Calculate the weighted latency percentile for all traces in a task.
+
+        Uses exponential time decay - older traces have less weight.
+
+        Args:
+            task_id: ID of the task
+            percentile: Percentile to calculate (0-100), defaults to 95
+            half_life_hours: Hours for trace weight to decay to 50% (default: 168 = 7 days)
+
+        Returns:
+            Latency at the given percentile in seconds, or None if no traces
+
+        """
+        traces = await self.get_traces_for_task(task_id)
+        if not traces:
+            return None
+
+        # Calculate latencies in seconds and corresponding traces
+        latencies = []
+        trace_times = []
+        for trace in traces:
+            if trace.completed_at and trace.started_at:
+                latency = (trace.completed_at - trace.started_at).total_seconds()
+                latencies.append(latency)
+                trace_times.append(trace.started_at)
+
+        if not latencies:
+            return None
+
+        # Calculate time-based weights for each trace
+        reference_time = datetime.now(UTC)
+        weights = [
+            calculate_time_decay_weight(
+                trace_time,
+                reference_time,
+                half_life_hours,
+            )
+            for trace_time in trace_times
+        ]
+
+        return calculate_weighted_percentile(latencies, weights, percentile)
+
+    async def get_last_activity(self, task_id: int) -> datetime | None:
+        """Get the timestamp of the most recent trace for a task.
+
+        Args:
+            task_id: ID of the task
+
+        Returns:
+            Timestamp of most recent trace, or None if no traces
+
+        """
+        traces = await self.get_traces_for_task(task_id, limit=1, offset=0)
+        if not traces:
+            return None
+        return traces[0].started_at
+
+    async def get_task_with_percentiles(
+        self,
+        task_id: int,
+        percentile: float = 95.0,
+        half_life_hours: float = 168.0,
+    ) -> tuple[Task | None, float | None, float | None, datetime | None]:
+        """Get a task with its weighted cost and latency percentiles and last activity.
+
+        Uses exponential time decay - older traces have less weight.
+
+        Args:
+            task_id: ID of the task
+            percentile: Percentile to calculate (0-100), defaults to 95
+            half_life_hours: Hours for trace weight to decay to 50% (default: 168 = 7 days)
+
+        Returns:
+            Tuple of (task, cost_percentile, latency_percentile, last_activity)
+
+        """
+        task = await self.get_task(task_id)
+        if not task:
+            return None, None, None, None
+
+        cost_p = await self.calculate_task_cost_percentile(
+            task_id,
+            percentile,
+            half_life_hours,
+        )
+        latency_p = await self.calculate_task_latency_percentile(
+            task_id,
+            percentile,
+            half_life_hours,
+        )
+        last_activity = await self.get_last_activity(task_id)
+
+        return task, cost_p, latency_p, last_activity
+
+    async def list_tasks_with_percentiles(
+        self,
+        project_id: int | None = None,
+        percentile: float = 95.0,
+        half_life_hours: float = 168.0,
+    ) -> list[tuple[Task, float | None, float | None, datetime | None]]:
+        """List tasks with their weighted cost and latency percentiles and last activity.
+
+        Uses exponential time decay - older traces have less weight.
+
+        Args:
+            project_id: Optional project ID to filter by
+            percentile: Percentile to calculate (0-100), defaults to 95
+            half_life_hours: Hours for trace weight to decay to 50% (default: 168 = 7 days)
+
+        Returns:
+            List of tuples (task, cost_percentile, latency_percentile, last_activity)
+
+        """
+        tasks = await self.list_tasks(project_id)
+
+        results = []
+        for task in tasks:
+            cost_p = await self.calculate_task_cost_percentile(
+                task.id,
+                percentile,
+                half_life_hours,
+            )
+            latency_p = await self.calculate_task_latency_percentile(
+                task.id,
+                percentile,
+                half_life_hours,
+            )
+            last_activity = await self.get_last_activity(task.id)
+            results.append((task, cost_p, latency_p, last_activity))
+
+        return results
 
     async def create_task(self, task_data: TaskCreate) -> Task:
         """Create a new task with its initial implementation.

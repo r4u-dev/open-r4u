@@ -14,8 +14,6 @@ interface TaskWithMetrics extends TaskListItem {
     // Enhanced metrics for display
     healthStatus: "healthy" | "moderate" | "poor";
     performanceScore: number;
-    p95Cost: number;
-    p95Latency: number;
     p5Quality: number;
     trend: "up" | "down" | "stable";
     alertCount: number;
@@ -48,8 +46,6 @@ export function TasksTable({ tasks }: TasksTableProps) {
         // Mock performance data - in real app, this would come from analytics API
         const performanceScore = Math.random() * 100;
         const p5Quality = Math.random() * 100;
-        const p95Cost = Math.random() * 0.01;
-        const p95Latency = Math.random() * 5;
         const alertCount = Math.floor(Math.random() * 3);
 
         const healthStatus =
@@ -84,8 +80,6 @@ export function TasksTable({ tasks }: TasksTableProps) {
             ...task,
             healthStatus,
             performanceScore,
-            p95Cost,
-            p95Latency,
             p5Quality,
             trend,
             alertCount,
@@ -112,20 +106,24 @@ export function TasksTable({ tasks }: TasksTableProps) {
                     bValue = b.name.toLowerCase();
                     break;
                 case "cost":
-                    aValue = a.p95Cost;
-                    bValue = b.p95Cost;
+                    aValue = a.cost_percentile ?? 0;
+                    bValue = b.cost_percentile ?? 0;
                     break;
                 case "latency":
-                    aValue = a.p95Latency;
-                    bValue = b.p95Latency;
+                    aValue = a.latency_percentile ?? 0;
+                    bValue = b.latency_percentile ?? 0;
                     break;
                 case "quality":
                     aValue = a.p5Quality;
                     bValue = b.p5Quality;
                     break;
                 case "lastActivity":
-                    aValue = new Date(a.updated_at).getTime();
-                    bValue = new Date(b.updated_at).getTime();
+                    aValue = new Date(
+                        a.last_activity ?? a.updated_at,
+                    ).getTime();
+                    bValue = new Date(
+                        b.last_activity ?? b.updated_at,
+                    ).getTime();
                     break;
                 default:
                     return 0;
@@ -255,12 +253,16 @@ export function TasksTable({ tasks }: TasksTableProps) {
                             </td>
                             <td className="px-4 py-3">
                                 <span className="text-sm">
-                                    ${task.p95Cost.toFixed(4)}
+                                    {task.cost_percentile !== null
+                                        ? `$${task.cost_percentile.toFixed(4)}`
+                                        : "-"}
                                 </span>
                             </td>
                             <td className="px-4 py-3">
                                 <span className="text-sm">
-                                    {Math.round(task.p95Latency * 1000)}ms
+                                    {task.latency_percentile !== null
+                                        ? `${Math.round(task.latency_percentile * 1000)}ms`
+                                        : "-"}
                                 </span>
                             </td>
                             <td className="px-4 py-3">
@@ -270,10 +272,12 @@ export function TasksTable({ tasks }: TasksTableProps) {
                             </td>
                             <td className="px-4 py-3">
                                 <div className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(
-                                        new Date(task.updated_at),
-                                        { addSuffix: true },
-                                    )}
+                                    {task.last_activity
+                                        ? formatDistanceToNow(
+                                              new Date(task.last_activity),
+                                              { addSuffix: true },
+                                          )
+                                        : "Never"}
                                 </div>
                             </td>
                         </tr>

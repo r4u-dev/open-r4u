@@ -66,6 +66,9 @@ export interface BackendTaskRead {
     production_version_id: number | null;
     created_at: string;
     updated_at: string;
+    cost_percentile: number | null;
+    latency_percentile: number | null;
+    last_activity: string | null;
 }
 
 /**
@@ -107,6 +110,9 @@ export interface TaskListItem {
     } | null;
     created_at: string;
     updated_at: string;
+    cost_percentile: number | null;
+    latency_percentile: number | null;
+    last_activity: string | null;
 }
 
 /**
@@ -125,6 +131,9 @@ function mapBackendTaskToFrontend(task: BackendTaskRead): TaskListItem {
         score_weights: null,
         created_at: task.created_at,
         updated_at: task.updated_at,
+        cost_percentile: task.cost_percentile,
+        latency_percentile: task.latency_percentile,
+        last_activity: task.last_activity,
     };
 }
 
