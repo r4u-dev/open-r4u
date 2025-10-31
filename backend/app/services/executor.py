@@ -45,6 +45,9 @@ class LLMExecutor:
         """Render a prompt template with variables using double curly braces {{ }}."""
         if variables is None:
             return prompt
+        # Only format when template markers are present
+        if "{{" not in prompt and "}}" not in prompt:
+            return prompt
 
         try:
             # Replace {{variable}} with {variable} for Python's format method
@@ -60,12 +63,19 @@ class LLMExecutor:
         if variables is None:
             return value
         if isinstance(value, str):
-            try:
-                # Replace {{variable}} with {variable} for Python's format method
-                formatted_value = value.replace("{{", "{").replace("}}", "}")
-                return formatted_value.format(**variables)
-            except KeyError as e:
-                raise ValueError(f"Missing variable in input message template: {e}")
+            # Only format when template markers are present
+            if "{{" in value or "}}" in value:
+                try:
+                    # Replace {{variable}} with {variable} for Python's format method
+                    formatted_value = value.replace("{{", "{").replace("}}", "}")
+                    return formatted_value.format(**variables)
+                except KeyError as e:
+                    logger.warning(f"Missing variable in input message template: {e}")
+                    return value
+                except Exception as e:
+                    logger.warning(f"Error rendering input message template: {e}")
+                    return value
+            return value
         if isinstance(value, list):
             return [self._render_value(v, variables) for v in value]
         if isinstance(value, dict):
