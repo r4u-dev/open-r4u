@@ -6,6 +6,7 @@ from app.api.v1 import (
     grades,
     graders,
     http_traces,
+    optimizations,
     implementations,
     projects,
     tasks,
@@ -24,3 +25,4 @@ api_router.include_router(graders.router)
 api_router.include_router(grades.router)
 api_router.include_router(test_cases.router)
 api_router.include_router(evaluations.router)
+api_router.include_router(optimizations.router)

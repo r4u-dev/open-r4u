@@ -60,3 +60,12 @@ class EvaluationStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class OptimizationStatus(str, Enum):
+    """Status of an optimization run."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
