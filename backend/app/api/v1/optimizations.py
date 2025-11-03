@@ -127,3 +127,24 @@ async def get_optimization(
         )
 
     return OptimizationRead.model_validate(optimization)
+
+
+@router.delete("/{optimization_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_optimization(
+    optimization_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete an optimization by ID."""
+    optimization = await session.scalar(
+        select(Optimization).where(Optimization.id == optimization_id)
+    )
+
+    if not optimization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Optimization with id {optimization_id} not found",
+        )
+
+    await session.delete(optimization)
+    await session.commit()
+    return None

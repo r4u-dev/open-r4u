@@ -108,6 +108,10 @@ const TaskDetail = () => {
   const [selectedIterationForGraders, setSelectedIterationForGraders] = useState<Map<number, number>>(new Map());
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
+  // Optimization delete state
+  const [optDeletingId, setOptDeletingId] = useState<number | null>(null);
+  const [optDeleteLoading, setOptDeleteLoading] = useState(false);
+  const [optDeleteError, setOptDeleteError] = useState<string | null>(null);
 
   // Implementation creation state
   const [createImplOpen, setCreateImplOpen] = useState(false);
@@ -217,6 +221,30 @@ const TaskDetail = () => {
       console.error("Failed to load optimizations:", e);
     } finally {
       setOptimizationsLoading(false);
+    }
+  };
+
+  const confirmDeleteOptimization = async () => {
+    if (!optDeletingId) return;
+    try {
+      setOptDeleteLoading(true);
+      setOptDeleteError(null);
+      await optimizationsApi.deleteOptimization(optDeletingId);
+      setOptimizationDetails((prev) => {
+        const next = new Map(prev);
+        next.delete(optDeletingId);
+        return next;
+      });
+      setOptimizations((prev) => prev.filter((o) => o.id !== optDeletingId));
+      if (selectedOptimizationId === optDeletingId) {
+        setSelectedOptimizationId(null);
+        setExpandedOptimizationId("");
+      }
+      setOptDeletingId(null);
+    } catch (e) {
+      setOptDeleteError(e instanceof Error ? e.message : "Failed to delete optimization");
+    } finally {
+      setOptDeleteLoading(false);
     }
   };
 
@@ -1927,6 +1955,17 @@ const TaskDetail = () => {
                             <AccordionContent>
                               {details ? (
                                 <div className="space-y-4 pt-2">
+                                  <div className="flex items-center justify-end">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-destructive"
+                                      onClick={() => setOptDeletingId(opt.id)}
+                                      title="Delete optimization"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                   {details.error && (
                                     <div className="text-sm text-destructive p-3 bg-destructive/10 rounded">{details.error}</div>
                                   )}
@@ -2337,6 +2376,27 @@ const TaskDetail = () => {
       </Dialog>
 
       {/* Promote to production confirmation removed as promotion is disabled */}
+
+      {/* Delete Optimization Dialog */}
+      <Dialog open={optDeletingId !== null} onOpenChange={(open) => { if (!open) setOptDeletingId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Optimization</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this optimization? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {optDeleteError && (
+            <div className="text-sm text-destructive">{optDeleteError}</div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOptDeletingId(null)} disabled={optDeleteLoading}>Cancel</Button>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDeleteOptimization} disabled={optDeleteLoading}>
+              {optDeleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Implementation Dialog removed; editing creates a new version via the create dialog */}
 

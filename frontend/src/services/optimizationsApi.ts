@@ -44,6 +44,10 @@ class OptimizationsApiService {
     return apiClient.get<OptimizationRead>(`${this.baseEndpoint}/${optimizationId}`);
   }
 
+  async deleteOptimization(optimizationId: number): Promise<ApiResponse<void>> {
+    return apiClient.delete<void>(`${this.baseEndpoint}/${optimizationId}`);
+  }
+
   async getDashboardMetrics(params?: {
     days?: number;
   }): Promise<ApiResponse<OptimizationDashboardResponse>> {
