@@ -25,10 +25,7 @@ async def project(test_session: AsyncSession) -> Project:
 @pytest_asyncio.fixture
 async def task(test_session: AsyncSession, project: Project) -> Task:
     """Create a test task."""
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
     return task
@@ -184,10 +181,10 @@ Task: Review code"""
 
 
 class TestExtractSystemPrompt:
-    """Test system prompt extraction from traces."""
+    """Test first message extraction from traces."""
 
-    def test_extract_system_prompt_from_message(self):
-        """Test extracting system prompt from message input items."""
+    def test_extract_first_message_from_system_role(self):
+        """Test extracting first message when it's a system message."""
         input_items = [
             {"type": "message", "role": "system", "content": "You are helpful."},
             {"type": "message", "role": "user", "content": "Hello!"},
@@ -197,37 +194,47 @@ class TestExtractSystemPrompt:
 
         assert prompt == "You are helpful."
 
-    def test_extract_no_system_prompt(self):
-        """Test when there's no system message."""
+    def test_extract_first_message_from_user_role(self):
+        """Test extracting first message when it's a user message."""
         input_items = [
             {"type": "message", "role": "user", "content": "Hello!"},
+            {"type": "message", "role": "assistant", "content": "Hi there!"},
         ]
+
+        prompt = extract_system_prompt_from_trace(input_items)
+
+        assert prompt == "Hello!"
+
+    def test_extract_first_message_regardless_of_role(self):
+        """Test that the first message is extracted regardless of role."""
+        input_items = [
+            {"type": "message", "role": "assistant", "content": "First message."},
+            {"type": "message", "role": "system", "content": "Second message."},
+            {"type": "message", "role": "user", "content": "Third message."},
+        ]
+
+        prompt = extract_system_prompt_from_trace(input_items)
+
+        assert prompt == "First message."
+
+    def test_extract_with_no_messages(self):
+        """Test when there are no messages."""
+        input_items = []
 
         prompt = extract_system_prompt_from_trace(input_items)
 
         assert prompt is None
-
-    def test_extract_first_system_prompt(self):
-        """Test that only the first system prompt is extracted."""
-        input_items = [
-            {"type": "message", "role": "system", "content": "First system prompt."},
-            {"type": "message", "role": "user", "content": "Hello!"},
-            {"type": "message", "role": "system", "content": "Second system prompt."},
-        ]
-
-        prompt = extract_system_prompt_from_trace(input_items)
-
-        assert prompt == "First system prompt."
 
     def test_extract_with_empty_content(self):
         """Test extracting when content is empty or None."""
         input_items = [
             {"type": "message", "role": "system", "content": None},
+            {"type": "message", "role": "user", "content": "Second message."},
         ]
 
         prompt = extract_system_prompt_from_trace(input_items)
 
-        assert prompt is None
+        assert prompt == "Second message."
 
 
 class TestFindMatchingImplementation:
@@ -237,14 +244,16 @@ class TestFindMatchingImplementation:
     async def test_find_matching_implementation_exact_match(
         self,
         test_session: AsyncSession,
-        task: Task):
+        task: Task,
+    ):
         """Test finding an exact match."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -262,7 +271,8 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is not None
         assert result["implementation_id"] == impl.id
@@ -272,14 +282,16 @@ class TestFindMatchingImplementation:
     async def test_find_matching_implementation_with_placeholders(
         self,
         test_session: AsyncSession,
-        task: Task):
+        task: Task,
+    ):
         """Test finding a match with placeholder extraction."""
         # Create an implementation with placeholders
         impl = Implementation(
             task_id=task.id,
             prompt="Hello, {name}! You are user #{user_id}.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -297,7 +309,8 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is not None
         assert result["implementation_id"] == impl.id
@@ -307,14 +320,16 @@ class TestFindMatchingImplementation:
     async def test_no_match_different_model(
         self,
         test_session: AsyncSession,
-        task: Task):
+        task: Task,
+    ):
         """Test that different models don't match."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -331,7 +346,8 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-3.5-turbo",  # Different model
             project_id=task.project_id,
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is None
 
@@ -340,7 +356,8 @@ class TestFindMatchingImplementation:
         self,
         test_session: AsyncSession,
         task: Task,
-        project: Project):
+        project: Project,
+    ):
         """Test that implementations from different projects don't match."""
         # Create another project and task
         other_project = Project(name="Other Project")
@@ -352,7 +369,8 @@ class TestFindMatchingImplementation:
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
@@ -369,7 +387,8 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=other_project.id,  # Different project
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is None
 
@@ -377,14 +396,16 @@ class TestFindMatchingImplementation:
     async def test_match_first_when_multiple_implementations_match(
         self,
         test_session: AsyncSession,
-        task: Task):
+        task: Task,
+    ):
         """Test that the first created implementation is returned when multiple match."""
         # Create multiple implementations that would match
         impl1 = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl1)
         await test_session.flush()
 
@@ -392,7 +413,8 @@ class TestFindMatchingImplementation:
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl2)
         await test_session.flush()
 
@@ -409,36 +431,38 @@ class TestFindMatchingImplementation:
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is not None
         # Should match the first one (by ID)
         assert result["implementation_id"] == impl1.id
 
     @pytest.mark.asyncio
-    async def test_no_match_when_no_system_prompt(
+    async def test_no_match_when_no_messages(
         self,
         test_session: AsyncSession,
-        task: Task):
-        """Test when trace has no system prompt."""
+        task: Task,
+    ):
+        """Test when trace has no messages at all."""
         # Create an implementation
         impl = Implementation(
             task_id=task.id,
             prompt="You are a helpful assistant.",
             model="gpt-4",
-            max_output_tokens=1000)
+            max_output_tokens=1000,
+        )
         test_session.add(impl)
         await test_session.flush()
 
-        # Create input items without system message
-        input_items = [
-            {"type": "message", "role": "user", "content": "Hello!"},
-        ]
+        # Create input items without any messages
+        input_items = []
 
         result = await find_matching_implementation(
             input_items=input_items,
             model="gpt-4",
             project_id=task.project_id,
-            session=test_session)
+            session=test_session,
+        )
 
         assert result is None

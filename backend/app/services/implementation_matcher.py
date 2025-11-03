@@ -89,17 +89,17 @@ class ImplementationMatcher:
 def extract_system_prompt_from_trace(
     input_items: list[dict[str, Any]],
 ) -> str | None:
-    """Extract the system prompt from trace input items.
+    """Extract the first message from trace input items.
 
     Args:
         input_items: List of input item dicts from a trace
 
     Returns:
-        The content of the first system message, or None if not found
+        The content of the first message, or None if not found
 
     """
     for item in input_items:
-        if item.get("type") == "message" and item.get("role") == "system":
+        if item.get("type") == "message":
             content = item.get("content")
             if content:
                 return content
