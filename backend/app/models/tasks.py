@@ -130,6 +130,11 @@ class Task(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    optimizations: Mapped[list["Optimization"]] = relationship(  # type: ignore
+        "Optimization",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
