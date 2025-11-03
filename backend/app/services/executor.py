@@ -148,6 +148,34 @@ class LLMExecutor:
         }
         return finish_reason_map.get(finish_reason, FinishReason.STOP)
 
+    def _build_response_format(self, response_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Normalize response schema into OpenAI response_format json_schema structure.
+
+        Accepts either the new wrapped format or a plain JSON Schema and returns
+        the proper response_format payload. Returns None if no schema provided.
+        """
+        if not response_schema:
+            return None
+
+        # If already in the new format, pass through
+        if (
+            isinstance(response_schema, dict)
+            and response_schema.get("type") == "json_schema"
+            and isinstance(response_schema.get("json_schema"), dict)
+            and "schema" in response_schema["json_schema"]
+        ):
+            return response_schema
+
+        # Otherwise, wrap the plain JSON schema
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "response_schema",
+                "strict": True,
+                "schema": response_schema,
+            },
+        }
+
     async def execute(
         self,
         implementation: Implementation,
@@ -222,15 +250,7 @@ class LLMExecutor:
                 request_params["tool_choice"] = tool_choice
 
         if response_schema:
-            # Map response_schema to OpenAI's response_format
-            request_params["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "response_schema",
-                    "strict": True,
-                    "schema": response_schema,
-                }
-            }
+            request_params["response_format"] = self._build_response_format(response_schema)
 
         # Handle reasoning for o1/o3 models
         if reasoning:

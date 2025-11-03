@@ -666,6 +666,21 @@ export class TaskService {
                 }
             }
 
+            // Normalize response_schema: unwrap OpenAI json_schema response_format if present
+            const normalizeSchema = (schema: Record<string, unknown> | null) => {
+                if (
+                    schema &&
+                    typeof schema === "object" &&
+                    (schema as any).type === "json_schema" &&
+                    (schema as any).json_schema &&
+                    (schema as any).json_schema.schema
+                ) {
+                    return (schema as any).json_schema
+                        .schema as Record<string, unknown>;
+                }
+                return schema;
+            };
+
             // Convert backend task to TaskDetail format
             const taskDetail: TaskDetail = {
                 id: backendTask.id.toString(),
@@ -676,7 +691,7 @@ export class TaskService {
                 production_version: implementation?.version || "0.1",
                 contract: {
                     input_schema: null,
-                    output_schema: backendTask.response_schema,
+                    output_schema: normalizeSchema(backendTask.response_schema),
                 },
                 score_weights: null,
                 created_at: backendTask.created_at,
