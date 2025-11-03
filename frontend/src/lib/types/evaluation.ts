@@ -5,6 +5,7 @@ export interface EvaluationListItem {
     implementation_id: number;
     implementation_version: string;
     task_id: number;
+    task_name: string;
     status: EvaluationStatus;
     started_at: string | null;
     completed_at: string | null;

@@ -68,13 +68,13 @@ export function EvaluationTable({
                                 {getSortIcon("status")}
                             </div>
                         </th>
-                        <th className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-20 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("task")}>
+                        <th className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-48 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("task")}>
                             <div className="flex items-center">
                                 TASK
                                 {getSortIcon("task")}
                             </div>
                         </th>
-                        <th className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-28 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("implementation")}>
+                        <th className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-16 cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("implementation")}>
                             <div className="flex items-center">
                                 IMPLEMENTATION
                                 {getSortIcon("implementation")}
@@ -123,8 +123,8 @@ export function EvaluationTable({
                             <td className="px-3 py-2">
                                 {getStatusIcon(evaluation.status)}
                             </td>
-                            <td className={`px-3 py-2 tabular-nums ${selectedEvaluationId === evaluation.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
-                                {evaluation.task_id}
+                            <td className={`px-3 py-2 tabular-nums truncate ${selectedEvaluationId === evaluation.id ? "text-accent-foreground" : "text-muted-foreground"}`} title={evaluation.task_name}>
+                                {evaluation.task_name}
                             </td>
                             <td className={`px-3 py-2 tabular-nums ${selectedEvaluationId === evaluation.id ? "text-accent-foreground" : "text-muted-foreground"}`}>
                                 {evaluation.implementation_version}
