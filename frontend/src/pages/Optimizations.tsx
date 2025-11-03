@@ -4,7 +4,7 @@ import { AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "@/components/dashboard/EmptyState";
 import MetricCard from "@/components/dashboard/MetricCard";
-import { Rocket, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Rocket, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useProject } from "@/contexts/ProjectContext";
 import { optimizationsApi } from "@/services/optimizationsApi";
@@ -86,6 +86,7 @@ const Optimizations = () => {
     const effective = isPositiveGood ? value : -value; // positive effective means good
     const GoodIcon = ArrowUpRight;
     const BadIcon = ArrowDownRight;
+    const isZero = Math.abs(value) < 1e-9;
     const isGood = effective > 0;
     const color = isGood ? "text-green-600" : "text-destructive";
 
@@ -93,11 +94,20 @@ const Optimizations = () => {
     if (type === "qualityPercent" || type === "costPercent") {
       formatted = `${Math.abs(value).toFixed(1)}%`;
     } else if (type === "timeMs") {
-      const secs = Math.abs(value) / 1000;
-      formatted = `${secs.toFixed(1)}s`;
+      const ms = Math.abs(value);
+      formatted = `${ms.toFixed(1)} ms`;
     } else {
       // score
       formatted = `${Math.abs(value).toFixed(2)}`;
+    }
+
+    if (isZero) {
+      return (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <Minus className="h-3.5 w-3.5" />
+          {formatted}
+        </span>
+      );
     }
 
     return (
