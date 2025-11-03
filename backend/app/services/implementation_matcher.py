@@ -20,7 +20,7 @@ class ImplementationMatcher:
         """Match a prompt against a template with placeholders.
 
         Args:
-            template: Template string with placeholders like {name}, {user_id}
+            template: Template string with placeholders like {{name}}, {{user_id}}
             prompt: Actual prompt to match against the template
 
         Returns:
@@ -32,8 +32,8 @@ class ImplementationMatcher:
         if template == prompt:
             return {"match": True, "variables": {}}
 
-        # Extract placeholder names from template
-        placeholder_pattern = r"\{([^}]+)\}"
+        # Extract placeholder names from template (double braces: {{name}})
+        placeholder_pattern = r"\{\{([^}]+)\}\}"
         placeholders = re.findall(placeholder_pattern, template)
 
         if not placeholders:
@@ -45,9 +45,9 @@ class ImplementationMatcher:
         pattern = re.escape(template)
 
         # Replace escaped placeholders with named capture groups
-        # We need to match the escaped version: \{name\}
+        # We need to match the escaped version: \{\{name\}\}
         for placeholder in placeholders:
-            escaped_placeholder = re.escape(f"{{{placeholder}}}")
+            escaped_placeholder = re.escape(f"{{{{{placeholder}}}}}")
             # Use non-greedy match that captures any characters
             # For adjacent placeholders, we need to be careful
             pattern = pattern.replace(
@@ -58,7 +58,7 @@ class ImplementationMatcher:
 
         # Handle adjacent placeholders by making the pattern work better
         # Convert remaining escaped braces if any
-        pattern = pattern.replace(r"\{", "{").replace(r"\}", "}")
+        pattern = pattern.replace(r"\{\{", "{{").replace(r"\}\}", "}}")
 
         # For the last placeholder or single placeholder, make it greedy
         # to consume remaining content
