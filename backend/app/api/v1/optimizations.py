@@ -9,6 +9,7 @@ from app.schemas.optimizations import (
     OptimizationRunRequest,
     OptimizationRead,
     OptimizationListItem,
+    OptimizationDashboardResponse,
 )
 from app.services.optimization_service import OptimizationService
 from app.models.optimizations import Optimization
@@ -76,6 +77,37 @@ async def list_optimizations(
     optimizations = result.scalars().all()
     
     return [OptimizationListItem.model_validate(opt) for opt in optimizations]
+
+
+@router.get("/dashboard", response_model=OptimizationDashboardResponse)
+async def get_dashboard_metrics(
+    days: int = Query(30, ge=1, le=365, description="Number of days to look back"),
+    session: AsyncSession = Depends(get_session),
+    optimization_service: OptimizationService = Depends(get_optimization_service),
+) -> OptimizationDashboardResponse:
+    """Get optimization dashboard metrics and outperforming versions.
+    
+    Returns summary metrics (score boost, quality boost, money saved) and
+    a list of optimized implementations that outperform their production versions.
+    
+    Args:
+        days: Number of days to look back for optimizations (default: 30)
+        session: Database session
+        optimization_service: Optimization service instance
+        
+    Returns:
+        OptimizationDashboardResponse with summary and outperforming versions
+    """
+    try:
+        return await optimization_service.get_dashboard_metrics(
+            session=session,
+            days=days,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get dashboard metrics: {str(e)}",
+        )
 
 
 @router.get("/{optimization_id}", response_model=OptimizationRead)

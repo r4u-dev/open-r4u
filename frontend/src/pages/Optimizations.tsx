@@ -1,48 +1,112 @@
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "@/components/dashboard/EmptyState";
 import MetricCard from "@/components/dashboard/MetricCard";
-import { Rocket, TrendingUp, DollarSign, Zap, Target } from "lucide-react";
+import { Rocket, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useProject } from "@/contexts/ProjectContext";
-
-const optimizationMetrics = [
-  {
-    title: "Cost Savings",
-    value: "--",
-    change: 0,
-    trend: "stable" as const,
-    icon: DollarSign
-  },
-  {
-    title: "Performance Gain",
-    value: "--",
-    change: 0,
-    trend: "stable" as const,
-    icon: Zap
-  },
-  {
-    title: "ROI",
-    value: "--",
-    change: 0,
-    trend: "stable" as const,
-    icon: TrendingUp
-  },
-  {
-    title: "Accuracy Boost",
-    value: "--",
-    change: 0,
-    trend: "stable" as const,
-    icon: Target
-  }
-];
+import { optimizationsApi } from "@/services/optimizationsApi";
+import type { OptimizationDashboardResponse } from "@/lib/types/optimization";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Optimizations = () => {
   const { activeProject } = useProject();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<OptimizationDashboardResponse | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await optimizationsApi.getDashboardMetrics({ days: 30 });
+        if (!mounted) return;
+        setData(res.data);
+      } catch (e: any) {
+        if (!mounted) return;
+        setError(e?.message || "Failed to load optimization metrics");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const summaryCards = useMemo(() => {
+    const summary = data?.summary;
+    return [
+      {
+        id: "score-boost",
+        title: "Score Boost",
+        value: summary?.score_boost_percent != null ? `${summary.score_boost_percent.toFixed(1)}%` : "--",
+        change: 0,
+        trendDirection: (summary?.score_boost_percent != null && summary.score_boost_percent >= 0 ? "up" : "down") as "up" | "down",
+        isPositiveChange: true,
+      },
+      {
+        id: "quality-boost",
+        title: "Quality Boost",
+        value: summary?.quality_boost_percent != null ? `${summary.quality_boost_percent.toFixed(1)}%` : "--",
+        change: 0,
+        trendDirection: (summary?.quality_boost_percent != null && summary.quality_boost_percent >= 0 ? "up" : "down") as "up" | "down",
+        isPositiveChange: true,
+      },
+      {
+        id: "money-saved",
+        title: "Money Saved",
+        value: summary?.money_saved != null ? `$${Math.round(summary.money_saved).toLocaleString()}` : "--",
+        change: 0,
+        trendDirection: "up" as const,
+        isPositiveChange: true,
+      },
+      {
+        id: "running",
+        title: "Running Optimizations",
+        value: summary?.running_count != null ? summary.running_count : "--",
+        change: 0,
+        trendDirection: "stable" as const,
+      },
+    ];
+  }, [data]);
+
+  const renderDelta = (
+    value: number | null | undefined,
+    type: "score" | "qualityPercent" | "costPercent" | "timeMs",
+  ) => {
+    if (value == null) return <span>--</span>;
+    const isPositiveGood = type === "score" || type === "qualityPercent";
+    const effective = isPositiveGood ? value : -value; // positive effective means good
+    const GoodIcon = ArrowUpRight;
+    const BadIcon = ArrowDownRight;
+    const isGood = effective > 0;
+    const color = isGood ? "text-green-600" : "text-destructive";
+
+    let formatted: string;
+    if (type === "qualityPercent" || type === "costPercent") {
+      formatted = `${Math.abs(value).toFixed(1)}%`;
+    } else if (type === "timeMs") {
+      const secs = Math.abs(value) / 1000;
+      formatted = `${secs.toFixed(1)}s`;
+    } else {
+      // score
+      formatted = `${Math.abs(value).toFixed(2)}`;
+    }
+
+    return (
+      <span className={`inline-flex items-center gap-1 ${color}`}>
+        {isGood ? <GoodIcon className="h-3.5 w-3.5" /> : <BadIcon className="h-3.5 w-3.5" />}
+        {value >= 0 ? "+" : "-"}{formatted}
+      </span>
+    );
+  };
 
   if (!activeProject) {
     return (
@@ -67,30 +131,130 @@ const Optimizations = () => {
         </div>
       </div>
 
-      {/* Optimization Metrics */}
+      {/* Optimization Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {optimizationMetrics.map((metric) => (
+        {summaryCards.map((metric) => (
           <MetricCard
-            key={metric.title}
+            key={metric.id}
             title={metric.title}
             value={metric.value}
             change={metric.change}
-            trend={metric.trend}
-            className="opacity-50"
+            trendDirection={metric.trendDirection}
+            isPositiveChange={metric.isPositiveChange}
+            metricType="performance"
+            className={loading ? "opacity-50" : undefined}
           />
         ))}
       </div>
 
-      {/* Empty State */}
+      {/* Outperforming Versions */}
       <Card>
-        <CardContent className="pt-6">
-          <EmptyState
-            icon={Rocket}
-            title="Start Optimizing Your AI"
-            description="Once you have tasks running with evaluations, our AI will automatically find optimization opportunities to improve performance and reduce costs."
-            actionLabel="Learn About Optimization"
-            onAction={() => console.log("Navigate to optimization guide")}
-          />
+        <CardHeader>
+          <CardTitle className="text-lg">Outperforming Versions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {(!data || data.outperforming_versions.length === 0) ? (
+            <EmptyState
+              icon={Rocket}
+              title="No optimizations yet"
+              description="When optimized versions outperform production, they will appear here."
+              actionLabel="Learn About Optimization"
+              onAction={() => console.log("Navigate to optimization guide")}
+            />
+          ) : (
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Score Δ</TableHead>
+                    <TableHead>Quality Δ</TableHead>
+                    <TableHead>Cost Δ</TableHead>
+                    <TableHead>Time Δ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.outperforming_versions.map((v) => {
+                    const version = v.production_version
+                      ? `${v.production_version} → ${v.optimized_version}`
+                      : v.optimized_version;
+                    const scoreDelta = v.score_delta ?? null;
+                    const qualityDelta = v.quality_delta_percent ?? null;
+                    const costDelta = v.cost_delta_percent ?? null;
+                    const timeDelta = v.time_delta_ms ?? null;
+                    return (
+                      <TableRow key={`${v.task_id}-${v.optimized_implementation_id}`}>
+                        <TableCell className="font-medium">{v.task_name}</TableCell>
+                        <TableCell>{version}</TableCell>
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{renderDelta(scoreDelta, "score")}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="space-y-1 text-xs">
+                                <div>Production: {v.production_score != null ? v.production_score.toFixed(2) : "N/A"}</div>
+                                <div>Optimized: {v.optimized_score != null ? v.optimized_score.toFixed(2) : "N/A"}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{renderDelta(qualityDelta, "qualityPercent")}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="space-y-1 text-xs">
+                                <div>Production: {v.production_quality != null ? (v.production_quality * 100).toFixed(1) + "%" : "N/A"}</div>
+                                <div>Optimized: {v.optimized_quality != null ? (v.optimized_quality * 100).toFixed(1) + "%" : "N/A"}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{renderDelta(costDelta, "costPercent")}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="space-y-1 text-xs">
+                                <div>Production: {v.production_cost != null ? `$${v.production_cost.toFixed(6)}` : "N/A"}</div>
+                                <div>Optimized: {v.optimized_cost != null ? `$${v.optimized_cost.toFixed(6)}` : "N/A"}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{renderDelta(timeDelta, "timeMs")}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="space-y-1 text-xs">
+                                <div>Production: {v.production_time_ms != null ? `${v.production_time_ms.toFixed(1)} ms` : "N/A"}</div>
+                                <div>Optimized: {v.optimized_time_ms != null ? `${v.optimized_time_ms.toFixed(1)} ms` : "N/A"}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+                <TableCaption>
+                  Showing {data.outperforming_versions.length} version(s) in the last 30 days
+                </TableCaption>
+              </Table>
+            </TooltipProvider>
+          )}
         </CardContent>
       </Card>
 

@@ -4,6 +4,7 @@ import type {
   OptimizationRead,
   OptimizationListItem,
   OptimizationMutableField,
+  OptimizationDashboardResponse,
 } from "@/lib/types/optimization";
 
 class OptimizationsApiService {
@@ -41,6 +42,18 @@ class OptimizationsApiService {
     optimizationId: number
   ): Promise<ApiResponse<OptimizationRead>> {
     return apiClient.get<OptimizationRead>(`${this.baseEndpoint}/${optimizationId}`);
+  }
+
+  async getDashboardMetrics(params?: {
+    days?: number;
+  }): Promise<ApiResponse<OptimizationDashboardResponse>> {
+    const query = new URLSearchParams();
+    if (params?.days) query.set("days", String(params.days));
+    const qs = query.toString();
+    const url = qs
+      ? `${this.baseEndpoint}/dashboard?${qs}`
+      : `${this.baseEndpoint}/dashboard`;
+    return apiClient.get<OptimizationDashboardResponse>(url);
   }
 }
 

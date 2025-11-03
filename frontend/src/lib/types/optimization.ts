@@ -78,3 +78,43 @@ export interface OptimizationListItem {
 }
 
 
+// Dashboard types
+export interface OutperformingVersionItem {
+  task_id: number;
+  task_name: string;
+  production_version?: string | null;
+  optimized_version: string;
+  production_implementation_id?: number | null;
+  optimized_implementation_id: number;
+
+  // Deltas
+  score_delta?: number | null;
+  quality_delta_percent?: number | null;
+  cost_delta_percent?: number | null;
+  time_delta_ms?: number | null;
+
+  // Absolute values
+  production_score?: number | null;
+  optimized_score?: number | null;
+  production_quality?: number | null;
+  optimized_quality?: number | null;
+  production_cost?: number | null;
+  optimized_cost?: number | null;
+  production_time_ms?: number | null;
+  optimized_time_ms?: number | null;
+}
+
+export interface OptimizationDashboardSummary {
+  score_boost_percent?: number | null;
+  quality_boost_percent?: number | null;
+  money_saved?: number | null;
+  total_versions_found: number;
+  total_cost?: number | null;
+  running_count: number;
+}
+
+export interface OptimizationDashboardResponse {
+  summary: OptimizationDashboardSummary;
+  outperforming_versions: OutperformingVersionItem[];
+}
+
