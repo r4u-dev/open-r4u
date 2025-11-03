@@ -586,9 +586,11 @@ const TaskDetail = () => {
               ...taskData,
               versions: updatedVersions,
             });
-            // Select production version by default, or first version if no production version
+            // Determine initial version: from URL ?implementation_id=, else production, else first
+            const urlImplId = searchParams.get("implementation_id") || "";
+            const hasUrlImpl = urlImplId && updatedVersions.some(v => v.id === urlImplId);
             const productionVersion = updatedVersions.find(v => v.version === taskData.production_version);
-            const defaultVersionId = productionVersion?.id || updatedVersions[0]?.id || "";
+            const defaultVersionId = hasUrlImpl ? urlImplId : (productionVersion?.id || updatedVersions[0]?.id || "");
             setSelectedVersion(defaultVersionId);
             setEvalVersionId(defaultVersionId);
           } catch (implError) {

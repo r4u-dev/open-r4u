@@ -219,7 +219,11 @@ const Optimizations = () => {
                     const costDelta = v.cost_delta_percent ?? null;
                     const timeDelta = v.time_delta_ms ?? null;
                     return (
-                      <TableRow key={`${v.task_id}-${v.optimized_implementation_id}`}>
+                      <TableRow
+                        key={`${v.task_id}-${v.optimized_implementation_id}`}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/tasks/${v.task_id}?tab=overview&implementation_id=${v.optimized_implementation_id}`)}
+                      >
                         <TableCell className="font-medium">{v.task_name}</TableCell>
                         <TableCell>{version}</TableCell>
                         <TableCell>
