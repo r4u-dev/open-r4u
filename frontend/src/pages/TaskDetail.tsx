@@ -93,7 +93,9 @@ const TaskDetail = () => {
 
   // Optimization controls and result state
   const [optMaxIterations, setOptMaxIterations] = useState<number>(5);
+  const [optMaxIterationsInput, setOptMaxIterationsInput] = useState<string>("5");
   const [optPatience, setOptPatience] = useState<number>(3);
+  const [optPatienceInput, setOptPatienceInput] = useState<string>("3");
   const [optFields, setOptFields] = useState<Set<OptimizationMutableField>>(new Set(["prompt", "model", "temperature", "max_output_tokens"]));
   const [optRunning, setOptRunning] = useState(false);
   const [optError, setOptError] = useState<string | null>(null);
@@ -1600,8 +1602,29 @@ const TaskDetail = () => {
                         type="number"
                         min={1}
                         max={100}
-                        value={optMaxIterations}
-                        onChange={(e) => setOptMaxIterations(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                        value={optMaxIterationsInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setOptMaxIterationsInput(val);
+                          // Update number state when valid
+                          if (val !== "" && val !== "-") {
+                            const num = Number(val);
+                            if (!isNaN(num) && num >= 1 && num <= 100) {
+                              setOptMaxIterations(num);
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || isNaN(Number(val)) || Number(val) < 1) {
+                            setOptMaxIterations(1);
+                            setOptMaxIterationsInput("1");
+                          } else {
+                            const num = Math.max(1, Math.min(100, Number(val)));
+                            setOptMaxIterations(num);
+                            setOptMaxIterationsInput(num.toString());
+                          }
+                        }}
                       />
                       <p className="text-xs text-muted-foreground mt-1">Maximum number of optimization iterations (1-100)</p>
                     </div>
@@ -1612,8 +1635,29 @@ const TaskDetail = () => {
                         type="number"
                         min={1}
                         max={20}
-                        value={optPatience}
-                        onChange={(e) => setOptPatience(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                        value={optPatienceInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setOptPatienceInput(val);
+                          // Update number state when valid
+                          if (val !== "" && val !== "-") {
+                            const num = Number(val);
+                            if (!isNaN(num) && num >= 1 && num <= 20) {
+                              setOptPatience(num);
+                            }
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || isNaN(Number(val)) || Number(val) < 1) {
+                            setOptPatience(1);
+                            setOptPatienceInput("1");
+                          } else {
+                            const num = Math.max(1, Math.min(20, Number(val)));
+                            setOptPatience(num);
+                            setOptPatienceInput(num.toString());
+                          }
+                        }}
                       />
                       <p className="text-xs text-muted-foreground mt-1">Stop after N iterations without improvement (1-20)</p>
                     </div>
