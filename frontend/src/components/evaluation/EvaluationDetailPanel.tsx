@@ -158,9 +158,9 @@ export function EvaluationDetailPanel({
                 </span>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => navigate(`/tasks/${evaluationData.task_id}`)}
+                        onClick={() => navigate(`/tasks/${evaluationData.task_id}?tab=overview&implementation_id=${evaluationData.implementation_id}`)}
                         className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded px-2 py-1"
-                        title={`View task ${evaluationData.task_id}`}
+                        title={`View task ${evaluationData.task_id} implementation ${evaluationData.implementation_id}`}
                     >
                         <span className="font-mono">Task {evaluationData.task_id}</span>
                         <ExternalLink className="h-3 w-3" />
