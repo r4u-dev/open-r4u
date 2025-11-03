@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional, List
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, conlist, confloat, validator
+from pydantic import BaseModel, ConfigDict, Field, conlist, validator
 
 from app.enums import OptimizationStatus
-
 
 # Allowed fields the optimization process may mutate
 OptimizationMutableField = Literal[
@@ -31,23 +30,23 @@ class OptimizationRunRequest(BaseModel):
 
 
 class OptimizationIterationGraderDetail(BaseModel):
-    score: Optional[float]
-    reasonings: List[str] = Field(default_factory=list)
+    score: float | None
+    reasonings: list[str] = Field(default_factory=list)
 
 
 class OptimizationIterationEval(BaseModel):
     implementation_id: int
-    version: Optional[str]
-    avg_cost: Optional[float]
-    avg_execution_time_ms: Optional[float]
-    graders: List[OptimizationIterationGraderDetail] = Field(default_factory=list)
+    version: str | None
+    avg_cost: float | None
+    avg_execution_time_ms: float | None
+    graders: list[OptimizationIterationGraderDetail] = Field(default_factory=list)
 
 
 class OptimizationIterationDetail(BaseModel):
     iteration: int
     proposed_changes: dict
-    candidate_implementation_id: Optional[int]
-    evaluation: Optional[OptimizationIterationEval]
+    candidate_implementation_id: int | None
+    evaluation: OptimizationIterationEval | None
 
 
 # Optimization Database Schemas
@@ -58,18 +57,18 @@ class OptimizationBase(BaseModel):
     started_at: datetime | None = Field(None, description="When the optimization started")
     completed_at: datetime | None = Field(None, description="When the optimization completed")
     error: str | None = Field(None, description="Error message if optimization failed")
-    
+
     # Parameters
     max_iterations: int = Field(..., ge=1, description="Maximum number of iterations")
-    changeable_fields: List[str] = Field(..., description="Fields that can be changed during optimization")
+    changeable_fields: list[str] = Field(..., description="Fields that can be changed during optimization")
     max_consecutive_no_improvements: int = Field(3, ge=1, description="Patience parameter")
-    
+
     # Progress
     iterations_run: int = Field(0, ge=0, description="Number of iterations completed")
     current_iteration: int | None = Field(None, description="Current iteration in progress")
-    
+
     # Results
-    iterations: List[OptimizationIterationDetail] = Field(default_factory=list, description="Iteration details")
+    iterations: list[OptimizationIterationDetail] = Field(default_factory=list, description="Iteration details")
 
 
 class OptimizationRead(OptimizationBase):
@@ -104,38 +103,38 @@ class OutperformingVersionItem(BaseModel):
 
     task_id: int
     task_name: str
-    production_version: Optional[str] = Field(None, description="Production version string")
+    production_version: str | None = Field(None, description="Production version string")
     optimized_version: str = Field(..., description="Optimized version string")
-    production_implementation_id: Optional[int] = Field(None, description="Production implementation ID")
+    production_implementation_id: int | None = Field(None, description="Production implementation ID")
     optimized_implementation_id: int = Field(..., description="Optimized implementation ID")
-    
+
     # Deltas (changes)
-    score_delta: Optional[float] = Field(None, description="Change in final evaluation score")
-    quality_delta_percent: Optional[float] = Field(None, description="Percentage change in quality score")
-    cost_delta_percent: Optional[float] = Field(None, description="Percentage change in average cost")
-    time_delta_ms: Optional[float] = Field(None, description="Change in average execution time in milliseconds")
-    
+    score_delta: float | None = Field(None, description="Change in final evaluation score")
+    quality_delta_percent: float | None = Field(None, description="Percentage change in quality score")
+    cost_delta_percent: float | None = Field(None, description="Percentage change in average cost")
+    time_delta_ms: float | None = Field(None, description="Change in average execution time in milliseconds")
+
     # Absolute values for reference
-    production_score: Optional[float] = Field(None, description="Production final evaluation score")
-    optimized_score: Optional[float] = Field(None, description="Optimized final evaluation score")
-    production_quality: Optional[float] = Field(None, description="Production quality score")
-    optimized_quality: Optional[float] = Field(None, description="Optimized quality score")
-    production_cost: Optional[float] = Field(None, description="Production average cost")
-    optimized_cost: Optional[float] = Field(None, description="Optimized average cost")
-    production_time_ms: Optional[float] = Field(None, description="Production average execution time in milliseconds")
-    optimized_time_ms: Optional[float] = Field(None, description="Optimized average execution time in milliseconds")
+    production_score: float | None = Field(None, description="Production final evaluation score")
+    optimized_score: float | None = Field(None, description="Optimized final evaluation score")
+    production_quality: float | None = Field(None, description="Production quality score")
+    optimized_quality: float | None = Field(None, description="Optimized quality score")
+    production_cost: float | None = Field(None, description="Production average cost")
+    optimized_cost: float | None = Field(None, description="Optimized average cost")
+    production_time_ms: float | None = Field(None, description="Production average execution time in milliseconds")
+    optimized_time_ms: float | None = Field(None, description="Optimized average execution time in milliseconds")
 
 
 class OptimizationDashboardSummary(BaseModel):
     """Summary metrics for the optimization dashboard."""
 
-    score_boost_percent: Optional[float] = Field(None, description="Average percentage boost in final evaluation score")
-    quality_boost_percent: Optional[float] = Field(None, description="Average percentage boost in quality score")
-    money_saved: Optional[float] = Field(None, description="Total estimated cost savings in dollars")
-    
+    score_boost_percent: float | None = Field(None, description="Average percentage boost in final evaluation score")
+    quality_boost_percent: float | None = Field(None, description="Average percentage boost in quality score")
+    money_saved: float | None = Field(None, description="Total estimated cost savings in dollars")
+
     # Additional metrics
     total_versions_found: int = Field(0, description="Total number of outperforming versions found")
-    total_cost: Optional[float] = Field(None, description="Total cost of optimizations")
+    total_cost: float | None = Field(None, description="Total cost of optimizations")
     running_count: int = Field(0, description="Number of optimizations currently running")
 
 
@@ -143,7 +142,7 @@ class OptimizationDashboardResponse(BaseModel):
     """Response schema for optimization dashboard endpoint."""
 
     summary: OptimizationDashboardSummary
-    outperforming_versions: List[OutperformingVersionItem] = Field(
+    outperforming_versions: list[OutperformingVersionItem] = Field(
         default_factory=list,
-        description="List of implementations that outperform their production versions"
+        description="List of implementations that outperform their production versions",
     )

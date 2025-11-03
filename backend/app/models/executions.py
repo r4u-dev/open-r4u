@@ -3,22 +3,24 @@
 from datetime import datetime
 from typing import Any
 
-from app.enums import FinishReason
-from app.models.base import Base, created_at_col, intpk, updated_at_col
-
-from app.models.evaluation import Grade
 from sqlalchemy import (
+    JSON,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     String,
     Text,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.enums import FinishReason
+from app.models.base import Base, created_at_col, intpk, updated_at_col
+from app.models.evaluation import Grade
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -54,10 +56,10 @@ class ExecutionResult(Base):
         nullable=True,
     )
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), nullable=False,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
 
     # Prompt rendering
@@ -72,7 +74,7 @@ class ExecutionResult(Base):
 
     # Execution metadata
     finish_reason: Mapped[FinishReason | None] = mapped_column(
-        SQLEnum(FinishReason), nullable=True
+        SQLEnum(FinishReason), nullable=True,
     )
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -84,7 +86,7 @@ class ExecutionResult(Base):
 
     # Raw provider response for debugging
     provider_response: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True
+        JSONType, nullable=True,
     )
 
     # Relationships

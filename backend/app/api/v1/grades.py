@@ -3,14 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings, Settings
+from app.config import Settings, get_settings
 from app.database import get_session
 from app.schemas.evaluation import (
     GradeListItem,
     GradeRead,
     GradeTargetRequest,
 )
-from app.services.grading_service import GradingService, NotFoundError, BadRequestError
+from app.services.grading_service import BadRequestError, GradingService, NotFoundError
 
 router = APIRouter(prefix="/grades", tags=["grades"])
 
@@ -38,9 +38,9 @@ async def create_grade(
             execution_result_id=payload.execution_result_id,
             test_case_id=payload.test_case_id,
         )
-        
+
         return GradeRead.model_validate(grade)
-    
+
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -83,7 +83,7 @@ async def list_grades(
             execution_result_id=execution_result_id,
         )
         return [GradeListItem.model_validate(grade) for grade in grades]
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,7 +101,7 @@ async def get_grade(
     try:
         grade = await grading_service.get_grade(session, grade_id)
         return GradeRead.model_validate(grade)
-    
+
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

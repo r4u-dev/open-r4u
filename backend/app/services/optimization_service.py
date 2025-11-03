@@ -2,30 +2,29 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
-from sqlalchemy.orm import selectinload
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings, get_settings
+from app.enums import MessageRole, OptimizationStatus
+from app.models.evaluation import Evaluation
+from app.models.optimizations import Optimization
+from app.models.tasks import Implementation, Task
 from app.schemas.optimizations import (
-    OptimizationMutableField,
+    OptimizationDashboardResponse,
+    OptimizationDashboardSummary,
     OptimizationIterationDetail,
     OptimizationIterationEval,
     OptimizationIterationGraderDetail,
-    OptimizationDashboardResponse,
-    OptimizationDashboardSummary,
+    OptimizationMutableField,
     OutperformingVersionItem,
 )
-from app.config import get_settings, Settings
-from app.services.evaluation_service import EvaluationService
-from app.models.tasks import Task, Implementation
-from app.models.evaluation import Evaluation
-from app.models.optimizations import Optimization
-from app.services.executor import LLMExecutor
 from app.schemas.traces import MessageItem
-from app.enums import MessageRole, OptimizationStatus, EvaluationStatus
+from app.services.evaluation_service import EvaluationService
+from app.services.executor import LLMExecutor
 from app.services.pricing_service import PricingService
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class OptimizationService:
     """Service for iterative task implementation optimization using LLM agents."""
-    
+
     # Constants
     DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
     DEFAULT_OPTIMIZER_MAX_TOKENS = 1024
@@ -53,7 +52,7 @@ class OptimizationService:
         session: AsyncSession,
         task_id: int,
         max_iterations: int,
-        changeable_fields: List[OptimizationMutableField],
+        changeable_fields: list[OptimizationMutableField],
         max_consecutive_no_improvements: int = 3,
     ) -> Optimization:
         """Create an optimization record and return it immediately."""
@@ -77,28 +76,28 @@ class OptimizationService:
         return optimization
 
     async def execute_optimization_in_background(
-        self, optimization_id: int
+        self, optimization_id: int,
     ) -> None:
         """Execute optimization logic in the background, updating the optimization record continuously."""
         from app.database import AsyncSessionMaker
-        
+
         # Create a new session for the background task
         async with AsyncSessionMaker() as session:
             try:
                 # Load optimization
                 optimization = await session.scalar(
-                    select(Optimization).where(Optimization.id == optimization_id)
+                    select(Optimization).where(Optimization.id == optimization_id),
                 )
-                
+
                 if not optimization:
                     logger.warning(f"Optimization {optimization_id} not found")
                     return
-                
+
                 # Update status to RUNNING
                 optimization.status = OptimizationStatus.RUNNING
-                optimization.started_at = datetime.now(timezone.utc)
+                optimization.started_at = datetime.now(UTC)
                 await session.commit()
-                
+
                 # Execute the optimization loop
                 await self._run_optimization_loop(
                     session=session,
@@ -108,35 +107,35 @@ class OptimizationService:
                     changeable_fields=optimization.changeable_fields,
                     max_consecutive_no_improvements=optimization.max_consecutive_no_improvements,
                 )
-                
+
                 # Mark as completed
                 optimization.status = OptimizationStatus.COMPLETED
-                optimization.completed_at = datetime.now(timezone.utc)
+                optimization.completed_at = datetime.now(UTC)
                 await session.commit()
-                
+
             except Exception as e:
                 logger.exception(f"Optimization {optimization_id} failed: {e}")
                 try:
                     # Try to update status using the same session if still valid
                     opt = await session.scalar(
-                        select(Optimization).where(Optimization.id == optimization_id)
+                        select(Optimization).where(Optimization.id == optimization_id),
                     )
                     if opt:
                         opt.status = OptimizationStatus.FAILED
                         opt.error = str(e)
-                        opt.completed_at = datetime.now(timezone.utc)
+                        opt.completed_at = datetime.now(UTC)
                         await session.commit()
                 except Exception as update_error:
                     logger.exception(f"Failed to update optimization status: {update_error}")
                     # If session is invalid, create a new one
                     async with AsyncSessionMaker() as error_session:
                         opt = await error_session.scalar(
-                            select(Optimization).where(Optimization.id == optimization_id)
+                            select(Optimization).where(Optimization.id == optimization_id),
                         )
                         if opt:
                             opt.status = OptimizationStatus.FAILED
                             opt.error = str(e)
-                            opt.completed_at = datetime.now(timezone.utc)
+                            opt.completed_at = datetime.now(UTC)
                             await error_session.commit()
 
     async def _run_optimization_loop(
@@ -148,15 +147,13 @@ class OptimizationService:
         changeable_fields: list[str],
         max_consecutive_no_improvements: int = 3,
     ) -> None:
-        """
-        Execute iterative optimization loop, updating the optimization record continuously.
+        """Execute iterative optimization loop, updating the optimization record continuously.
         
         This is the refactored version of the original run() method.
         """
-
         # Load baseline implementation and score (score may be None)
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
-        
+
         # Persist only control fields; do not store best impl/score anymore
         await session.commit()
 
@@ -181,11 +178,11 @@ class OptimizationService:
         for iteration_index in range(max_iterations):
             # Refresh optimization object to ensure we have latest state
             await session.refresh(optimization)
-            
+
             # Update current iteration
             optimization.current_iteration = iteration_index + 1
             await session.flush()
-            
+
             # Generate a single candidate variant using the agent
             candidate_spec = await self._generate_variant(
                 session=session,
@@ -227,7 +224,7 @@ class OptimizationService:
                 logger.warning(f"Failed to append evaluation feedback: {e}")
                 eval_summary_list = []
 
-            eval_detail: Optional[OptimizationIterationEval] = None
+            eval_detail: OptimizationIterationEval | None = None
             if eval_summary_list:
                 eval_detail = self._convert_eval_summary_to_model(eval_summary_list[0])
 
@@ -239,18 +236,18 @@ class OptimizationService:
                 evaluation=eval_detail,
             )
             iteration_details.append(iteration_detail)
-            
+
             # Convert to dict for storage
             iteration_dict = iteration_detail.model_dump()
-            
+
             # Refresh optimization before modifying to ensure session is aware of it
             await session.refresh(optimization)
-            
+
             # Update optimization record with new iteration
             # Create a new list to ensure SQLAlchemy detects the change
             optimization.iterations = optimization.iterations + [iteration_dict]
             optimization.iterations_run = iteration_index + 1
-            
+
             await session.commit()
 
             iterations_completed = iteration_index + 1
@@ -264,7 +261,7 @@ class OptimizationService:
             if is_improved:
                 # Reset consecutive no-improvements counter on improvement
                 consecutive_no_improvements = 0
-                
+
                 # If we found a better implementation, add it as the new baseline context for the agent
                 try:
                     if next_best_id is not None and next_best_id != current_best_id:
@@ -281,22 +278,22 @@ class OptimizationService:
             else:
                 # Increment consecutive no-improvements counter
                 consecutive_no_improvements += 1
-                
+
                 # Stop if we've hit the consecutive no-improvements limit
                 if consecutive_no_improvements >= max_consecutive_no_improvements:
                     logger.info(
                         f"Stopping optimization after {consecutive_no_improvements} "
-                        f"consecutive iterations without improvement (limit: {max_consecutive_no_improvements})"
+                        f"consecutive iterations without improvement (limit: {max_consecutive_no_improvements})",
                     )
                     break
-        
+
         logger.info(f"Stopping optimization after max iterations: {max_iterations}")
-        
+
         # Final update
         optimization.current_iteration = None
         await session.commit()
 
-    def _convert_eval_summary_to_model(self, summary: Dict[str, Any]) -> OptimizationIterationEval:
+    def _convert_eval_summary_to_model(self, summary: dict[str, Any]) -> OptimizationIterationEval:
         """Convert internal evaluation summary dict to the schema model."""
         graders_raw = summary.get("graders") or []
         graders: list[OptimizationIterationGraderDetail] = []
@@ -305,7 +302,7 @@ class OptimizationService:
                 OptimizationIterationGraderDetail(
                     score=g.get("score"),
                     reasonings=g.get("reasonings") or [],
-                )
+                ),
             )
         return OptimizationIterationEval(
             implementation_id=summary.get("implementation_id"),
@@ -316,8 +313,8 @@ class OptimizationService:
         )
 
     async def _load_baseline(
-        self, session: AsyncSession, task_id: int
-    ) -> Tuple[Optional[int], Optional[float]]:
+        self, session: AsyncSession, task_id: int,
+    ) -> tuple[int | None, float | None]:
         """Return (implementation_id, score) to serve as baseline.
 
         Contract: prefer highest evaluated implementation; fallback to production version.
@@ -328,19 +325,19 @@ class OptimizationService:
             return None, None
 
         # Gather all implementation IDs for the task
-        impl_ids: List[int] = list(
+        impl_ids: list[int] = list(
             (await session.execute(
-                select(Implementation.id).where(Implementation.task_id == task_id)
-            )).scalars().all()
+                select(Implementation.id).where(Implementation.task_id == task_id),
+            )).scalars().all(),
         )
 
-        best_impl_id: Optional[int] = None
-        best_score: Optional[float] = None
+        best_impl_id: int | None = None
+        best_score: float | None = None
 
         # Evaluate average final scores for each implementation and pick the best
         for impl_id in impl_ids:
             stats = await self.evaluation_service.get_implementation_evaluation_stats(
-                session=session, implementation_id=impl_id
+                session=session, implementation_id=impl_id,
             )
             score = stats.avg_final_evaluation_score
             if score is not None and (best_score is None or score > best_score):
@@ -357,8 +354,8 @@ class OptimizationService:
         self,
         session: AsyncSession,
         task_id: int,
-        changeable_fields: List[OptimizationMutableField],
-    ) -> Optional[Dict[str, Any]]:
+        changeable_fields: list[OptimizationMutableField],
+    ) -> dict[str, Any] | None:
         """Return a single variant spec to create a new implementation using an LLM agent.
 
         The agent is prompted with a meta-prompt and the per-task conversation (which contains
@@ -367,7 +364,7 @@ class OptimizationService:
         """
         available_models = self._get_available_models()
         evaluation_weights = await self._get_evaluation_weights(session, task_id)
-        
+
         variables = self._build_optimizer_variables(available_models, evaluation_weights)
         variant = await self._generate_single_variant_candidate(
             task_id=task_id,
@@ -375,17 +372,17 @@ class OptimizationService:
             available_models=available_models,
             variables=variables,
         )
-        
+
         self._record_variant_in_conversation(task_id, variant)
         return variant
 
     def _get_available_models(self) -> list[dict[str, Any]]:
         """Get list of all available models and their pricing across providers, for the optimizer agent."""
         return self.pricing_service.get_models_with_pricing()
-    
+
     async def _get_evaluation_weights(
-        self, session: AsyncSession, task_id: int
-    ) -> Optional[Dict[str, float]]:
+        self, session: AsyncSession, task_id: int,
+    ) -> dict[str, float] | None:
         """Get evaluation weights configuration for a task."""
         cfg = await self.evaluation_service.get_evaluation_config(session, task_id)
         if cfg:
@@ -395,57 +392,56 @@ class OptimizationService:
                 "time_weight": cfg.time_weight,
             }
         return None
-    
+
     def _build_optimizer_variables(
         self,
-        available_models: List[dict[str, Any]],
-        evaluation_weights: Optional[Dict[str, float]],
-    ) -> Dict[str, Any]:
+        available_models: list[dict[str, Any]],
+        evaluation_weights: dict[str, float] | None,
+    ) -> dict[str, Any]:
         """Build variables dict for optimizer agent execution."""
         return {
             "available_models": available_models,
             "evaluation_weights": evaluation_weights,
         }
-    
+
     async def _generate_single_variant_candidate(
         self,
         task_id: int,
-        changeable_fields: List[OptimizationMutableField],
-        available_models: List[dict[str, Any]],
-        variables: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        changeable_fields: list[OptimizationMutableField],
+        available_models: list[dict[str, Any]],
+        variables: dict[str, Any],
+    ) -> dict[str, Any] | None:
         """Generate a single variant candidate by calling the optimizer agent with retry."""
         executor = LLMExecutor(self.settings)
         attempts = 0
         max_attempts = 2 * self.MAX_VARIANT_ATTEMPTS_MULTIPLIER
-        
+
         while attempts < max_attempts:
             attempts += 1
-            
+
             meta_impl = self._create_meta_implementation(
-                changeable_fields, available_models
+                changeable_fields, available_models,
             )
             execution = await executor.execute(
                 meta_impl,
                 variables=variables,
                 input=self._conversation.get(task_id, []),
             )
-            
+
             result_obj = self._parse_execution_result(execution)
             if result_obj:
                 filtered_variant = self._filter_and_validate_variant(result_obj, changeable_fields)
                 if filtered_variant:
                     return filtered_variant
-        
+
         return None
-    
+
     def _create_meta_implementation(
         self,
-        changeable_fields: List[OptimizationMutableField],
-        available_models: List[dict[str, Any]],
+        changeable_fields: list[OptimizationMutableField],
+        available_models: list[dict[str, Any]],
     ) -> Implementation:
         """Create a temporary meta-implementation for the optimizer agent."""
-        
         meta_impl = Implementation(
             task_id=None,
             version=self.OPTIMIZER_META_VERSION,
@@ -458,20 +454,20 @@ class OptimizationService:
             max_output_tokens=self.DEFAULT_OPTIMIZER_MAX_TOKENS,
             temp=True,
         )
-        
+
         temp_task = Task(
             id=None,
             project_id=None,
-            response_schema=self._build_response_schema_for_fields(changeable_fields, available_models)
+            response_schema=self._build_response_schema_for_fields(changeable_fields, available_models),
         )
         meta_impl.task = temp_task
         return meta_impl
-    
-    def _parse_execution_result(self, execution: Any) -> Optional[Dict[str, Any]]:
+
+    def _parse_execution_result(self, execution: Any) -> dict[str, Any] | None:
         """Parse execution result into a dict, handling both JSON and text responses."""
         if getattr(execution, "result_json", None) and isinstance(execution.result_json, dict):
             return execution.result_json
-        
+
         if getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
             try:
                 parsed = json.loads(execution.result_text)
@@ -479,34 +475,34 @@ class OptimizationService:
                     return parsed
             except json.JSONDecodeError as e:
                 logger.debug(f"Failed to parse execution result as JSON: {e}")
-        
+
         return None
-    
+
     def _filter_and_validate_variant(
-        self, result_obj: Dict[str, Any], changeable_fields: List[OptimizationMutableField]
-    ) -> Optional[Dict[str, Any]]:
+        self, result_obj: dict[str, Any], changeable_fields: list[OptimizationMutableField],
+    ) -> dict[str, Any] | None:
         """Filter to allowed fields, preserve optional 'explanation', and require at least one change."""
         allowed = set(changeable_fields)
-        filtered: Dict[str, Any] = {k: v for k, v in result_obj.items() if k in allowed and v is not None}
+        filtered: dict[str, Any] = {k: v for k, v in result_obj.items() if k in allowed and v is not None}
         explanation = result_obj.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             filtered["explanation"] = explanation
         # Ensure at least one real change among allowed fields
-        if not any(k in allowed for k in filtered.keys()):
+        if not any(k in allowed for k in filtered):
             return None
         return filtered
-    
+
     def _is_duplicate_variant(
         self,
-        variant: Dict[str, Any],
-        existing_variants: List[Dict[str, Any]],
-        changeable_fields: List[OptimizationMutableField],
+        variant: dict[str, Any],
+        existing_variants: list[dict[str, Any]],
+        changeable_fields: list[OptimizationMutableField],
     ) -> bool:
         """Check duplication ignoring non-functional fields like 'explanation'."""
         try:
             allowed = set(changeable_fields)
-            def key_of(v: Dict[str, Any]) -> str:
-                comparable = {k: v[k] for k in v.keys() if k in allowed}
+            def key_of(v: dict[str, Any]) -> str:
+                comparable = {k: v[k] for k in v if k in allowed}
                 return json.dumps(comparable, sort_keys=True)
             variant_key = key_of(variant)
             existing_keys = {key_of(v) for v in existing_variants}
@@ -514,23 +510,23 @@ class OptimizationService:
         except (TypeError, ValueError) as e:
             logger.debug(f"Failed to check variant duplication: {e}")
             return False
-    
+
     def _record_variant_in_conversation(
-        self, task_id: int, variant: Optional[Dict[str, Any]]
+        self, task_id: int, variant: dict[str, Any] | None,
     ) -> None:
         """Record generated single variant in the conversation history."""
         if not variant:
             return
-        
+
         try:
             content_str = json.dumps({"proposed_change": variant})
             self._conversation.setdefault(task_id, []).append(
-                MessageItem(role=MessageRole.ASSISTANT, content=content_str)
+                MessageItem(role=MessageRole.ASSISTANT, content=content_str),
             )
         except (TypeError, ValueError) as e:
             logger.warning(f"Failed to record variant in conversation: {e}")
 
-    def _build_variant_meta_prompt_json(self, changeable_fields: List[OptimizationMutableField]) -> str:
+    def _build_variant_meta_prompt_json(self, changeable_fields: list[OptimizationMutableField]) -> str:
         fields_csv = ", ".join(changeable_fields)
         return (
             "You are an expert prompt and configuration optimizer. Given a baseline implementation and evaluation feedback, "
@@ -551,7 +547,7 @@ class OptimizationService:
     ) -> None:
         """Append the new best implementation details as user context for the optimizer agent."""
         impl = await session.scalar(
-            select(Implementation).where(Implementation.id == implementation_id)
+            select(Implementation).where(Implementation.id == implementation_id),
         )
         if not impl:
             return
@@ -566,38 +562,38 @@ class OptimizationService:
             }
             content_str = "Current best implementation: " + json.dumps(baseline_payload)
             self._conversation.setdefault(task_id, []).append(
-                MessageItem(role=MessageRole.USER, content=content_str)
+                MessageItem(role=MessageRole.USER, content=content_str),
             )
         except (TypeError, ValueError) as e:
             logger.warning(f"Failed to record baseline in conversation: {e}")
 
     def _build_response_schema_for_fields(
-        self, changeable_fields: List[OptimizationMutableField], available_models: Optional[List[dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        self, changeable_fields: list[OptimizationMutableField], available_models: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Build JSON schema for optimizer agent response based on changeable fields. available_models, if provided, should be a list of dicts with 'name', 'provider', and pricing keys."""
-        properties: Dict[str, Any] = {"explanation": {"type": "string", "description": "Briefly justify why the proposed changes will improve the objective."}}
-        required: List[str] = ["explanation"]
-    
+        properties: dict[str, Any] = {"explanation": {"type": "string", "description": "Briefly justify why the proposed changes will improve the objective."}}
+        required: list[str] = ["explanation"]
+
         # Make all fields optional to allow partial overrides
         if "prompt" in changeable_fields:
             properties["prompt"] = {"type": "string"}
             required.append("prompt")
-    
+
         if "model" in changeable_fields:
             properties["model"] = (
                 {"type": "string", "enum": [m["name"] for m in available_models]}
                 if available_models is not None else {"type": "string"}
             )
             required.append("model")
-    
+
         if "temperature" in changeable_fields:
             properties["temperature"] = {"type": "number", "minimum": 0.0, "maximum": 1.0}
             required.append("temperature")
-        
+
         if "max_output_tokens" in changeable_fields:
             properties["max_output_tokens"] = {"type": "integer", "minimum": 1}
             required.append("max_output_tokens")
-    
+
         return {
             "type": "object",
             "properties": properties,
@@ -609,9 +605,9 @@ class OptimizationService:
         self,
         session: AsyncSession,
         task_id: int,
-        current_implementation_id: Optional[int],
-        candidate_spec: Optional[Dict[str, Any]],
-    ) -> Optional[int]:
+        current_implementation_id: int | None,
+        candidate_spec: dict[str, Any] | None,
+    ) -> int | None:
         """Persist a single variant spec as a new Implementation and return its ID (or None).
 
         Unspecified fields inherit from the current implementation when provided.
@@ -626,7 +622,7 @@ class OptimizationService:
         major = self._parse_major_version(current_impl.version if current_impl else None)
 
         implementation = self._create_implementation_from_spec(
-            candidate_spec, current_impl, task_id, major, next_minor
+            candidate_spec, current_impl, task_id, major, next_minor,
         )
 
         if implementation is None:
@@ -636,18 +632,18 @@ class OptimizationService:
         await session.flush()
         await session.commit()
         return implementation.id
-    
+
     async def _load_current_implementation(
-        self, session: AsyncSession, implementation_id: Optional[int]
-    ) -> Optional[Implementation]:
+        self, session: AsyncSession, implementation_id: int | None,
+    ) -> Implementation | None:
         """Load current implementation for field inheritance."""
         if implementation_id is None:
             return None
         return await session.scalar(
-            select(Implementation).where(Implementation.id == implementation_id)
+            select(Implementation).where(Implementation.id == implementation_id),
         )
-    
-    def _parse_major_version(self, version: Optional[str]) -> int:
+
+    def _parse_major_version(self, version: str | None) -> int:
         """Parse major version number from version string."""
         if not version:
             return 0
@@ -656,54 +652,54 @@ class OptimizationService:
             return int(parts[0])
         except (ValueError, TypeError):
             return 0
-    
-    def _parse_minor_version(self, version: str, expected_major: int) -> Optional[int]:
+
+    def _parse_minor_version(self, version: str, expected_major: int) -> int | None:
         """Parse minor version if major version matches expected."""
         parts = str(version).split(".")
         if not parts:
             return None
-        
+
         try:
             major_part = int(parts[0])
         except (ValueError, TypeError):
             return None
-        
+
         if major_part != expected_major or len(parts) < 2:
             return None
-        
+
         try:
             return int(parts[1])
         except (ValueError, TypeError):
             return None
-    
+
     async def _calculate_next_minor_version(
-        self, session: AsyncSession, task_id: int, current_impl: Optional[Implementation]
+        self, session: AsyncSession, task_id: int, current_impl: Implementation | None,
     ) -> int:
         """Calculate the next minor version number for new implementations."""
         major = self._parse_major_version(current_impl.version if current_impl else None)
-        
+
         existing_versions = list(
             (await session.execute(
-                select(Implementation.version).where(Implementation.task_id == task_id)
-            )).scalars().all()
+                select(Implementation.version).where(Implementation.task_id == task_id),
+            )).scalars().all(),
         )
-        
+
         max_minor = 0
         for version in existing_versions:
             minor = self._parse_minor_version(version, major)
             if minor is not None and minor > max_minor:
                 max_minor = minor
-        
+
         return max_minor + 1
-    
+
     def _create_implementation_from_spec(
         self,
-        spec: Dict[str, Any],
-        current_impl: Optional[Implementation],
+        spec: dict[str, Any],
+        current_impl: Implementation | None,
         task_id: int,
         major: int,
         minor: int,
-    ) -> Optional[Implementation]:
+    ) -> Implementation | None:
         """Create an Implementation from a variant spec with field inheritance."""
         # Inherit or extract required fields
         prompt = spec.get("prompt") or (current_impl.prompt if current_impl else None)
@@ -711,12 +707,12 @@ class OptimizationService:
         max_output_tokens = spec.get("max_output_tokens") or (
             current_impl.max_output_tokens if current_impl else None
         )
-        
+
         # Skip if required fields are missing
         if prompt is None or model is None or max_output_tokens is None:
             logger.warning(f"Skipping variant due to missing required fields: {spec}")
             return None
-        
+
         return Implementation(
             task_id=task_id,
             version=f"{major}.{minor}",
@@ -733,10 +729,10 @@ class OptimizationService:
     async def _evaluate_implementations(
         self,
         session: AsyncSession,
-        implementation_ids: List[int],
-    ) -> Dict[int, Optional[float]]:
+        implementation_ids: list[int],
+    ) -> dict[int, float | None]:
         """Evaluate implementations and return mapping impl_id -> final score (or None)."""
-        scores: Dict[int, Optional[float]] = {}
+        scores: dict[int, float | None] = {}
         if not implementation_ids:
             return scores
 
@@ -764,14 +760,14 @@ class OptimizationService:
             evaluation_row = await session.scalar(
                 select(Evaluation)
                 .where(Evaluation.implementation_id == impl_id)
-                .order_by(Evaluation.completed_at.desc().nullslast())
+                .order_by(Evaluation.completed_at.desc().nullslast()),
             )
             if not evaluation_row:
                 scores[impl_id] = None
                 continue
 
             final_score = await self.evaluation_service.calculate_final_evaluation_score(
-                session=session, evaluation=evaluation_row
+                session=session, evaluation=evaluation_row,
             )
             scores[impl_id] = final_score
 
@@ -781,9 +777,9 @@ class OptimizationService:
         self,
         session: AsyncSession,
         task_id: int,
-        implementation_ids: List[int],
-        chosen_id: Optional[int],
-    ) -> List[Dict[str, Any]]:
+        implementation_ids: list[int],
+        chosen_id: int | None,
+    ) -> list[dict[str, Any]]:
         """Summarize evaluation outcomes, append to conversation as a user message, and return the summary."""
         summary = await self._build_evaluation_summary(session, implementation_ids)
         content_obj = {
@@ -793,26 +789,26 @@ class OptimizationService:
         content_str = json.dumps(content_obj)
         logger.debug(f"Evaluation feedback for task {task_id}: {content_str}")
         self._conversation.setdefault(task_id, []).append(
-            MessageItem(role=MessageRole.USER, content=content_str)
+            MessageItem(role=MessageRole.USER, content=content_str),
         )
         return summary
-    
+
     async def _build_evaluation_summary(
-        self, session: AsyncSession, implementation_ids: List[int]
-    ) -> List[Dict[str, Any]]:
+        self, session: AsyncSession, implementation_ids: list[int],
+    ) -> list[dict[str, Any]]:
         """Build summary of evaluation metrics for implementations."""
-        summary: List[Dict[str, Any]] = []
-        
+        summary: list[dict[str, Any]] = []
+
         for impl_id in implementation_ids:
             impl = await session.scalar(
-                select(Implementation).where(Implementation.id == impl_id)
+                select(Implementation).where(Implementation.id == impl_id),
             )
             evaluation = await session.scalar(
                 select(Evaluation)
                 .where(Evaluation.implementation_id == impl_id)
-                .order_by(Evaluation.completed_at.desc().nullslast())
+                .order_by(Evaluation.completed_at.desc().nullslast()),
             )
-            
+
             metrics = {
                 "implementation_id": impl_id,
                 "version": getattr(impl, "version", None),
@@ -822,14 +818,14 @@ class OptimizationService:
                 "graders": await self._get_grader_details(session, evaluation) if evaluation else [],
             }
             summary.append(metrics)
-        
+
         return summary
-    
+
     # final score is no longer attached to iteration evals; retained methods compute on-demand elsewhere
 
     async def _get_grader_details(
-        self, session: AsyncSession, evaluation: Evaluation
-    ) -> List[Dict[str, Any]]:
+        self, session: AsyncSession, evaluation: Evaluation,
+    ) -> list[dict[str, Any]]:
         """Aggregate per-grader average score and collect reasonings for an evaluation.
 
         Returns: [{ score, reasonings }]
@@ -837,14 +833,14 @@ class OptimizationService:
         try:
             # Fetch per-execution results including grades
             results = await self.evaluation_service.list_evaluation_results(
-                session=session, evaluation_id=evaluation.id
+                session=session, evaluation_id=evaluation.id,
             )
         except Exception as e:
             logger.warning(f"Failed to list evaluation results for evaluation {evaluation.id}: {e}")
             return []
 
         # Group by grader_id (fallback to name for readability)
-        by_grader: Dict[str, Dict[str, Any]] = {}
+        by_grader: dict[str, dict[str, Any]] = {}
         for item in results:
             grades = getattr(item, "grades", None) or getattr(item, "grades", [])
             for g in grades:
@@ -860,12 +856,12 @@ class OptimizationService:
                 if isinstance(reasoning, str) and reasoning.strip():
                     bucket["reasonings"].append(reasoning)
 
-        details: List[Dict[str, Any]] = []
+        details: list[dict[str, Any]] = []
         for _, data in by_grader.items():
-            scores: List[float] = data.get("scores", [])
+            scores: list[float] = data.get("scores", [])
             avg_score = sum(scores) / len(scores) if scores else None
             # Limit number of reasonings to avoid bloat
-            reasonings: List[str] = data.get("reasonings", [])[:5]
+            reasonings: list[str] = data.get("reasonings", [])[:5]
             details.append({
                 "score": avg_score,
                 "reasonings": reasonings,
@@ -877,31 +873,31 @@ class OptimizationService:
 
     def _select_best(
         self,
-        current_best_id: Optional[int],
-        current_best_score: Optional[float],
-        candidate_scores: Dict[int, Optional[float]],
-    ) -> Tuple[Optional[int], Optional[float]]:
+        current_best_id: int | None,
+        current_best_score: float | None,
+        candidate_scores: dict[int, float | None],
+    ) -> tuple[int | None, float | None]:
         """Choose the best by final score among current best + candidates.
 
         Contract: tie-breaking strategy favors current implementation (stability).
         """
         scored_candidates = self._filter_scored_candidates(candidate_scores)
-        
+
         # If no candidate has a score, keep current
         if not scored_candidates:
             return current_best_id, current_best_score
-        
+
         best_candidate_id, best_candidate_score = max(scored_candidates, key=lambda x: x[1])
-        
+
         # Favor current implementation on ties (stability)
         if current_best_score is not None and current_best_score >= best_candidate_score:
             return current_best_id, current_best_score
-        
+
         return best_candidate_id, best_candidate_score
-    
+
     def _filter_scored_candidates(
-        self, candidate_scores: Dict[int, Optional[float]]
-    ) -> List[Tuple[int, float]]:
+        self, candidate_scores: dict[int, float | None],
+    ) -> list[tuple[int, float]]:
         """Filter candidates that have numeric scores."""
         return [
             (impl_id, score)
@@ -911,8 +907,8 @@ class OptimizationService:
 
     def _is_improved(
         self,
-        previous_score: Optional[float],
-        new_score: Optional[float],
+        previous_score: float | None,
+        new_score: float | None,
     ) -> bool:
         """Check if new_score is strictly better than previous_score."""
         if new_score is None:
@@ -934,13 +930,13 @@ class OptimizationService:
 
         # Iterate all tasks that have a production version set
         tasks_result = await session.execute(
-            select(Task).where(Task.production_version_id.isnot(None))
+            select(Task).where(Task.production_version_id.isnot(None)),
         )
         tasks: list[Task] = list(tasks_result.scalars().all())
 
-        outperforming_versions: List[OutperformingVersionItem] = []
-        score_boosts: List[float] = []
-        quality_boosts: List[float] = []
+        outperforming_versions: list[OutperformingVersionItem] = []
+        score_boosts: list[float] = []
+        quality_boosts: list[float] = []
         total_cost_savings = 0.0
 
         for task in tasks:
@@ -953,7 +949,7 @@ class OptimizationService:
 
             # List all other implementations for this task
             impls_res = await session.execute(
-                select(Implementation.id, Implementation.version).where(Implementation.task_id == task.id)
+                select(Implementation.id, Implementation.version).where(Implementation.task_id == task.id),
             )
             impl_rows = list(impls_res.all())
 
@@ -1046,12 +1042,12 @@ class OptimizationService:
             summary=summary,
             outperforming_versions=outperforming_versions,
         )
-    
+
     async def _get_implementation_metrics(
         self,
         session: AsyncSession,
         implementation_id: int,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get evaluation metrics for an implementation using evaluation service.
         
         Returns dict with:
@@ -1063,17 +1059,17 @@ class OptimizationService:
         """
         # Get the implementation to retrieve version
         impl = await session.scalar(
-            select(Implementation).where(Implementation.id == implementation_id)
+            select(Implementation).where(Implementation.id == implementation_id),
         )
         if not impl:
             return None
-        
+
         # Use evaluation service to get aggregated stats
         stats = await self.evaluation_service.get_implementation_evaluation_stats(
             session=session,
             implementation_id=implementation_id,
         )
-        
+
         # If no evaluations exist, return basic info
         if stats.evaluation_count == 0:
             return {
@@ -1083,7 +1079,7 @@ class OptimizationService:
                 "avg_cost": None,
                 "avg_execution_time_ms": None,
             }
-        
+
         return {
             "version": impl.version,
             "final_score": stats.avg_final_evaluation_score,

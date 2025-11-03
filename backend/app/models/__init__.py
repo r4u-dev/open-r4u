@@ -7,4 +7,4 @@ from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace, TraceInputItem
 
-__all__ = ["HTTPTrace", "ExecutionResult", "Grade", "Grader", "Implementation", "Project", "Task", "Trace", "TraceInputItem"]
+__all__ = ["ExecutionResult", "Grade", "Grader", "HTTPTrace", "Implementation", "Project", "Task", "Trace", "TraceInputItem"]

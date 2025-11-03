@@ -1,9 +1,9 @@
 """LLM executor service for running task implementations using LiteLLM."""
 
-import logging
 import json
+import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from litellm import acompletion
@@ -40,7 +40,7 @@ class LLMExecutor:
             os.environ["TOGETHER_API_KEY"] = self.settings.together_api_key
 
     def _render_prompt(
-        self, prompt: str, variables: dict[str, Any] | None = None
+        self, prompt: str, variables: dict[str, Any] | None = None,
     ) -> str:
         """Render a prompt template with variables using double curly braces {{ }}."""
         if variables is None:
@@ -83,7 +83,7 @@ class LLMExecutor:
         return value
 
     def _convert_input_to_messages(
-        self, input_items: list[InputItem], variables: dict[str, Any] | None
+        self, input_items: list[InputItem], variables: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         """Convert InputItem list to LiteLLM message format, rendering variables in message contents."""
         messages = []
@@ -97,7 +97,7 @@ class LLMExecutor:
                     "role": getattr(item, "role", None),
                     # Render variables inside content which can be str or structured content
                     "content": self._render_value(
-                        getattr(item, "content", None), variables
+                        getattr(item, "content", None), variables,
                     ),
                 }
                 tool_call_id = getattr(item, "tool_call_id", None)
@@ -119,7 +119,7 @@ class LLMExecutor:
                         "role": "tool",
                         "content": json.dumps(getattr(item, "result", None)),
                         "tool_call_id": getattr(item, "call_id", None),
-                    }
+                    },
                 )
 
             elif item_type == ItemType.FUNCTION_RESULT:
@@ -129,7 +129,7 @@ class LLMExecutor:
                         "role": "function",
                         "name": getattr(item, "name", None),
                         "content": json.dumps(getattr(item, "result", None)),
-                    }
+                    },
                 )
 
         return messages
@@ -160,14 +160,15 @@ class LLMExecutor:
             implementation: The implementation to execute
             variables: Variables for prompt template substitution
             input: Optional message history (InputItem list). If provided, messages will follow the system prompt.
+
         """
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
 
         # Always render prompt as system prompt
         try:
             prompt_rendered = self._render_prompt(implementation.prompt, variables)
         except ValueError as e:
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(UTC)
             return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
@@ -177,19 +178,19 @@ class LLMExecutor:
 
         # Build messages starting with system prompt
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": prompt_rendered}
+            {"role": "system", "content": prompt_rendered},
         ]
         if input:
             try:
                 converted = self._convert_input_to_messages(input, variables)
                 messages.extend(converted)
             except Exception as e:
-                completed_at = datetime.now(timezone.utc)
+                completed_at = datetime.now(UTC)
                 return ExecutionResultBase(
                     started_at=started_at,
                     completed_at=completed_at,
                     prompt_rendered=prompt_rendered,
-                    error=f"Error converting input to messages: {str(e)}",
+                    error=f"Error converting input to messages: {e!s}",
                 )
 
         # Prepare the request
@@ -229,7 +230,7 @@ class LLMExecutor:
                     "name": "response_schema",
                     "strict": True,
                     "schema": response_schema,
-                }
+                },
             }
 
         # Handle reasoning for o1/o3 models
@@ -240,25 +241,25 @@ class LLMExecutor:
         # Execute the request using LiteLLM
         try:
             response = await acompletion(**request_params, drop_params=True)
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(UTC)
 
             # Parse the response
             choice = response.choices[0]
             result_text = choice.message.content
-            
+
             # Handle tool calls using proper schema
             tool_calls = None
-            if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
+            if hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
                 tool_calls = []
                 for tc in choice.message.tool_calls:
                     # Convert to ToolCallItem schema
                     tool_call_item = ToolCallItem(
                         id=tc.id,
                         tool_name=tc.function.name,
-                        arguments=tc.function.arguments if isinstance(tc.function.arguments, dict) else json.loads(tc.function.arguments)
+                        arguments=tc.function.arguments if isinstance(tc.function.arguments, dict) else json.loads(tc.function.arguments),
                     )
                     tool_calls.append(tool_call_item.model_dump())
-                
+
                 # If there are tool calls, result_text is usually None
                 if not result_text:
                     result_text = f"Made {len(tool_calls)} tool call(s)"
@@ -334,8 +335,8 @@ class LLMExecutor:
             )
 
         except Exception as e:
-            logger.error(f"Error executing implementation: {str(e)}")
-            completed_at = datetime.now(timezone.utc)
+            logger.error(f"Error executing implementation: {e!s}")
+            completed_at = datetime.now(UTC)
             return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
