@@ -1929,39 +1929,18 @@ const TaskDetail = () => {
                                     <div className="text-sm text-destructive p-3 bg-destructive/10 rounded">{details.error}</div>
                                   )}
                                   
-                                  {/* Top: Metrics and Configuration */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {/* Left: Metrics Row */}
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div className="p-3 bg-muted/50 rounded-lg">
-                                        <div className="text-xs text-muted-foreground mb-0.5">Best Score</div>
-                                        <div className="text-xl font-semibold">
-                                          {details.best_score !== null && details.best_score !== undefined 
-                                            ? details.best_score.toFixed(2) 
-                                            : '-'}
-                                        </div>
-                                      </div>
-                                      <div className="p-3 bg-muted/50 rounded-lg">
-                                        <div className="text-xs text-muted-foreground mb-0.5">Best Implementation Version</div>
-                                        <div className="text-lg font-semibold font-mono">
-                                          {(() => {
-                                            const bestId = details.best_implementation_id;
-                                            if (bestId == null) return "-";
-                                            const match = details.iterations.find(
-                                              (it) => it.evaluation?.implementation_id === bestId && (it.evaluation?.version ?? null) !== null
-                                            );
-                                            return match?.evaluation?.version ?? "-";
-                                          })()}
-                                        </div>
-                                      </div>
-                                      <div className="p-3 bg-muted/50 rounded-lg">
-                                        <div className="text-xs text-muted-foreground mb-0.5">Iterations Run</div>
-                                        <div className="text-xl font-semibold">{details.iterations_run}</div>
-                                        {details.status === "running" && details.current_iteration && (
-                                          <div className="text-xs text-muted-foreground mt-0.5">Currently on iteration {details.current_iteration}</div>
-                                        )}
-                                      </div>
-                                    </div>
+                                   {/* Top: Metrics and Configuration */}
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                     {/* Left: Metrics Row */}
+                                     <div className="grid grid-cols-1 gap-2">
+                                       <div className="p-3 bg-muted/50 rounded-lg">
+                                         <div className="text-xs text-muted-foreground mb-0.5">Iterations Run</div>
+                                         <div className="text-xl font-semibold">{details.iterations_run}</div>
+                                         {details.status === "running" && details.current_iteration && (
+                                           <div className="text-xs text-muted-foreground mt-0.5">Currently on iteration {details.current_iteration}</div>
+                                         )}
+                                       </div>
+                                     </div>
 
                                     {/* Right: Configuration */}
                                     <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
@@ -2003,7 +1982,6 @@ const TaskDetail = () => {
                                                   <TableHead className="w-16">#</TableHead>
                                                   <TableHead>Proposed Changes</TableHead>
                                                   <TableHead className="w-40">Candidate Version</TableHead>
-                                                  <TableHead className="w-32">Final Score</TableHead>
                                                   <TableHead className="w-32">Avg Cost</TableHead>
                                                   <TableHead className="w-32">Avg Time</TableHead>
                                                 </TableRow>
@@ -2037,11 +2015,6 @@ const TaskDetail = () => {
                                                       <TableCell className="font-mono text-xs">
                                                         {it.evaluation?.version ?? '-'}
                                                       </TableCell>
-                                                      <TableCell className="font-semibold">
-                                                        {it.evaluation?.final_score !== null && it.evaluation?.final_score !== undefined
-                                                          ? it.evaluation.final_score.toFixed(2)
-                                                          : '-'}
-                                                      </TableCell>
                                                       <TableCell className="text-xs">
                                                         {it.evaluation?.avg_cost !== null && it.evaluation?.avg_cost !== undefined
                                                           ? `$${it.evaluation.avg_cost.toFixed(6)}`
@@ -2074,14 +2047,8 @@ const TaskDetail = () => {
                                           // Show graders from selected iteration
                                           source = details.iterations.find(it => it.iteration === selectedIter);
                                         } else {
-                                          // Default: show from best iteration, or latest
-                                          const bestId = details.best_implementation_id;
-                                          source = details.iterations.find(
-                                            (it) => bestId != null && it.evaluation?.implementation_id === bestId
-                                          );
-                                          if (!source) {
-                                            source = [...details.iterations].sort((a, b) => (b.iteration - a.iteration))[0];
-                                          }
+                                          // Default: show latest iteration
+                                          source = [...details.iterations].sort((a, b) => (b.iteration - a.iteration))[0];
                                         }
                                         
                                         const graders = source?.evaluation?.graders || [];

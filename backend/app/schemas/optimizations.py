@@ -40,7 +40,6 @@ class OptimizationIterationEval(BaseModel):
     version: Optional[str]
     avg_cost: Optional[float]
     avg_execution_time_ms: Optional[float]
-    final_score: Optional[float]
     graders: List[OptimizationIterationGraderDetail] = Field(default_factory=list)
 
 
@@ -70,8 +69,6 @@ class OptimizationBase(BaseModel):
     current_iteration: int | None = Field(None, description="Current iteration in progress")
     
     # Results
-    best_implementation_id: int | None = Field(None, description="ID of the best implementation found")
-    best_score: float | None = Field(None, description="Best score achieved")
     iterations: List[OptimizationIterationDetail] = Field(default_factory=list, description="Iteration details")
 
 
@@ -96,8 +93,6 @@ class OptimizationListItem(BaseModel):
     completed_at: datetime | None
     error: str | None
     iterations_run: int
-    best_implementation_id: int | None
-    best_score: float | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

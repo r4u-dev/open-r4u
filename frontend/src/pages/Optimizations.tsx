@@ -40,6 +40,19 @@ const Optimizations = () => {
     };
   }, []);
 
+  const sortedOutperformers = useMemo(() => {
+    if (!data) return [] as NonNullable<OptimizationDashboardResponse>["outperforming_versions"];
+    const list = [...data.outperforming_versions];
+    list.sort((a, b) => {
+      const byTask = a.task_name.localeCompare(b.task_name);
+      if (byTask !== 0) return byTask;
+      const aScore = a.optimized_score ?? -Infinity;
+      const bScore = b.optimized_score ?? -Infinity;
+      return bScore - aScore; // highest impl first within task
+    });
+    return list;
+  }, [data]);
+
   const summaryCards = useMemo(() => {
     const summary = data?.summary;
     return [
@@ -197,7 +210,7 @@ const Optimizations = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.outperforming_versions.map((v) => {
+                  {sortedOutperformers.map((v) => {
                     const version = v.production_version
                       ? `${v.production_version} → ${v.optimized_version}`
                       : v.optimized_version;
@@ -266,7 +279,7 @@ const Optimizations = () => {
                   })}
                 </TableBody>
                 <TableCaption>
-                  Showing {data.outperforming_versions.length} version(s) in the last 30 days
+                  Showing {sortedOutperformers.length} version(s)
                 </TableCaption>
               </Table>
             </TooltipProvider>

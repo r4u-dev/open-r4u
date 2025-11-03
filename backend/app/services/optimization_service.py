@@ -157,9 +157,7 @@ class OptimizationService:
         # Load baseline implementation and score (score may be None)
         current_best_id, current_best_score = await self._load_baseline(session, task_id)
         
-        # Update optimization with initial baseline
-        optimization.best_implementation_id = current_best_id
-        optimization.best_score = current_best_score
+        # Persist only control fields; do not store best impl/score anymore
         await session.commit()
 
         iterations_completed = 0
@@ -253,11 +251,6 @@ class OptimizationService:
             optimization.iterations = optimization.iterations + [iteration_dict]
             optimization.iterations_run = iteration_index + 1
             
-            # Update best if improved
-            if next_best_id != current_best_id:
-                optimization.best_implementation_id = next_best_id
-                optimization.best_score = next_best_score
-            
             await session.commit()
 
             iterations_completed = iteration_index + 1
@@ -319,7 +312,6 @@ class OptimizationService:
             version=summary.get("version"),
             avg_cost=summary.get("avg_cost"),
             avg_execution_time_ms=summary.get("avg_execution_time_ms"),
-            final_score=summary.get("final_score"),
             graders=graders,
         )
 
@@ -826,7 +818,6 @@ class OptimizationService:
                 "version": getattr(impl, "version", None),
                 "avg_cost": getattr(evaluation, "avg_cost", None) if evaluation else None,
                 "avg_execution_time_ms": getattr(evaluation, "avg_execution_time_ms", None) if evaluation else None,
-                "final_score": await self._get_final_score(session, evaluation) if evaluation else None,
                 # Include per-grader aggregates and reasonings
                 "graders": await self._get_grader_details(session, evaluation) if evaluation else [],
             }
@@ -834,17 +825,7 @@ class OptimizationService:
         
         return summary
     
-    async def _get_final_score(
-        self, session: AsyncSession, evaluation: Evaluation
-    ) -> Optional[float]:
-        """Calculate final score for an evaluation, returning None on error."""
-        try:
-            return await self.evaluation_service.calculate_final_evaluation_score(
-                session=session, evaluation=evaluation
-            )
-        except Exception as e:
-            logger.warning(f"Failed to calculate final score for evaluation {evaluation.id}: {e}")
-            return None
+    # final score is no longer attached to iteration evals; retained methods compute on-demand elsewhere
 
     async def _get_grader_details(
         self, session: AsyncSession, evaluation: Evaluation
@@ -945,139 +926,114 @@ class OptimizationService:
         session: AsyncSession,
         days: int = 30,
     ) -> OptimizationDashboardResponse:
-        """Get dashboard metrics for optimization summary and outperforming versions.
-        
-        Args:
-            session: Database session
-            days: Number of days to look back (default: 30)
-            
-        Returns:
-            OptimizationDashboardResponse with summary metrics and outperforming versions
-        """
-        # Calculate the cutoff date
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
-        
-        # Query completed optimizations within the time period
-        optimizations_query = (
-            select(Optimization)
-            .where(Optimization.status == OptimizationStatus.COMPLETED)
-            .where(Optimization.completed_at >= cutoff_date)
-            .where(Optimization.best_implementation_id.isnot(None))
-            .options(selectinload(Optimization.task))
-            .options(selectinload(Optimization.best_implementation))
-        )
-        result = await session.execute(optimizations_query)
-        optimizations = list(result.scalars().all())
-        
+        """Compute dashboard across all tasks vs production baseline (days ignored)."""
         # Count running optimizations
         running_query = select(Optimization).where(Optimization.status == OptimizationStatus.RUNNING)
         running_result = await session.execute(running_query)
         running_count = len(list(running_result.scalars().all()))
-        
+
+        # Iterate all tasks that have a production version set
+        tasks_result = await session.execute(
+            select(Task).where(Task.production_version_id.isnot(None))
+        )
+        tasks: list[Task] = list(tasks_result.scalars().all())
+
         outperforming_versions: List[OutperformingVersionItem] = []
         score_boosts: List[float] = []
         quality_boosts: List[float] = []
         total_cost_savings = 0.0
-        
-        # Process each optimization
-        for opt in optimizations:
-            if not opt.best_implementation_id or not opt.task:
-                continue
-                
-            # Get the best optimized implementation
-            optimized_impl_id = opt.best_implementation_id
-            optimized_impl = opt.best_implementation
-            if not optimized_impl:
-                continue
-                
-            # Get the production implementation for this task
-            production_impl_id = opt.task.production_version_id
+
+        for task in tasks:
+            production_impl_id = task.production_version_id
             if not production_impl_id:
-                # Skip if no production version exists
                 continue
-            
-            # Get evaluation metrics for both implementations
-            optimized_metrics = await self._get_implementation_metrics(session, optimized_impl_id)
+
+            # Metrics for production implementation
             production_metrics = await self._get_implementation_metrics(session, production_impl_id)
-            
-            # Skip if we don't have metrics for the optimized version
-            if not optimized_metrics:
-                continue
-            
-            # Check if optimized version outperforms production (final_score must be higher)
-            opt_score = optimized_metrics.get("final_score")
-            if opt_score is None:
-                continue  # Must have a score to be outperforming
-            
-            if production_metrics:
-                prod_score = production_metrics.get("final_score")
-                # Skip if production score exists and optimized is not higher
-                if prod_score is not None and opt_score <= prod_score:
-                    continue  # Not outperforming
-            # If no production metrics, optimized is outperforming (new version)
-            
-            # Calculate deltas
-            score_delta = None
-            quality_delta_percent = None
-            cost_delta_percent = None
-            time_delta_ms = None
-            
-            if optimized_metrics.get("final_score") is not None:
-                if production_metrics and production_metrics.get("final_score") is not None:
-                    score_delta = optimized_metrics["final_score"] - production_metrics["final_score"]
-                    if production_metrics["final_score"] > 0:
-                        score_boost_percent = (score_delta / production_metrics["final_score"]) * 100
-                        score_boosts.append(score_boost_percent)
-                else:
-                    score_delta = optimized_metrics["final_score"]
-            
-            if optimized_metrics.get("quality_score") is not None:
-                if production_metrics and production_metrics.get("quality_score") is not None:
-                    quality_delta = optimized_metrics["quality_score"] - production_metrics["quality_score"]
-                    if production_metrics["quality_score"] > 0:
-                        quality_delta_percent = (quality_delta / production_metrics["quality_score"]) * 100
-                        quality_boosts.append(quality_delta_percent)
-                else:
-                    quality_delta_percent = optimized_metrics["quality_score"] * 100
-            
-            if optimized_metrics.get("avg_cost") is not None and production_metrics and production_metrics.get("avg_cost") is not None:
-                cost_delta = production_metrics["avg_cost"] - optimized_metrics["avg_cost"]
-                if production_metrics["avg_cost"] > 0:
-                    cost_delta_percent = (cost_delta / production_metrics["avg_cost"]) * 100
-                    # Calculate estimated savings (assuming some volume, e.g., per 1000 executions)
-                    if cost_delta > 0:
-                        total_cost_savings += cost_delta * 1000  # Example: savings per 1000 executions
-            
-            if optimized_metrics.get("avg_execution_time_ms") is not None and production_metrics and production_metrics.get("avg_execution_time_ms") is not None:
-                time_delta_ms = production_metrics["avg_execution_time_ms"] - optimized_metrics["avg_execution_time_ms"]
-            
-            # Create outperforming version item
-            version_item = OutperformingVersionItem(
-                task_id=opt.task_id,
-                task_name=opt.task.name,
-                production_version=production_metrics.get("version") if production_metrics else None,
-                optimized_version=optimized_impl.version,
-                production_implementation_id=production_impl_id,
-                optimized_implementation_id=optimized_impl_id,
-                score_delta=score_delta,
-                quality_delta_percent=quality_delta_percent,
-                cost_delta_percent=cost_delta_percent,
-                time_delta_ms=time_delta_ms,
-                production_score=production_metrics.get("final_score") if production_metrics else None,
-                optimized_score=optimized_metrics.get("final_score"),
-                production_quality=production_metrics.get("quality_score") if production_metrics else None,
-                optimized_quality=optimized_metrics.get("quality_score"),
-                production_cost=production_metrics.get("avg_cost") if production_metrics else None,
-                optimized_cost=optimized_metrics.get("avg_cost"),
-                production_time_ms=production_metrics.get("avg_execution_time_ms") if production_metrics else None,
-                optimized_time_ms=optimized_metrics.get("avg_execution_time_ms"),
+
+            # List all other implementations for this task
+            impls_res = await session.execute(
+                select(Implementation.id, Implementation.version).where(Implementation.task_id == task.id)
             )
-            outperforming_versions.append(version_item)
-        
-        # Calculate aggregate summary metrics
+            impl_rows = list(impls_res.all())
+
+            for impl_id, impl_version in impl_rows:
+                if impl_id == production_impl_id:
+                    continue
+
+                optimized_metrics = await self._get_implementation_metrics(session, impl_id)
+                if not optimized_metrics:
+                    continue
+
+                opt_score = optimized_metrics.get("final_score")
+                if opt_score is None:
+                    continue
+
+                prod_score = production_metrics.get("final_score") if production_metrics else None
+                if prod_score is not None and opt_score <= prod_score:
+                    continue
+
+                # Compute deltas
+                score_delta = None
+                quality_delta_percent = None
+                cost_delta_percent = None
+                time_delta_ms = None
+
+                if opt_score is not None:
+                    if prod_score is not None:
+                        score_delta = opt_score - prod_score
+                        if prod_score > 0:
+                            score_boosts.append((score_delta / prod_score) * 100)
+                    else:
+                        score_delta = opt_score
+
+                opt_quality = optimized_metrics.get("quality_score")
+                prod_quality = production_metrics.get("quality_score") if production_metrics else None
+                if opt_quality is not None:
+                    if prod_quality is not None and prod_quality > 0:
+                        quality_delta_percent = ((opt_quality - prod_quality) / prod_quality) * 100
+                        quality_boosts.append(quality_delta_percent)
+                    elif prod_quality is None:
+                        quality_delta_percent = opt_quality * 100
+
+                opt_cost = optimized_metrics.get("avg_cost")
+                prod_cost = production_metrics.get("avg_cost") if production_metrics else None
+                if opt_cost is not None and prod_cost is not None and prod_cost > 0:
+                    cost_delta = prod_cost - opt_cost
+                    cost_delta_percent = (cost_delta / prod_cost) * 100
+                    if cost_delta > 0:
+                        total_cost_savings += cost_delta * 1000  # example volume basis
+
+                opt_time = optimized_metrics.get("avg_execution_time_ms")
+                prod_time = production_metrics.get("avg_execution_time_ms") if production_metrics else None
+                if opt_time is not None and prod_time is not None:
+                    time_delta_ms = prod_time - opt_time
+
+                item = OutperformingVersionItem(
+                    task_id=task.id,
+                    task_name=task.name,
+                    production_version=production_metrics.get("version") if production_metrics else None,
+                    optimized_version=impl_version,
+                    production_implementation_id=production_impl_id,
+                    optimized_implementation_id=impl_id,
+                    score_delta=score_delta,
+                    quality_delta_percent=quality_delta_percent,
+                    cost_delta_percent=cost_delta_percent,
+                    time_delta_ms=time_delta_ms,
+                    production_score=prod_score,
+                    optimized_score=opt_score,
+                    production_quality=prod_quality,
+                    optimized_quality=opt_quality,
+                    production_cost=prod_cost,
+                    optimized_cost=opt_cost,
+                    production_time_ms=prod_time,
+                    optimized_time_ms=opt_time,
+                )
+                outperforming_versions.append(item)
+
         avg_score_boost = sum(score_boosts) / len(score_boosts) if score_boosts else None
         avg_quality_boost = sum(quality_boosts) / len(quality_boosts) if quality_boosts else None
-        
+
         summary = OptimizationDashboardSummary(
             score_boost_percent=avg_score_boost,
             quality_boost_percent=avg_quality_boost,
@@ -1085,7 +1041,7 @@ class OptimizationService:
             total_versions_found=len(outperforming_versions),
             running_count=running_count,
         )
-        
+
         return OptimizationDashboardResponse(
             summary=summary,
             outperforming_versions=outperforming_versions,

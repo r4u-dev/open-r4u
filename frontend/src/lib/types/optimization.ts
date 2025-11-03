@@ -23,7 +23,6 @@ export interface OptimizationIterationEval {
   version?: string | null;
   avg_cost?: number | null;
   avg_execution_time_ms?: number | null;
-  final_score?: number | null;
   graders: OptimizationIterationGraderDetail[];
 }
 
@@ -35,8 +34,6 @@ export interface OptimizationIterationDetail {
 }
 
 export interface OptimizationResult {
-  best_implementation_id?: number | null;
-  best_score?: number | null;
   iterations_run: number;
   iterations: OptimizationIterationDetail[];
 }
@@ -52,8 +49,6 @@ export interface OptimizationBase {
   max_consecutive_no_improvements: number;
   iterations_run: number;
   current_iteration?: number | null;
-  best_implementation_id?: number | null;
-  best_score?: number | null;
   iterations: OptimizationIterationDetail[];
 }
 
@@ -72,8 +67,6 @@ export interface OptimizationListItem {
   completed_at?: string | null;
   error?: string | null;
   iterations_run: number;
-  best_implementation_id?: number | null;
-  best_score?: number | null;
   created_at: string;
 }
 

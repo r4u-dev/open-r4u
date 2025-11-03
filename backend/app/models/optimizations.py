@@ -66,13 +66,6 @@ class Optimization(Base):
     iterations_run: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_iteration: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Results (stored incrementally)
-    best_implementation_id: Mapped[int | None] = mapped_column(
-        ForeignKey("implementation.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    best_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    
     # Iteration details (stored as JSON array, updated incrementally)
     iterations: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONType, nullable=False, default=list
@@ -80,10 +73,6 @@ class Optimization(Base):
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="optimizations")  # type: ignore
-    best_implementation: Mapped["Implementation | None"] = relationship(
-        "Implementation",
-        foreign_keys=[best_implementation_id],
-    )  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
