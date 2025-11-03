@@ -160,7 +160,9 @@ class TestAutoCreateImplementation:
     ):
         """Test that implementation is created exactly at min_cluster_size threshold."""
         # Create exactly 3 traces (exactly min_cluster_size)
-        for i in range(3):
+        # Use similar messages that meet the 0.6 similarity threshold
+        names = ["Alice", "Bob", "Charlie"]
+        for name in names:
             payload = {
                 "model": "gpt-4",
                 "path": "/api/exact",
@@ -168,7 +170,7 @@ class TestAutoCreateImplementation:
                     {
                         "type": "message",
                         "role": "system",
-                        "content": f"Process item {i}.",
+                        "content": f"Process user {name} request.",
                     },
                 ],
                 "result": "Done",

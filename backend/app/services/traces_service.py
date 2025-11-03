@@ -307,15 +307,15 @@ class TracesService:
 
         """
         try:
-            # Only proceed if trace has a system prompt
+            # Only proceed if trace has a first message
             # Note: traces with path=null will be grouped with other path=null traces
-            # Extract system prompt
+            # Extract first message (instructions)
             input_items = [item.model_dump(mode="json") for item in trace_data.input]
             system_prompt = extract_system_prompt_from_trace(input_items)
 
             if not system_prompt:
                 logger.debug(
-                    f"Trace {trace.id} has no system prompt, skipping auto-grouping",
+                    f"Trace {trace.id} has no first message, skipping auto-grouping",
                 )
                 return
 
