@@ -82,8 +82,10 @@ const Optimizations = () => {
     type: "score" | "qualityPercent" | "costPercent" | "timeMs",
   ) => {
     if (value == null) return <span>--</span>;
-    const isPositiveGood = type === "score" || type === "qualityPercent";
-    const effective = isPositiveGood ? value : -value; // positive effective means good
+    // Backend deltas are defined so that POSITIVE means improvement for all types
+    // (score, quality%, cost%, timeMs). So we treat positive as good uniformly for color/arrow.
+    const effective = value; // positive effective means good
+    const isPositiveGood = type === "score" || type === "qualityPercent"; // for sign rendering
     const GoodIcon = ArrowUpRight;
     const BadIcon = ArrowDownRight;
     const isZero = Math.abs(value) < 1e-9;
@@ -110,10 +112,14 @@ const Optimizations = () => {
       );
     }
 
+    const sign = isPositiveGood
+      ? (value >= 0 ? "+" : "-")
+      : (value >= 0 ? "-" : "+");
+
     return (
       <span className={`inline-flex items-center gap-1 ${color}`}>
         {isGood ? <GoodIcon className="h-3.5 w-3.5" /> : <BadIcon className="h-3.5 w-3.5" />}
-        {value >= 0 ? "+" : "-"}{formatted}
+        {sign}{formatted}
       </span>
     );
   };
