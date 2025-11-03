@@ -6,7 +6,8 @@ the API layer remains free of direct SQL/ORM queries.
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,12 +16,18 @@ from sqlalchemy.orm import selectinload
 from app.config import Settings
 from app.models.executions import ExecutionResult
 from app.models.tasks import Implementation, Task
+from app.schemas.traces import (
+    FunctionCallItem,
+    FunctionResultItem,
+    MCPToolCallItem,
+    MCPToolResultItem,
+    MediaItem,
+    MessageItem,
+    ToolCallItem,
+    ToolResultItem,
+)
 from app.services.executor import LLMExecutor
 from app.services.pricing_service import PricingService
-from app.schemas.traces import (
-    MessageItem, FunctionCallItem, FunctionResultItem, ToolCallItem,
-    ToolResultItem, MediaItem, MCPToolCallItem, MCPToolResultItem
-)
 
 
 class NotFoundError(Exception):
@@ -41,7 +48,6 @@ async def _create_temp_implementation(
     overrides: dict[str, Any],
 ) -> Implementation:
     """Create a temporary implementation with overrides applied."""
-    
     # Create new implementation with overrides
     temp_impl = Implementation(
         task_id=base_implementation.task_id,
@@ -55,11 +61,11 @@ async def _create_temp_implementation(
         max_output_tokens=overrides.get("max_output_tokens", base_implementation.max_output_tokens),
         temp=True,
     )
-    
+
     session.add(temp_impl)
     await session.commit()
     await session.refresh(temp_impl)
-    
+
     return temp_impl
 
 
@@ -104,7 +110,6 @@ async def execute(
     - If implementation_id is provided, executes that implementation (overrides are not allowed).
     - arguments: Contains variables for prompt rendering and optional "messages" key for input history.
     """
-
     if (task_id is None) == (implementation_id is None):
         raise BadRequestError("Provide exactly one of task_id or implementation_id")
 
@@ -128,7 +133,7 @@ async def execute(
         # If overrides provided, create temporary implementation
         if overrides and any(overrides.values()):
             implementation = await _create_temp_implementation(
-                session, implementation, overrides
+                session, implementation, overrides,
             )
 
         resolved_task_id = task.id
@@ -138,7 +143,7 @@ async def execute(
         # implementation_id path does not support overrides
         if overrides and any(overrides.values()):
             raise BadRequestError(
-                "Overrides are only supported when executing by task_id"
+                "Overrides are only supported when executing by task_id",
             )
 
         # Load implementation with tasks to determine associated task
@@ -151,11 +156,11 @@ async def execute(
         implementation = result.scalar_one_or_none()
         if not implementation:
             raise NotFoundError(
-                f"Implementation with id {implementation_id} not found"
+                f"Implementation with id {implementation_id} not found",
             )
         if not implementation.task:
             raise BadRequestError(
-                f"No task found for implementation {implementation_id}"
+                f"No task found for implementation {implementation_id}",
             )
 
         task = implementation.task
@@ -220,7 +225,7 @@ async def execute(
 
 
 async def list_implementation_executions(
-    session: AsyncSession, implementation_id: int
+    session: AsyncSession, implementation_id: int,
 ) -> list[ExecutionResult]:
     # Ensure implementation exists
     impl_q = select(Implementation).where(Implementation.id == implementation_id)
@@ -228,7 +233,7 @@ async def list_implementation_executions(
     impl = impl_res.scalar_one_or_none()
     if not impl:
         raise NotFoundError(
-            f"Implementation with id {implementation_id} not found"
+            f"Implementation with id {implementation_id} not found",
         )
 
     q = (
@@ -242,7 +247,7 @@ async def list_implementation_executions(
 
 
 async def list_task_executions(
-    session: AsyncSession, task_id: int
+    session: AsyncSession, task_id: int,
 ) -> list[ExecutionResult]:
     # Ensure task exists
     task_q = select(Task).where(Task.id == task_id)
@@ -262,7 +267,7 @@ async def list_task_executions(
 
 
 async def get_execution(
-    session: AsyncSession, execution_id: int
+    session: AsyncSession, execution_id: int,
 ) -> ExecutionResult:
     q = select(ExecutionResult).where(ExecutionResult.id == execution_id)
     res = await session.execute(q)

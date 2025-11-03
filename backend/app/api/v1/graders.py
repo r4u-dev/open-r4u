@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings, Settings
+from app.config import Settings, get_settings
 from app.database import get_session
 from app.schemas.evaluation import (
     GraderCreate,
@@ -43,9 +43,9 @@ async def create_grader(
             max_output_tokens=payload.max_output_tokens,
             is_active=payload.is_active,
         )
-        
+
         return GraderRead.model_validate(grader)
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,7 +63,7 @@ async def list_graders(
     try:
         graders = await grading_service.list_graders(session, project_id)
         return [GraderListItem.model_validate(grader) for grader in graders]
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -81,7 +81,7 @@ async def get_grader(
     try:
         grader = await grading_service.get_grader(session, grader_id)
         return GraderRead.model_validate(grader)
-    
+
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -105,15 +105,15 @@ async def update_grader(
     try:
         # Filter out None values
         updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-        
+
         grader = await grading_service.update_grader(
             session=session,
             grader_id=grader_id,
             **updates,
         )
-        
+
         return GraderRead.model_validate(grader)
-    
+
     except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

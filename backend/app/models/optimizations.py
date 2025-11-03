@@ -5,9 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
-    CheckConstraint,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -21,7 +19,7 @@ from app.enums import OptimizationStatus
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 if TYPE_CHECKING:
-    from app.models.tasks import Implementation, Task
+    from app.models.tasks import Task
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -48,10 +46,10 @@ class Optimization(Base):
         default=OptimizationStatus.PENDING,
     )
     started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -59,7 +57,7 @@ class Optimization(Base):
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False)
     changeable_fields: Mapped[list[str]] = mapped_column(JSONType, nullable=False)
     max_consecutive_no_improvements: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=3
+        Integer, nullable=False, default=3,
     )
 
     # Progress tracking
@@ -68,7 +66,7 @@ class Optimization(Base):
 
     # Iteration details (stored as JSON array, updated incrementally)
     iterations: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONType, nullable=False, default=list
+        JSONType, nullable=False, default=list,
     )
 
     # Relationships

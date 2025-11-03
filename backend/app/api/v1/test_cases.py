@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings, Settings
+from app.config import Settings, get_settings
 from app.database import get_session
 from app.schemas.evaluation import (
     TestCaseCreate,
@@ -11,7 +11,11 @@ from app.schemas.evaluation import (
     TestCaseRead,
     TestCaseUpdate,
 )
-from app.services.evaluation_service import EvaluationService, NotFoundError, BadRequestError
+from app.services.evaluation_service import (
+    BadRequestError,
+    EvaluationService,
+    NotFoundError,
+)
 
 router = APIRouter(prefix="/test-cases", tags=["test-cases"])
 
@@ -43,7 +47,7 @@ async def create_test_case(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create test case: {str(e)}",
+            detail=f"Failed to create test case: {e!s}",
         )
 
     return TestCaseRead.model_validate(test_case)
@@ -63,7 +67,7 @@ async def list_test_cases(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list test cases: {str(e)}",
+            detail=f"Failed to list test cases: {e!s}",
         )
 
     return [TestCaseListItem.model_validate(test_case) for test_case in test_cases]
@@ -86,7 +90,7 @@ async def get_test_case(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get test case: {str(e)}",
+            detail=f"Failed to get test case: {e!s}",
         )
 
     return TestCaseRead.model_validate(test_case)
@@ -106,7 +110,7 @@ async def update_test_case(
     try:
         # Convert payload to dict, excluding None values
         updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-        
+
         test_case = await evaluation_service.update_test_case(
             session=session,
             test_case_id=test_case_id,
@@ -119,7 +123,7 @@ async def update_test_case(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update test case: {str(e)}",
+            detail=f"Failed to update test case: {e!s}",
         )
 
     return TestCaseRead.model_validate(test_case)
@@ -142,5 +146,5 @@ async def delete_test_case(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete test case: {str(e)}",
+            detail=f"Failed to delete test case: {e!s}",
         )

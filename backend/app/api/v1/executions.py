@@ -1,14 +1,11 @@
 """API endpoints for Task execution management."""
 
-from typing import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.database import get_session
-from app.models.executions import ExecutionResult
-from app.models.tasks import Task
 from app.schemas.executions import (
     ExecutionRequest,
     ExecutionResultListItem,
@@ -30,7 +27,6 @@ async def execute(
     The request body must specify either task_id OR implementation_id.
     Option overrides (model, temperature, etc.) are only supported when executing by task_id.
     """
-    
     # Extract overrides from payload
     overrides = {}
     if payload.model is not None:
@@ -45,7 +41,7 @@ async def execute(
         overrides["tool_choice"] = payload.tool_choice
     if payload.reasoning is not None:
         overrides["reasoning"] = payload.reasoning
-    
+
     try:
         execution = await svc.execute(
             session=session,
@@ -62,9 +58,9 @@ async def execute(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Execution failed: {str(e)}",
+            detail=f"Execution failed: {e!s}",
         )
-    
+
     return ExecutionResultRead.model_validate(execution)
 
 
@@ -74,7 +70,6 @@ async def get_execution(
     session: AsyncSession = Depends(get_session),
 ) -> ExecutionResultRead:
     """Get a specific execution result by ID."""
-
     try:
         execution = await svc.get_execution(session=session, execution_id=execution_id)
     except svc.NotFoundError as e:
@@ -90,7 +85,6 @@ async def list_executions(
     session: AsyncSession = Depends(get_session),
 ) -> list[ExecutionResultListItem]:
     """List all executions, optionally filtered by task_id or implementation_id."""
-
     executions = await svc.list_executions(
         session=session,
         task_id=task_id,
@@ -105,7 +99,6 @@ async def delete_execution(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete an execution result."""
-
     try:
         await svc.delete_execution(session=session, execution_id=execution_id)
     except svc.NotFoundError as e:
@@ -113,5 +106,5 @@ async def delete_execution(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete execution: {str(e)}",
+            detail=f"Failed to delete execution: {e!s}",
         )

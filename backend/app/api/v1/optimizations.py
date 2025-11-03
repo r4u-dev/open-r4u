@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_session
+from app.models.optimizations import Optimization
 from app.schemas.optimizations import (
-    OptimizationRunRequest,
-    OptimizationRead,
-    OptimizationListItem,
     OptimizationDashboardResponse,
+    OptimizationListItem,
+    OptimizationRead,
+    OptimizationRunRequest,
 )
 from app.services.optimization_service import OptimizationService
-from app.models.optimizations import Optimization
-from app.config import get_settings
-
 
 router = APIRouter(prefix="/optimizations", tags=["optimizations"])
 
@@ -40,13 +39,13 @@ async def create_optimization(
             changeable_fields=payload.changeable_fields,
             max_consecutive_no_improvements=payload.patience,
         )
-        
+
         # Add background task to execute the optimization
         background_tasks.add_task(
             optimization_service.execute_optimization_in_background,
             optimization_id=optimization.id,
         )
-        
+
         # Return the initial optimization
         return OptimizationRead.model_validate(optimization)
     except ValueError as e:
@@ -57,7 +56,7 @@ async def create_optimization(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create optimization: {str(e)}",
+            detail=f"Failed to create optimization: {e!s}",
         )
 
 
@@ -70,12 +69,12 @@ async def list_optimizations(
     query = select(Optimization)
     if task_id is not None:
         query = query.where(Optimization.task_id == task_id)
-    
+
     query = query.order_by(Optimization.created_at.desc())
-    
+
     result = await session.execute(query)
     optimizations = result.scalars().all()
-    
+
     return [OptimizationListItem.model_validate(opt) for opt in optimizations]
 
 
@@ -97,6 +96,7 @@ async def get_dashboard_metrics(
         
     Returns:
         OptimizationDashboardResponse with summary and outperforming versions
+
     """
     try:
         return await optimization_service.get_dashboard_metrics(
@@ -106,7 +106,7 @@ async def get_dashboard_metrics(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get dashboard metrics: {str(e)}",
+            detail=f"Failed to get dashboard metrics: {e!s}",
         )
 
 
@@ -117,9 +117,9 @@ async def get_optimization(
 ) -> OptimizationRead:
     """Get optimization details by ID."""
     optimization = await session.scalar(
-        select(Optimization).where(Optimization.id == optimization_id)
+        select(Optimization).where(Optimization.id == optimization_id),
     )
-    
+
     if not optimization:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -136,7 +136,7 @@ async def delete_optimization(
 ) -> None:
     """Delete an optimization by ID."""
     optimization = await session.scalar(
-        select(Optimization).where(Optimization.id == optimization_id)
+        select(Optimization).where(Optimization.id == optimization_id),
     )
 
     if not optimization:
@@ -147,4 +147,3 @@ async def delete_optimization(
 
     await session.delete(optimization)
     await session.commit()
-    return None
