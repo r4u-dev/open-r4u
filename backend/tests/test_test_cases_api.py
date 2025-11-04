@@ -1,6 +1,5 @@
 """Tests for test cases API endpoints."""
 
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -18,17 +17,14 @@ async def test_create_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": "Test case for accuracy",
         "arguments": {"input": "What is 2+2?", "user_id": "123"},
-        "expected_output": "4",
+        "expected_output": [{"role": "assistant", "content": "4"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -37,7 +33,7 @@ async def test_create_test_case(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] == "Test case for accuracy"
     assert data["arguments"] == {"input": "What is 2+2?", "user_id": "123"}
-    assert data["expected_output"] == "4"
+    assert data["expected_output"] == [{"role": "assistant", "content": "4"}]
     assert data["task_id"] == task.id
     assert "id" in data
     assert "created_at" in data
@@ -50,7 +46,7 @@ async def test_create_test_case(client: AsyncClient, test_session):
 
     assert test_case.description == "Test case for accuracy"
     assert test_case.arguments == {"input": "What is 2+2?", "user_id": "123"}
-    assert test_case.expected_output == "4"
+    assert test_case.expected_output == [{"role": "assistant", "content": "4"}]
 
 
 @pytest.mark.asyncio
@@ -60,15 +56,12 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
-        "expected_output": "Expected result",
+        "expected_output": [{"role": "assistant", "content": "Expected result"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -77,7 +70,9 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None
-    assert data["expected_output"] == "Expected result"
+    assert data["expected_output"] == [
+        {"role": "assistant", "content": "Expected result"},
+    ]
     assert data["task_id"] == task.id
 
 
@@ -87,7 +82,7 @@ async def test_create_test_case_task_not_found(client: AsyncClient):
     payload = {
         "task_id": 999,
         "description": "Test case",
-        "expected_output": "Expected result",
+        "expected_output": [{"role": "assistant", "content": "Expected result"}],
     }
 
     response = await client.post("/v1/test-cases", json=payload)
@@ -104,10 +99,7 @@ async def test_create_test_case_validation_error(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -127,10 +119,7 @@ async def test_list_test_cases(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -139,14 +128,16 @@ async def test_list_test_cases(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1")
+        expected_output=[{"role": "assistant", "content": "expected1"}],
+    )
     test_session.add(test_case1)
 
     test_case2 = TestCase(
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2")
+        expected_output=[{"role": "assistant", "content": "expected2"}],
+    )
     test_session.add(test_case2)
 
     await test_session.commit()
@@ -177,10 +168,7 @@ async def test_list_test_cases_empty(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -208,10 +196,7 @@ async def test_get_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -219,7 +204,8 @@ async def test_get_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case for retrieval",
         arguments={"input": "test input"},
-        expected_output="expected output")
+        expected_output=[{"role": "assistant", "content": "expected output"}],
+    )
     test_session.add(test_case)
     await test_session.commit()
 
@@ -230,7 +216,9 @@ async def test_get_test_case(client: AsyncClient, test_session):
     assert data["id"] == test_case.id
     assert data["description"] == "Test case for retrieval"
     assert data["arguments"] == {"input": "test input"}
-    assert data["expected_output"] == "expected output"
+    assert data["expected_output"] == [
+        {"role": "assistant", "content": "expected output"},
+    ]
     assert data["task_id"] == task.id
     assert "created_at" in data
     assert "updated_at" in data
@@ -253,10 +241,7 @@ async def test_update_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -264,13 +249,16 @@ async def test_update_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected")
+        expected_output=[{"role": "assistant", "content": "original expected"}],
+    )
     test_session.add(test_case)
     await test_session.commit()
 
     payload = {
         "description": "Updated description",
-        "expected_output": "Updated expected output",
+        "expected_output": [
+            {"role": "assistant", "content": "Updated expected output"},
+        ],
     }
 
     response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
@@ -278,7 +266,9 @@ async def test_update_test_case(client: AsyncClient, test_session):
 
     data = response.json()
     assert data["description"] == "Updated description"
-    assert data["expected_output"] == "Updated expected output"
+    assert data["expected_output"] == [
+        {"role": "assistant", "content": "Updated expected output"},
+    ]
     assert data["arguments"] == {"input": "original input"}  # Should remain unchanged
     assert data["task_id"] == task.id
 
@@ -290,10 +280,7 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -301,7 +288,8 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output="original expected")
+        expected_output=[{"role": "assistant", "content": "original expected"}],
+    )
     test_session.add(test_case)
     await test_session.commit()
 
@@ -314,7 +302,9 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
 
     data = response.json()
     assert data["description"] == "Updated description only"
-    assert data["expected_output"] == "original expected"  # Should remain unchanged
+    assert data["expected_output"] == [
+        {"role": "assistant", "content": "original expected"},
+    ]  # Should remain unchanged
     assert data["arguments"] == {"input": "original input"}  # Should remain unchanged
 
 
@@ -339,10 +329,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -350,7 +337,8 @@ async def test_delete_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case to delete",
         arguments={"input": "test input"},
-        expected_output="expected output")
+        expected_output=[{"role": "assistant", "content": "expected output"}],
+    )
     test_session.add(test_case)
     await test_session.commit()
 
@@ -381,10 +369,7 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -408,7 +393,7 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
     payload = {
         "description": "Complex test case with nested arguments",
         "arguments": complex_arguments,
-        "expected_output": "4",
+        "expected_output": [{"role": "assistant", "content": "4"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -426,18 +411,18 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
-    long_description = "This is a very long description that tests the maximum length validation for test case descriptions. " * 10
+    long_description = (
+        "This is a very long description that tests the maximum length validation for test case descriptions. "
+        * 10
+    )
 
     payload = {
         "description": long_description,
-        "expected_output": "Expected result",
+        "expected_output": [{"role": "assistant", "content": "Expected result"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -455,17 +440,14 @@ async def test_test_case_with_empty_arguments(client: AsyncClient, test_session)
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": "Test case with empty arguments",
         "arguments": {},
-        "expected_output": "Expected result",
+        "expected_output": [{"role": "assistant", "content": "Expected result"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -482,17 +464,14 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
     payload = {
         "description": None,
         "arguments": None,
-        "expected_output": "Expected result",
+        "expected_output": [{"role": "assistant", "content": "Expected result"}],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -501,4 +480,6 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None
-    assert data["expected_output"] == "Expected result"
+    assert data["expected_output"] == [
+        {"role": "assistant", "content": "Expected result"},
+    ]

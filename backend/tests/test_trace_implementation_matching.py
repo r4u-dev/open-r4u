@@ -34,7 +34,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_matches_exact_implementation(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that a trace automatically matches an implementation with exact prompt."""
         # Create an implementation
@@ -79,7 +79,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_matches_implementation_with_placeholders(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that a trace matches implementation and extracts placeholder values."""
         # Create an implementation with placeholders
@@ -132,7 +132,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_no_match_different_model(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that trace doesn't match implementation with different model."""
         # Create an implementation
@@ -171,7 +171,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_no_match_different_prompt(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that trace doesn't match when prompt structure is different."""
         # Create an implementation
@@ -210,7 +210,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_with_explicit_implementation_id(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that explicit implementation_id is not overridden by auto-matching."""
         # Create two implementations
@@ -259,7 +259,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_matches_first_implementation_when_multiple_match(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that when multiple implementations match, the first one is used."""
         # Create two implementations with same prompt
@@ -307,7 +307,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_no_match_when_no_system_prompt(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that trace doesn't match when there's no system message."""
         # Create an implementation
@@ -341,7 +341,7 @@ class TestTraceImplementationMatching:
 
     @pytest.mark.asyncio
     async def test_trace_matches_complex_multiline_prompt(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test matching with complex multiline prompts."""
         # Create an implementation with multiline template
@@ -392,7 +392,7 @@ Please assist with their requests.""",
 
     @pytest.mark.asyncio
     async def test_trace_no_match_different_project(
-        self, client: AsyncClient, test_session: AsyncSession, task: Task
+        self, client: AsyncClient, test_session: AsyncSession, task: Task,
     ):
         """Test that implementations from different projects don't match."""
         # Create an implementation in the test project
