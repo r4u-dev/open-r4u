@@ -334,7 +334,6 @@ class LLMExecutor:
                 prompt_rendered=prompt_rendered,
                 result_text=result_text,
                 result_json=result_json,
-                tool_calls=tool_calls,
                 finish_reason=finish_reason,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,

@@ -38,7 +38,6 @@ class ExecutionResultBase(BaseModel):
     # Results
     result_text: str | None = None
     result_json: dict[str, Any] | None = None
-    tool_calls: list[dict[str, Any]] | None = None
     error: str | None = None
 
     # Execution metadata
