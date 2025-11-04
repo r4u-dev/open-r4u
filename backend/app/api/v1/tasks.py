@@ -134,6 +134,7 @@ async def group_traces_into_tasks(
     session: AsyncSession = Depends(get_session),
     similarity_threshold: float = 0.6,
     min_cluster_size: int = 2,
+    min_consecutive_words: int = 3,
 ) -> list[TaskSchema]:
     """Automatically group all ungrouped traces into tasks.
 
@@ -148,6 +149,7 @@ async def group_traces_into_tasks(
     Args:
         similarity_threshold: Minimum similarity to group traces (0.0-1.0, default 0.6)
         min_cluster_size: Minimum traces needed to create a task (default 2)
+        min_consecutive_words: Minimum consecutive words for template detection (default 3)
 
     Returns:
         List of created tasks
@@ -157,6 +159,7 @@ async def group_traces_into_tasks(
         session,
         similarity_threshold=similarity_threshold,
         min_cluster_size=min_cluster_size,
+        min_consecutive_words=min_consecutive_words,
     )
 
     return [TaskSchema.model_validate(task) for task in created_tasks]

@@ -22,15 +22,17 @@ logger = logging.getLogger(__name__)
 class TracesService:
     """Service for trace operations."""
 
-    def __init__(self, min_cluster_size: int = 3):
+    def __init__(self, min_cluster_size: int = 3, min_consecutive_words: int = 3):
         """Initialize traces service.
 
         Args:
             min_cluster_size: Minimum number of similar traces needed to auto-create
                             a task/implementation group (default: 3)
+            min_consecutive_words: Minimum consecutive words for template detection (default: 3)
 
         """
         self.min_cluster_size = min_cluster_size
+        self.min_consecutive_words = min_consecutive_words
 
     async def create_trace(
         self,
@@ -349,7 +351,11 @@ class TracesService:
             )
 
             # Use TaskGrouper to create task and implementations
-            grouper = TaskGrouper(session, min_cluster_size=self.min_cluster_size)
+            grouper = TaskGrouper(
+                session,
+                min_cluster_size=self.min_cluster_size,
+                min_consecutive_words=self.min_consecutive_words,
+            )
 
             # Reload trace with input items for grouper
             reload_query = (

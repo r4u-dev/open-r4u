@@ -35,6 +35,7 @@ class TaskGrouper:
         session: AsyncSession,
         min_cluster_size: int = 3,
         similarity_threshold: float = 0.6,
+        min_consecutive_words: int = 3,
     ):
         """Initialize task grouper.
 
@@ -42,11 +43,13 @@ class TaskGrouper:
             session: Database session
             min_cluster_size: Minimum traces needed to create a group
             similarity_threshold: Similarity score threshold (0-1) to group traces
+            min_consecutive_words: Minimum number of consecutive words required for template detection (default: 3)
 
         """
         self.session = session
         self.min_cluster_size = min_cluster_size
         self.similarity_threshold = similarity_threshold
+        self.min_consecutive_words = min_consecutive_words
         self.task_service = TaskService(session)
 
     async def find_or_create_task_for_trace(
@@ -413,7 +416,10 @@ class TaskGrouper:
             return None
 
         # Infer template from instruction strings
-        template = infer_template_from_strings(instruction_strings)
+        template = infer_template_from_strings(
+            instruction_strings,
+            min_consecutive_words=self.min_consecutive_words,
+        )
 
         # Get project name
         from app.models.projects import Project
@@ -477,6 +483,7 @@ async def find_or_create_task_for_trace(
     session: AsyncSession,
     min_cluster_size: int = 3,
     similarity_threshold: float = 0.6,
+    min_consecutive_words: int = 3,
 ) -> Task | None:
     """Convenience function to find or create task for a trace.
 
@@ -485,12 +492,18 @@ async def find_or_create_task_for_trace(
         session: Database session
         min_cluster_size: Minimum traces for grouping
         similarity_threshold: Similarity threshold for grouping
+        min_consecutive_words: Minimum consecutive words for template detection
 
     Returns:
         Task if found/created, None otherwise
 
     """
-    grouper = TaskGrouper(session, min_cluster_size, similarity_threshold)
+    grouper = TaskGrouper(
+        session,
+        min_cluster_size,
+        similarity_threshold,
+        min_consecutive_words,
+    )
     return await grouper.find_or_create_task_for_trace(trace_id)
 
 
@@ -500,6 +513,7 @@ async def group_all_traces(
     model: str | None = None,
     min_cluster_size: int = 3,
     similarity_threshold: float = 0.6,
+    min_consecutive_words: int = 3,
 ) -> list[Task]:
     """Convenience function to group all traces in a project.
 
@@ -509,12 +523,18 @@ async def group_all_traces(
         model: Optional model filter
         min_cluster_size: Minimum traces for grouping
         similarity_threshold: Similarity threshold for grouping
+        min_consecutive_words: Minimum consecutive words for template detection
 
     Returns:
         List of created tasks
 
     """
-    grouper = TaskGrouper(session, min_cluster_size, similarity_threshold)
+    grouper = TaskGrouper(
+        session,
+        min_cluster_size,
+        similarity_threshold,
+        min_consecutive_words,
+    )
     return await grouper.group_all_traces(project_id, model)
 
 

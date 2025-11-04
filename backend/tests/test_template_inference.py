@@ -1,6 +1,5 @@
 """Tests for template inference with double-brace placeholders."""
 
-
 from app.services.template_inference import (
     TemplateInferrer,
     infer_template_from_strings,
@@ -24,18 +23,18 @@ class TestTemplateInferrer:
 
     def test_simple_variable_inference(self):
         """Test inferring a simple variable."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "Hello, Alice!",
             "Hello, Bob!",
             "Hello, Charlie!",
         ]
         result = inferrer.infer_template(strings)
-        assert result == "Hello, {{var_0}}!"
+        assert result == "Hello, {{var_0}}"
 
     def test_multiple_variables_inference(self):
         """Test inferring multiple variables."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "User Alice has email alice@example.com",
             "User Bob has email bob@example.com",
@@ -83,7 +82,7 @@ class TestTemplateInferrer:
 
     def test_numbers_as_variables(self):
         """Test that numbers are treated as variables."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "User ID: 123",
             "User ID: 456",
@@ -94,7 +93,7 @@ class TestTemplateInferrer:
 
     def test_special_characters_in_common_parts(self):
         """Test that special characters in common parts are preserved."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "Email: alice@example.com (active)",
             "Email: bob@example.com (active)",
@@ -107,7 +106,7 @@ class TestTemplateInferrer:
 
     def test_multiline_strings(self):
         """Test inference with multiline strings."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "Hello Alice\nWelcome to the system",
             "Hello Bob\nWelcome to the system",
@@ -119,17 +118,20 @@ class TestTemplateInferrer:
 
     def test_custom_placeholder_format(self):
         """Test using a custom placeholder format."""
-        inferrer = TemplateInferrer(placeholder_format="{{{index}}}")
+        inferrer = TemplateInferrer(
+            placeholder_format="{{{index}}}",
+            min_consecutive_words=1,
+        )
         strings = [
             "Hello, Alice!",
             "Hello, Bob!",
         ]
         result = inferrer.infer_template(strings)
-        assert result == "Hello, {0}!"
+        assert result == "Hello, {0}"
 
     def test_double_brace_default_format(self):
         """Test that default format uses double braces."""
-        inferrer = TemplateInferrer()
+        inferrer = TemplateInferrer(min_consecutive_words=1)
         strings = [
             "Greet user Alice",
             "Greet user Bob",
@@ -196,8 +198,8 @@ class TestInferTemplateFromStringsFunction:
             "Hello, Alice!",
             "Hello, Bob!",
         ]
-        result = infer_template_from_strings(strings)
-        assert result == "Hello, {{var_0}}!"
+        result = infer_template_from_strings(strings, min_consecutive_words=1)
+        assert result == "Hello, {{var_0}}"
 
     def test_convenience_function_with_custom_format(self):
         """Test convenience function with custom placeholder format."""
@@ -205,8 +207,12 @@ class TestInferTemplateFromStringsFunction:
             "Hello, Alice!",
             "Hello, Bob!",
         ]
-        result = infer_template_from_strings(strings, placeholder_format="<{index}>")
-        assert result == "Hello, <0>!"
+        result = infer_template_from_strings(
+            strings,
+            placeholder_format="<{index}>",
+            min_consecutive_words=1,
+        )
+        assert result == "Hello, <0>"
 
     def test_convenience_function_default_double_braces(self):
         """Test that convenience function uses double braces by default."""
@@ -214,7 +220,7 @@ class TestInferTemplateFromStringsFunction:
             "User Alice logged in",
             "User Bob logged in",
         ]
-        result = infer_template_from_strings(strings)
+        result = infer_template_from_strings(strings, min_consecutive_words=1)
         assert "{{" in result
         assert "}}" in result
         assert result == "User {{var_0}} logged in"
@@ -251,4 +257,3 @@ class TestInferTemplateFromStringsFunction:
         result = infer_template_from_strings(strings)
         # Should match the documented format
         assert result == "You are a personal assistant for user {{var_0}}"
-

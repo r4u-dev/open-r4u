@@ -17,13 +17,21 @@ class TemplateInferrer:
     4. Reconstructs the template with placeholder markers
     """
 
-    def __init__(self, placeholder_format: str = "{{{{var_{index}}}}}"):
+    def __init__(
+        self,
+        placeholder_format: str = "{{{{var_{index}}}}}",
+        min_consecutive_words: int = 3,
+    ):
         """Args:
         placeholder_format: Format string for placeholders. Use {index} for numbering.
                           Quadruple braces {{{{}}}} will produce double braces {{}} in output.
+        min_consecutive_words: Minimum number of consecutive words required to form a template anchor.
+                              Default is 3. Two strings will be grouped if they have at least this
+                              many consecutive words in common.
 
         """
         self.placeholder_format = placeholder_format
+        self.min_consecutive_words = min_consecutive_words
 
     def infer_template(self, strings: list[str]) -> str:
         """Infer the template from a list of rendered strings.
@@ -85,11 +93,13 @@ class TemplateInferrer:
                 positions = self._find_positions_in_all(candidate, strings)
 
                 if positions and self._positions_maintain_order(
-                    positions, anchors_with_positions,
+                    positions,
+                    anchors_with_positions,
                 ):
                     # Check if this is a meaningful anchor
                     if self._is_token_sequence_meaningful(
-                        candidate_tokens, token_count,
+                        candidate_tokens,
+                        token_count,
                     ):
                         best_anchor = candidate
                         best_positions = positions
@@ -128,29 +138,22 @@ class TemplateInferrer:
         return tokens
 
     def _is_token_sequence_meaningful(self, tokens: list[str], count: int) -> bool:
-        """Check if a token sequence is meaningful as an anchor."""
-        # Single token sequences
-        if count == 1:
-            token = tokens[0]
-            # Allow single punctuation/whitespace tokens
-            if not token.isalnum():
-                return True
-            # Allow long words (5+ chars)
-            if len(token) >= 5:
-                return True
-            # Reject short word fragments
-            return False
+        """Check if a token sequence is meaningful as an anchor.
 
-        # Multi-token sequences are generally meaningful
-        # But reject very short sequences that are purely alphabetic
-        sequence = "".join(tokens)
-        if sequence.isalpha() and len(sequence) <= 3:
-            return False
+        Uses consecutive word counting: counts only alphanumeric tokens (words),
+        not punctuation or separators. A sequence is meaningful if it contains
+        at least min_consecutive_words consecutive words.
+        """
+        # Count consecutive words (alphanumeric tokens) in the sequence
+        word_count = sum(1 for token in tokens if token.isalnum())
 
-        return True
+        # Check if we have enough consecutive words
+        return word_count >= self.min_consecutive_words
 
     def _find_positions_in_all(
-        self, substring: str, strings: list[str],
+        self,
+        substring: str,
+        strings: list[str],
     ) -> list[int] | None:
         """Find the position of substring in each string. Returns None if not found in any string."""
         positions = []
@@ -164,7 +167,9 @@ class TemplateInferrer:
         return positions
 
     def _positions_maintain_order(
-        self, new_positions: list[int], existing_anchors: list[tuple[str, list[int]]],
+        self,
+        new_positions: list[int],
+        existing_anchors: list[tuple[str, list[int]]],
     ) -> bool:
         """Check if new positions come after all existing anchor positions."""
         if not existing_anchors:
@@ -182,7 +187,9 @@ class TemplateInferrer:
         return True
 
     def _build_segments(
-        self, strings: list[str], anchors: list[str],
+        self,
+        strings: list[str],
+        anchors: list[str],
     ) -> list[tuple[str | None, bool]]:
         """Build segments by splitting strings using anchors."""
         if not anchors:
@@ -229,17 +236,20 @@ class TemplateInferrer:
 
 
 def infer_template_from_strings(
-    strings: list[str], placeholder_format: str = "{{{{var_{index}}}}}",
+    strings: list[str],
+    placeholder_format: str = "{{{{var_{index}}}}}",
+    min_consecutive_words: int = 3,
 ) -> str:
     """Convenience function to infer a template from a list of strings.
 
     Args:
         strings: List of strings generated from the same template
         placeholder_format: Format for placeholders (use {index} for numbering, quadruple braces {{{{}}}} for double braces {{}})
+        min_consecutive_words: Minimum number of consecutive words required for template detection (default: 3)
 
     Returns:
         The inferred template string
 
     """
-    inferrer = TemplateInferrer(placeholder_format)
+    inferrer = TemplateInferrer(placeholder_format, min_consecutive_words)
     return inferrer.infer_template(strings)
