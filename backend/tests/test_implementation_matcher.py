@@ -48,7 +48,7 @@ class TestImplementationMatcher:
 
     def test_match_with_single_placeholder(self):
         """Test matching with a single placeholder."""
-        template = "Hello, {name}! How can I help you?"
+        template = "Hello, {{name}}! How can I help you?"
         prompt = "Hello, John! How can I help you?"
 
         matcher = ImplementationMatcher()
@@ -60,7 +60,7 @@ class TestImplementationMatcher:
 
     def test_match_with_multiple_placeholders(self):
         """Test matching with multiple placeholders."""
-        template = "This is {title} {name}, age {age}. Be nice to them."
+        template = "This is {{title}} {{name}}, age {{age}}. Be nice to them."
         prompt = "This is Mr. Smith, age 45. Be nice to them."
 
         matcher = ImplementationMatcher()
@@ -86,7 +86,7 @@ class TestImplementationMatcher:
 
     def test_no_match_with_placeholder_mismatch(self):
         """Test that mismatched placeholders don't match."""
-        template = "Hello, {name}! Welcome to {place}."
+        template = "Hello, {{name}}! Welcome to {{place}}."
         prompt = "Hello, John!"
 
         matcher = ImplementationMatcher()
@@ -96,7 +96,7 @@ class TestImplementationMatcher:
 
     def test_match_with_special_characters(self):
         """Test matching with special characters in prompt."""
-        template = "User email: {email}. Process their request."
+        template = "User email: {{email}}. Process their request."
         prompt = "User email: john.doe@example.com. Process their request."
 
         matcher = ImplementationMatcher()
@@ -108,9 +108,9 @@ class TestImplementationMatcher:
 
     def test_match_with_multiline_prompt(self):
         """Test matching with multiline prompts."""
-        template = """You are {role}.
-User: {name}
-Task: {task}"""
+        template = """You are {{role}}.
+User: {{name}}
+Task: {{task}}"""
         prompt = """You are a senior developer.
 User: Alice
 Task: Review code"""
@@ -128,7 +128,7 @@ Task: Review code"""
 
     def test_match_empty_placeholder_value(self):
         """Test matching when placeholder value is empty."""
-        template = "Hello{greeting}!"
+        template = "Hello{{greeting}}!"
         prompt = "Hello!"
 
         matcher = ImplementationMatcher()
@@ -141,7 +141,7 @@ Task: Review code"""
 
     def test_match_placeholder_with_whitespace(self):
         """Test matching placeholders that contain whitespace."""
-        template = "Dear {name},"
+        template = "Dear {{name}},"
         prompt = "Dear John Smith,"
 
         matcher = ImplementationMatcher()
@@ -153,7 +153,7 @@ Task: Review code"""
 
     def test_match_adjacent_placeholders(self):
         """Test matching when placeholders are adjacent."""
-        template = "{first}{second}"
+        template = "{{first}}{{second}}"
         prompt = "HelloWorld"
 
         matcher = ImplementationMatcher()
@@ -166,7 +166,7 @@ Task: Review code"""
 
     def test_match_with_numbers_in_values(self):
         """Test matching with numeric values."""
-        template = "Transaction amount: ${amount} for account {account_id}"
+        template = "Transaction amount: ${{amount}} for account {{account_id}}"
         prompt = "Transaction amount: $150.50 for account 12345"
 
         matcher = ImplementationMatcher()
@@ -288,7 +288,7 @@ class TestFindMatchingImplementation:
         # Create an implementation with placeholders
         impl = Implementation(
             task_id=task.id,
-            prompt="Hello, {name}! You are user #{user_id}.",
+            prompt="Hello, {{name}}! You are user #{{user_id}}.",
             model="gpt-4",
             max_output_tokens=1000,
         )

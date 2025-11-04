@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [tool.ruff]
-extend-exclude = ["alembic"]
+extend-exclude = ["migrations"]
 fix = true
 
 [tool.ruff.lint]

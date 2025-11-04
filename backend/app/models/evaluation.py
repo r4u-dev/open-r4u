@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ScoreType, EvaluationStatus
+from app.enums import EvaluationStatus, ScoreType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 # Use JSONB for PostgreSQL, JSON for other databases
@@ -56,7 +56,7 @@ class Grader(Base):
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
     reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True
+        JSONType, nullable=True,
     )
     max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -115,15 +115,15 @@ class Grade(Base):
     reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     grader_response: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True
+        JSONType, nullable=True,
     )
 
     # Execution metadata
     grading_started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), nullable=False,
     )
     grading_completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -225,10 +225,10 @@ class Evaluation(Base):
         default=EvaluationStatus.PENDING,
     )
     started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
     test_case_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -238,7 +238,7 @@ class Evaluation(Base):
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    
+
     # Efficiency and final scores are calculated on-demand, not stored
 
     # Relationships
@@ -267,7 +267,7 @@ class TargetTaskMetrics(Base):
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True,
     )
 
     # Relationships
