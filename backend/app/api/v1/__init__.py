@@ -1,13 +1,13 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
-    executions,
     evaluations,
-    grades,
+    executions,
     graders,
+    grades,
     http_traces,
-    optimizations,
     implementations,
+    optimizations,
     projects,
     tasks,
     test_cases,

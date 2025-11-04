@@ -3,19 +3,23 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings, Settings
+from app.config import Settings, get_settings
 from app.database import get_session
 from app.schemas.evaluation import (
     EvaluationConfigCreate,
     EvaluationConfigRead,
     EvaluationConfigUpdate,
-    EvaluationRead,
     EvaluationListItem,
-    EvaluationRunRequest,
+    EvaluationRead,
     EvaluationResultItem,
+    EvaluationRunRequest,
     ImplementationEvaluationStats,
 )
-from app.services.evaluation_service import EvaluationService, NotFoundError, BadRequestError
+from app.services.evaluation_service import (
+    BadRequestError,
+    EvaluationService,
+    NotFoundError,
+)
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
@@ -50,7 +54,7 @@ async def create_or_update_evaluation_config(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create/update evaluation config: {str(e)}",
+            detail=f"Failed to create/update evaluation config: {e!s}",
         )
 
     return EvaluationConfigRead.model_validate(config)
@@ -70,7 +74,7 @@ async def get_evaluation_config(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get evaluation config: {str(e)}",
+            detail=f"Failed to get evaluation config: {e!s}",
         )
 
     return EvaluationConfigRead.model_validate(config) if config else None
@@ -89,10 +93,10 @@ async def update_evaluation_config(
         existing_config = await evaluation_service.get_evaluation_config(session=session, task_id=task_id)
         if not existing_config:
             raise NotFoundError(f"Evaluation config not found for task {task_id}")
-        
+
         # Convert payload to dict, excluding None values
         updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-        
+
         # Create new config with updated values
         config = await evaluation_service.create_or_update_evaluation_config(
             session=session,
@@ -109,7 +113,7 @@ async def update_evaluation_config(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update evaluation config: {str(e)}",
+            detail=f"Failed to update evaluation config: {e!s}",
         )
 
     return EvaluationConfigRead.model_validate(config)
@@ -130,13 +134,13 @@ async def run_evaluation(
             session=session,
             implementation_id=payload.implementation_id,
         )
-        
+
         # Add background task to execute the evaluation
         background_tasks.add_task(
             evaluation_service.execute_evaluation_in_background,
             evaluation_id=evaluation.id,
         )
-        
+
         # Return the initial evaluation
         return EvaluationRead(
             id=evaluation.id,
@@ -164,7 +168,7 @@ async def run_evaluation(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create evaluation: {str(e)}",
+            detail=f"Failed to create evaluation: {e!s}",
         )
 
 
@@ -187,7 +191,7 @@ async def list_evaluations(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list evaluations: {str(e)}",
+            detail=f"Failed to list evaluations: {e!s}",
         )
 
     return evaluations
@@ -210,7 +214,7 @@ async def get_evaluation(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get evaluation: {str(e)}",
+            detail=f"Failed to get evaluation: {e!s}",
         )
 
     return evaluation
@@ -235,7 +239,7 @@ async def list_evaluation_results(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list evaluation results: {str(e)}",
+            detail=f"Failed to list evaluation results: {e!s}",
         )
 
 
@@ -256,7 +260,7 @@ async def delete_evaluation(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete evaluation: {str(e)}",
+            detail=f"Failed to delete evaluation: {e!s}",
         )
 
 
@@ -277,7 +281,7 @@ async def recalculate_target_metrics(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to recalculate target metrics: {str(e)}",
+            detail=f"Failed to recalculate target metrics: {e!s}",
         )
 
     return {"message": "Target metrics recalculated successfully"}
@@ -295,4 +299,4 @@ async def get_implementation_evaluation_stats(
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to get evaluation stats: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to get evaluation stats: {e!s}")

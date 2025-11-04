@@ -6,7 +6,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from app.enums import FinishReason
-from app.schemas.traces import InputItem
 
 
 class ExecutionRequest(BaseModel):
@@ -15,10 +14,10 @@ class ExecutionRequest(BaseModel):
     # Either task_id OR implementation_id must be provided
     task_id: int | None = None
     implementation_id: int | None = None
-    
+
     # Arguments for task execution - includes variables for prompt rendering and messages
     arguments: dict[str, Any] | None = None
-    
+
     # Optional overrides for implementation parameters (only for task_id executions)
     model: str | None = None
     temperature: float | None = None
@@ -35,13 +34,13 @@ class ExecutionResultBase(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     prompt_rendered: str
-    
+
     # Results
     result_text: str | None = None
     result_json: dict[str, Any] | None = None
     tool_calls: list[dict[str, Any]] | None = None
     error: str | None = None
-    
+
     # Execution metadata
     finish_reason: FinishReason | None = None
     prompt_tokens: int | None = None

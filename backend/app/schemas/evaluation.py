@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.enums import ScoreType, EvaluationStatus
+from app.enums import EvaluationStatus, ScoreType
 
 
 # Grader Schemas
@@ -16,20 +16,21 @@ class GraderBase(BaseModel):
     description: str | None = Field(None, description="Optional description of what this grader evaluates")
     prompt: str = Field(..., description="The LLM prompt used for evaluation")
     score_type: ScoreType = Field(..., description="Type of score this grader produces")
-    
+
     # LLM configuration
     model: str = Field(..., max_length=255, description="LLM model to use for grading")
     temperature: float | None = Field(None, ge=0.0, le=2.0, description="Temperature for LLM")
     reasoning: dict[str, Any] | None = Field(None, description="Reasoning configuration for reasoning models")
     response_schema: dict[str, Any] | None = Field(None, description="JSON schema for structured responses")
     max_output_tokens: int = Field(..., gt=0, description="Maximum output tokens")
-    
+
     # Metadata
     is_active: bool = Field(True, description="Whether this grader is active")
 
 
 class GraderCreate(GraderBase):
     """Schema for creating a grader."""
+
     project_id: int = Field(..., description="ID of the project this grader belongs to")
 
 
@@ -80,12 +81,12 @@ class GradeBase(BaseModel):
     # Score results
     score_float: float | None = Field(None, ge=0.0, le=1.0, description="Float score (0.0 - 1.0)")
     score_boolean: bool | None = Field(None, description="Boolean score")
-    
+
     # Grader LLM metadata
     reasoning: str | None = Field(None, description="Explanation from the grader")
     confidence: float | None = Field(None, ge=0.0, le=1.0, description="Confidence score (0.0 - 1.0)")
     grader_response: dict[str, Any] | None = Field(None, description="Raw LLM response")
-    
+
     # Execution metadata
     grading_started_at: datetime
     grading_completed_at: datetime | None = None
@@ -113,16 +114,16 @@ class GradeTargetRequest(BaseModel):
         values = info.data
         trace_id = values.get("trace_id")
         execution_result_id = values.get("execution_result_id")
-        
+
         # If we're validating execution_result_id and trace_id is already set
         if info.field_name == "execution_result_id" and trace_id is not None and v is not None:
             raise ValueError("Specify exactly one of trace_id or execution_result_id")
-        
+
         # Final validation: ensure at least one is set
         if info.field_name == "execution_result_id":
             if trace_id is None and v is None:
                 raise ValueError("Must specify either trace_id or execution_result_id")
-        
+
         return v
 
 
@@ -243,7 +244,7 @@ class EvaluationConfigBase(BaseModel):
 
 class EvaluationConfigCreate(EvaluationConfigBase):
     """Schema for creating evaluation configuration."""
-    pass
+
 
 
 class EvaluationConfigUpdate(BaseModel):
@@ -341,7 +342,7 @@ class TargetTaskMetricsBase(BaseModel):
 
 class TargetTaskMetricsCreate(TargetTaskMetricsBase):
     """Schema for creating target task metrics."""
-    pass
+
 
 
 class TargetTaskMetricsUpdate(BaseModel):
@@ -414,7 +415,7 @@ class EvaluationResultItem(BaseModel):
 
 class ImplementationEvaluationStats(BaseModel):
     """Aggregate stats for all evaluations of an implementation."""
-    
+
     implementation_id: int
     evaluation_count: int
     avg_quality_score: float | None = Field(None, ge=0.0, le=1.0)

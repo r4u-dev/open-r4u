@@ -7,10 +7,9 @@ Based on the r4u-trace implementation, this module provides tools to:
 """
 
 
-
 class TemplateInferrer:
     """Infers the original template from multiple strings that were generated from it.
-    
+
     The algorithm:
     1. Finds common substrings that appear in all input strings
     2. These common parts act as "anchors" that separate variable regions
@@ -18,20 +17,20 @@ class TemplateInferrer:
     4. Reconstructs the template with placeholder markers
     """
 
-    def __init__(self, placeholder_format: str = "{{var_{index}}}"):
+    def __init__(self, placeholder_format: str = "{{{{var_{index}}}}}"):
         """Args:
         placeholder_format: Format string for placeholders. Use {index} for numbering.
-                          Double braces {{}} will be literal braces in output.
+                          Quadruple braces {{{{}}}} will produce double braces {{}} in output.
 
         """
         self.placeholder_format = placeholder_format
 
     def infer_template(self, strings: list[str]) -> str:
         """Infer the template from a list of rendered strings.
-        
+
         Args:
             strings: List of strings generated from the same template
-            
+
         Returns:
             The inferred template string
 
@@ -54,7 +53,7 @@ class TemplateInferrer:
     def _find_common_anchors(self, strings: list[str]) -> list[str]:
         """Find common substrings that appear in all strings in the same relative order.
         Uses a token-aware approach to avoid fragmenting words.
-        
+
         Returns:
             List of anchor texts in order of appearance.
 
@@ -79,15 +78,19 @@ class TemplateInferrer:
 
             for token_count in range(len(tokens) - i, 0, -1):
                 # Build candidate from tokens
-                candidate_tokens = tokens[i:i+token_count]
+                candidate_tokens = tokens[i : i + token_count]
                 candidate = "".join(candidate_tokens)
 
                 # Find positions in all strings
                 positions = self._find_positions_in_all(candidate, strings)
 
-                if positions and self._positions_maintain_order(positions, anchors_with_positions):
+                if positions and self._positions_maintain_order(
+                    positions, anchors_with_positions,
+                ):
                     # Check if this is a meaningful anchor
-                    if self._is_token_sequence_meaningful(candidate_tokens, token_count):
+                    if self._is_token_sequence_meaningful(
+                        candidate_tokens, token_count,
+                    ):
                         best_anchor = candidate
                         best_positions = positions
                         best_token_count = token_count
@@ -146,7 +149,9 @@ class TemplateInferrer:
 
         return True
 
-    def _find_positions_in_all(self, substring: str, strings: list[str]) -> list[int] | None:
+    def _find_positions_in_all(
+        self, substring: str, strings: list[str],
+    ) -> list[int] | None:
         """Find the position of substring in each string. Returns None if not found in any string."""
         positions = []
 
@@ -158,8 +163,9 @@ class TemplateInferrer:
 
         return positions
 
-    def _positions_maintain_order(self, new_positions: list[int],
-                                  existing_anchors: list[tuple[str, list[int]]]) -> bool:
+    def _positions_maintain_order(
+        self, new_positions: list[int], existing_anchors: list[tuple[str, list[int]]],
+    ) -> bool:
         """Check if new positions come after all existing anchor positions."""
         if not existing_anchors:
             return True
@@ -175,7 +181,9 @@ class TemplateInferrer:
 
         return True
 
-    def _build_segments(self, strings: list[str], anchors: list[str]) -> list[tuple[str | None, bool]]:
+    def _build_segments(
+        self, strings: list[str], anchors: list[str],
+    ) -> list[tuple[str | None, bool]]:
         """Build segments by splitting strings using anchors."""
         if not anchors:
             # No common parts - entire strings are variable
@@ -220,14 +228,15 @@ class TemplateInferrer:
         return "".join(template_parts)
 
 
-def infer_template_from_strings(strings: list[str],
-                                placeholder_format: str = "{{var_{index}}}") -> str:
+def infer_template_from_strings(
+    strings: list[str], placeholder_format: str = "{{{{var_{index}}}}}",
+) -> str:
     """Convenience function to infer a template from a list of strings.
-    
+
     Args:
         strings: List of strings generated from the same template
-        placeholder_format: Format for placeholders (use {index} for numbering)
-        
+        placeholder_format: Format for placeholders (use {index} for numbering, quadruple braces {{{{}}}} for double braces {{}})
+
     Returns:
         The inferred template string
 
