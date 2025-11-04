@@ -12,7 +12,14 @@ from app.config import Settings
 from app.enums import FinishReason, ItemType
 from app.models.tasks import Implementation
 from app.schemas.executions import ExecutionResultBase
-from app.schemas.traces import InputItem, ToolCallItem
+from app.schemas.traces import (
+    FunctionToolCallItem,
+    InputItem,
+    OutputItem,
+    OutputMessageContent,
+    OutputMessageItem,
+    ToolCallItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +160,34 @@ class LLMExecutor:
         }
         return finish_reason_map.get(finish_reason, FinishReason.STOP)
 
+    def _build_response_format(self, response_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Normalize response schema into OpenAI response_format json_schema structure.
+
+        Accepts either the new wrapped format or a plain JSON Schema and returns
+        the proper response_format payload. Returns None if no schema provided.
+        """
+        if not response_schema:
+            return None
+
+        # If already in the new format, pass through
+        if (
+            isinstance(response_schema, dict)
+            and response_schema.get("type") == "json_schema"
+            and isinstance(response_schema.get("json_schema"), dict)
+            and "schema" in response_schema["json_schema"]
+        ):
+            return response_schema
+
+        # Otherwise, wrap the plain JSON schema
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "response_schema",
+                "strict": True,
+                "schema": response_schema,
+            },
+        }
+
     async def execute(
         self,
         implementation: Implementation,
@@ -228,15 +263,7 @@ class LLMExecutor:
                 request_params["tool_choice"] = tool_choice
 
         if response_schema:
-            # Map response_schema to OpenAI's response_format
-            request_params["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "response_schema",
-                    "strict": True,
-                    "schema": response_schema,
-                },
-            }
+            request_params["response_format"] = self._build_response_format(response_schema)
 
         # Handle reasoning for o1/o3 models
         if reasoning:
@@ -252,12 +279,16 @@ class LLMExecutor:
             choice = response.choices[0]
             result_text = choice.message.content
 
+            # Build output items list (OutputItem schema format)
+            output_items: list[OutputItem] = []
+            response_id = getattr(response, "id", "unknown")
+
             # Handle tool calls using proper schema
             tool_calls = None
             if hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
                 tool_calls = []
                 for tc in choice.message.tool_calls:
-                    # Convert to ToolCallItem schema
+                    # Convert to ToolCallItem schema (for input tracking)
                     tool_call_item = ToolCallItem(
                         id=tc.id,
                         tool_name=tc.function.name,
@@ -267,17 +298,42 @@ class LLMExecutor:
                     )
                     tool_calls.append(tool_call_item.model_dump())
 
+                    # Also add to output items as FunctionToolCallItem
+                    arguments_str = (
+                        json.dumps(tc.function.arguments)
+                        if isinstance(tc.function.arguments, dict)
+                        else (
+                            tc.function.arguments
+                            if isinstance(tc.function.arguments, str)
+                            else json.dumps(tc.function.arguments)
+                        )
+                    )
+                    output_items.append(
+                        FunctionToolCallItem(
+                            id=tc.id,
+                            call_id=tc.id,
+                            name=tc.function.name,
+                            arguments=arguments_str,
+                            status="completed",
+                        ),
+                    )
+
                 # If there are tool calls, result_text is usually None
                 if not result_text:
                     result_text = f"Made {len(tool_calls)} tool call(s)"
 
-            # Try to parse as JSON if response_schema was provided
-            result_json = None
-            if response_schema and result_text:
-                try:
-                    result_json = json.loads(result_text)
-                except json.JSONDecodeError:
-                    pass
+            # Convert assistant message content to OutputMessageItem
+            if result_text:
+                output_items.append(
+                    OutputMessageItem(
+                        id=f"msg_{response_id}",
+                        content=[OutputMessageContent(type="text", text=result_text)],
+                        status="completed",
+                    ),
+                )
+
+            # Set result_json to the list of OutputItems (proper schema format)
+            result_json = [item.model_dump() for item in output_items] if output_items else None
 
             # Map finish reason
             finish_reason = self._map_finish_reason(choice.finish_reason)
@@ -328,6 +384,8 @@ class LLMExecutor:
                     if direct is not None:
                         reasoning_tokens = direct
 
+            print('result_text', result_text)
+            print('result_json', result_json)
             return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,
