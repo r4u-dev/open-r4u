@@ -1,20 +1,21 @@
 """Tests for requests HTTP wrapper."""
 
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+
+import pytest
 import requests
 
+from r4u.client import HTTPTrace
 from r4u.tracing.http.requests import (
-    trace_session,
-    trace_all,
-    untrace_all,
     StreamingResponseWrapper,
     _build_trace_context,
     _finalize_trace,
     _is_streaming_request,
+    trace_all,
+    trace_session,
+    untrace_all,
 )
-from r4u.client import HTTPTrace
 
 
 @pytest.fixture
@@ -57,7 +58,7 @@ class TestBuildTraceContext:
     """Tests for _build_trace_context function."""
 
     def test_build_trace_context_with_post_request(
-        self, mock_requests_prepared_request
+        self, mock_requests_prepared_request,
     ):
         """Test building trace context from POST request."""
         ctx = _build_trace_context(mock_requests_prepared_request)
@@ -187,7 +188,7 @@ class TestStreamingResponseWrapper:
     """Tests for StreamingResponseWrapper."""
 
     def test_wrapper_delegates_attributes(
-        self, mock_requests_response, capturing_tracer
+        self, mock_requests_response, capturing_tracer,
     ):
         """Test wrapper delegates attributes to original response."""
         trace_ctx = {
@@ -199,7 +200,7 @@ class TestStreamingResponseWrapper:
         }
 
         wrapper = StreamingResponseWrapper(
-            mock_requests_response, trace_ctx, capturing_tracer
+            mock_requests_response, trace_ctx, capturing_tracer,
         )
 
         assert wrapper.status_code == 200
@@ -282,7 +283,7 @@ class TestStreamingResponseWrapper:
         response.status_code = 200
         response.headers = {}
         response.iter_content = Mock(
-            return_value=iter([b"chunk1", b"chunk2", b"chunk3"])
+            return_value=iter([b"chunk1", b"chunk2", b"chunk3"]),
         )
         response.close = Mock()
 
@@ -405,7 +406,7 @@ class TestTraceSession:
         assert session.send is patched_send
 
     def test_trace_session_captures_request(
-        self, mock_requests_prepared_request, mock_requests_response, capturing_tracer
+        self, mock_requests_prepared_request, mock_requests_response, capturing_tracer,
     ):
         """Test trace_session captures request data."""
         session = requests.Session()
@@ -429,7 +430,7 @@ class TestTraceSession:
         assert trace.status_code == 200
 
     def test_trace_session_handles_exceptions(
-        self, mock_requests_prepared_request, capturing_tracer
+        self, mock_requests_prepared_request, capturing_tracer,
     ):
         """Test trace_session handles exceptions properly."""
         session = requests.Session()
@@ -448,7 +449,7 @@ class TestTraceSession:
         assert capturing_tracer.traces[0].error == "Connection failed"
 
     def test_trace_session_handles_streaming_request(
-        self, mock_requests_prepared_request, capturing_tracer
+        self, mock_requests_prepared_request, capturing_tracer,
     ):
         """Test trace_session handles streaming requests."""
         session = requests.Session()

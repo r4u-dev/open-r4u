@@ -2,18 +2,17 @@
 
 from datetime import UTC, datetime
 from typing import Any
-
-import pytest
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.enums import OptimizationStatus
 from app.models.projects import Project
-from app.models.tasks import Task, Implementation
-from app.services.optimization_service import OptimizationService
+from app.models.tasks import Implementation, Task
 from app.schemas.evaluation import ImplementationEvaluationStats
+from app.services.optimization_service import OptimizationService
 
 
 @pytest.fixture

@@ -1,16 +1,17 @@
 """Tests for aiohttp HTTP wrapper."""
 
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
 import aiohttp
+import pytest
 
 from r4u.tracing.http.aiohttp import (
-    trace_async_client,
-    trace_all,
-    untrace_all,
     StreamingResponseWrapper,
     _is_streaming_request,
+    trace_all,
+    trace_async_client,
+    untrace_all,
 )
 
 
@@ -75,7 +76,7 @@ class TestStreamingResponseWrapper:
     """Tests for StreamingResponseWrapper."""
 
     def test_wrapper_delegates_attributes(
-        self, mock_aiohttp_response, capturing_tracer
+        self, mock_aiohttp_response, capturing_tracer,
     ):
         """Test wrapper delegates attributes to original response."""
         trace_ctx = {
@@ -87,7 +88,7 @@ class TestStreamingResponseWrapper:
         }
 
         wrapper = StreamingResponseWrapper(
-            mock_aiohttp_response, trace_ctx, capturing_tracer
+            mock_aiohttp_response, trace_ctx, capturing_tracer,
         )
 
         assert wrapper.status == 200
@@ -391,7 +392,7 @@ class TestTraceAsyncClient:
 
     @pytest.mark.asyncio
     async def test_trace_async_client_captures_request(
-        self, mock_aiohttp_response, capturing_tracer
+        self, mock_aiohttp_response, capturing_tracer,
     ):
         """Test trace_async_client captures request data."""
         session = aiohttp.ClientSession()
@@ -405,7 +406,7 @@ class TestTraceAsyncClient:
 
         # Make request
         response = await session._request(
-            "POST", "https://api.example.com/test", data=b'{"test": "data"}'
+            "POST", "https://api.example.com/test", data=b'{"test": "data"}',
         )
 
         # Response should be wrapped
@@ -447,7 +448,7 @@ class TestTraceAsyncClient:
 
     @pytest.mark.asyncio
     async def test_trace_async_client_with_json_data(
-        self, mock_aiohttp_response, capturing_tracer
+        self, mock_aiohttp_response, capturing_tracer,
     ):
         """Test trace_async_client with JSON data."""
         session = aiohttp.ClientSession()
@@ -460,7 +461,7 @@ class TestTraceAsyncClient:
 
         # Make request with json parameter
         response = await session._request(
-            "POST", "https://api.example.com/test", json={"key": "value"}
+            "POST", "https://api.example.com/test", json={"key": "value"},
         )
 
         assert isinstance(response, StreamingResponseWrapper)
@@ -470,7 +471,7 @@ class TestTraceAsyncClient:
 
     @pytest.mark.asyncio
     async def test_trace_async_client_with_headers(
-        self, mock_aiohttp_response, capturing_tracer
+        self, mock_aiohttp_response, capturing_tracer,
     ):
         """Test trace_async_client captures request headers."""
         session = aiohttp.ClientSession()

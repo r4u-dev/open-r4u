@@ -1,12 +1,11 @@
-"""
-Auto-tracing module for HTTP libraries.
+"""Auto-tracing module for HTTP libraries.
 
 This module provides convenient functions to automatically trace all HTTP requests
 from various HTTP libraries without requiring manual patching of individual instances.
 """
 
 from contextlib import suppress
-from typing import List, Optional
+
 from async_trace import disable_tracing, enable_tracing
 
 from r4u.client import AbstractTracer, get_r4u_client
@@ -14,12 +13,11 @@ from r4u.tracing.http.filters import URLFilter, get_global_filter, set_global_fi
 
 
 def trace_all_http(
-    tracer: Optional[AbstractTracer] = None,
-    allow_urls: Optional[List[str]] = None,
-    deny_urls: Optional[List[str]] = None,
+    tracer: AbstractTracer | None = None,
+    allow_urls: list[str] | None = None,
+    deny_urls: list[str] | None = None,
 ) -> None:
-    """
-    Enable automatic tracing for all supported HTTP libraries.
+    """Enable automatic tracing for all supported HTTP libraries.
 
     This function monkey patches all supported HTTP libraries to automatically
     trace all HTTP requests made through them.
@@ -48,8 +46,8 @@ def trace_all_http(
         >>> httpx_client = httpx.Client()
         >>> requests_session = requests.Session()
         >>> aiohttp_session = aiohttp.ClientSession()
-    """
 
+    """
     enable_tracing()
     tracer = tracer or get_r4u_client()
 
@@ -58,7 +56,7 @@ def trace_all_http(
         configure_url_filter(
             allow_urls=allow_urls,
             deny_urls=deny_urls,
-            extend_defaults=True  # Always extend defaults when called from trace_all_http
+            extend_defaults=True,  # Always extend defaults when called from trace_all_http
         )
 
     with suppress(Exception):
@@ -75,8 +73,7 @@ def trace_all_http(
 
 
 def untrace_all_http() -> None:
-    """
-    Disable automatic tracing for all supported HTTP libraries.
+    """Disable automatic tracing for all supported HTTP libraries.
 
     This function removes monkey patching from all supported HTTP libraries,
     restoring their original behavior.
@@ -96,12 +93,11 @@ def untrace_all_http() -> None:
 
 
 def configure_url_filter(
-    allow_urls: Optional[List[str]] = None,
-    deny_urls: Optional[List[str]] = None,
+    allow_urls: list[str] | None = None,
+    deny_urls: list[str] | None = None,
     extend_defaults: bool = True,
 ) -> None:
-    """
-    Configure the global URL filter for HTTP tracing.
+    """Configure the global URL filter for HTTP tracing.
 
     Args:
         allow_urls: List of URL patterns to allow. If None, uses default AI provider patterns.
@@ -114,6 +110,7 @@ def configure_url_filter(
         ...     allow_urls=["https://api.openai.com/*", "https://api.anthropic.com/*"],
         ...     deny_urls=["https://api.openai.com/v1/models"]
         ... )
+
     """
     # If extending defaults and we have an existing filter, extend from it
     if extend_defaults and (allow_urls is not None or deny_urls is not None):
@@ -136,31 +133,31 @@ def configure_url_filter(
             filter_instance = URLFilter(
                 allow_urls=new_allow,
                 deny_urls=new_deny,
-                extend_defaults=False  # Don't extend again since we already did
+                extend_defaults=False,  # Don't extend again since we already did
             )
         except Exception:
             # If no existing filter or error, create new one
             filter_instance = URLFilter(
                 allow_urls=allow_urls,
                 deny_urls=deny_urls,
-                extend_defaults=extend_defaults
+                extend_defaults=extend_defaults,
             )
     else:
         filter_instance = URLFilter(
             allow_urls=allow_urls,
             deny_urls=deny_urls,
-            extend_defaults=extend_defaults
+            extend_defaults=extend_defaults,
         )
 
     set_global_filter(filter_instance)
 
 
 def get_url_filter() -> URLFilter:
-    """
-    Get the current global URL filter.
+    """Get the current global URL filter.
 
     Returns:
         The current global URL filter instance
+
     """
     return get_global_filter()
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-OpenAI API Tracing Example with R4U SDK
+"""OpenAI API Tracing Example with R4U SDK
 
 This example demonstrates how to trace OpenAI API calls using R4U's HTTP-level tracing.
 Since the OpenAI Python client uses httpx under the hood, we can automatically trace
@@ -22,6 +21,7 @@ Run this example:
 
 import os
 import sys
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -213,7 +213,7 @@ def example_with_function_calling():
                     "required": ["location"],
                 },
             },
-        }
+        },
     ]
 
     print("\n📤 Making OpenAI API request with function calling...")
@@ -253,7 +253,7 @@ def main():
     print("OpenAI API Tracing with R4U SDK")
     print("=" * 70)
     print(
-        "\nThis example demonstrates automatic HTTP-level tracing of OpenAI API calls."
+        "\nThis example demonstrates automatic HTTP-level tracing of OpenAI API calls.",
     )
     print("All HTTP requests made by the OpenAI client will be captured and sent")
     print("to your R4U backend for observability and monitoring.")

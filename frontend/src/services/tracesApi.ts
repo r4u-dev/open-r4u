@@ -45,6 +45,8 @@ export interface BackendTrace {
 export interface FetchTracesParams {
     limit?: number;
     offset?: number;
+    task_id?: number;
+    implementation_id?: number;
 }
 
 // Map backend trace to frontend trace format
@@ -177,12 +179,23 @@ export const tracesApi = {
      * Fetch traces with pagination support
      */
     async fetchTraces(params: FetchTracesParams = {}): Promise<Trace[]> {
-        const { limit = 25, offset = 0 } = params;
+        const { limit = 25, offset = 0, task_id, implementation_id } = params;
 
         const queryParams = new URLSearchParams({
             limit: limit.toString(),
             offset: offset.toString(),
         });
+
+        if (task_id !== undefined) {
+            queryParams.append("task_id", task_id.toString());
+        }
+
+        if (implementation_id !== undefined) {
+            queryParams.append(
+                "implementation_id",
+                implementation_id.toString(),
+            );
+        }
 
         const response = await apiClient.get<BackendTrace[]>(
             `/v1/traces?${queryParams.toString()}`,

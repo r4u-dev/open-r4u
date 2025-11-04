@@ -56,10 +56,12 @@ class ExecutionResult(Base):
         nullable=True,
     )
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False,
+        DateTime(timezone=True),
+        nullable=False,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # Prompt rendering
@@ -68,13 +70,20 @@ class ExecutionResult(Base):
 
     # Results
     result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType, nullable=True)
+    result_json: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONType,
+        nullable=True,
+    )
+    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONType,
+        nullable=True,
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Execution metadata
     finish_reason: Mapped[FinishReason | None] = mapped_column(
-        SQLEnum(FinishReason), nullable=True,
+        SQLEnum(FinishReason),
+        nullable=True,
     )
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -86,7 +95,8 @@ class ExecutionResult(Base):
 
     # Raw provider response for debugging
     provider_response: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True,
+        JSONType,
+        nullable=True,
     )
 
     # Relationships

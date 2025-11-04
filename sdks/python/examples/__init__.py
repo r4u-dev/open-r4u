@@ -1,5 +1,4 @@
-"""
-R4U Python SDK Examples
+"""R4U Python SDK Examples
 
 This package contains example scripts demonstrating how to use the R4U SDK
 to trace OpenAI API calls and other HTTP requests.

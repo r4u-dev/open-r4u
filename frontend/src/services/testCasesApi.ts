@@ -120,6 +120,25 @@ class TestCasesApiService {
             data,
         );
     }
+
+    async createTestCasesFromTraces(
+        data: CreateTestCasesFromTracesRequest,
+    ): Promise<ApiResponse<CreateTestCasesFromTracesResponse>> {
+        return apiClient.post<CreateTestCasesFromTracesResponse>(
+            `${this.baseEndpoint}/from-traces`,
+            data,
+        );
+    }
+}
+
+export interface CreateTestCasesFromTracesRequest {
+    task_id: number;
+    trace_ids: number[];
+}
+
+export interface CreateTestCasesFromTracesResponse {
+    created_count: number;
+    test_cases: TestCase[];
 }
 
 export const testCasesApi = new TestCasesApiService();

@@ -12,16 +12,34 @@ from app.enums import EvaluationStatus, ScoreType
 class GraderBase(BaseModel):
     """Base schema for grader details."""
 
-    name: str = Field(..., max_length=255, description="Name of the grader (e.g., 'accuracy', 'toxicity')")
-    description: str | None = Field(None, description="Optional description of what this grader evaluates")
+    name: str = Field(
+        ...,
+        max_length=255,
+        description="Name of the grader (e.g., 'accuracy', 'toxicity')",
+    )
+    description: str | None = Field(
+        None,
+        description="Optional description of what this grader evaluates",
+    )
     prompt: str = Field(..., description="The LLM prompt used for evaluation")
     score_type: ScoreType = Field(..., description="Type of score this grader produces")
 
     # LLM configuration
     model: str = Field(..., max_length=255, description="LLM model to use for grading")
-    temperature: float | None = Field(None, ge=0.0, le=2.0, description="Temperature for LLM")
-    reasoning: dict[str, Any] | None = Field(None, description="Reasoning configuration for reasoning models")
-    response_schema: dict[str, Any] | None = Field(None, description="JSON schema for structured responses")
+    temperature: float | None = Field(
+        None,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for LLM",
+    )
+    reasoning: dict[str, Any] | None = Field(
+        None,
+        description="Reasoning configuration for reasoning models",
+    )
+    response_schema: dict[str, Any] | None = Field(
+        None,
+        description="JSON schema for structured responses",
+    )
     max_output_tokens: int = Field(..., gt=0, description="Maximum output tokens")
 
     # Metadata
@@ -79,12 +97,22 @@ class GradeBase(BaseModel):
     """Base schema for grade details."""
 
     # Score results
-    score_float: float | None = Field(None, ge=0.0, le=1.0, description="Float score (0.0 - 1.0)")
+    score_float: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Float score (0.0 - 1.0)",
+    )
     score_boolean: bool | None = Field(None, description="Boolean score")
 
     # Grader LLM metadata
     reasoning: str | None = Field(None, description="Explanation from the grader")
-    confidence: float | None = Field(None, ge=0.0, le=1.0, description="Confidence score (0.0 - 1.0)")
+    confidence: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score (0.0 - 1.0)",
+    )
     grader_response: dict[str, Any] | None = Field(None, description="Raw LLM response")
 
     # Execution metadata
@@ -116,7 +144,11 @@ class GradeTargetRequest(BaseModel):
         execution_result_id = values.get("execution_result_id")
 
         # If we're validating execution_result_id and trace_id is already set
-        if info.field_name == "execution_result_id" and trace_id is not None and v is not None:
+        if (
+            info.field_name == "execution_result_id"
+            and trace_id is not None
+            and v is not None
+        ):
             raise ValueError("Specify exactly one of trace_id or execution_result_id")
 
         # Final validation: ensure at least one is set
@@ -172,9 +204,19 @@ class TestCaseBase(BaseModel):
     """Base schema for test case details."""
 
     __test__ = False
-    description: str | None = Field(None, max_length=500, description="Optional description of the test case")
-    arguments: dict[str, Any] | None = Field(None, description="Arguments containing variables for prompt rendering and optional 'messages' key")
-    expected_output: str = Field(..., description="Expected output for accuracy comparison (JSON stored as string)")
+    description: str | None = Field(
+        None,
+        max_length=500,
+        description="Optional description of the test case",
+    )
+    arguments: dict[str, Any] | None = Field(
+        None,
+        description="Arguments containing variables for prompt rendering and optional 'messages' key",
+    )
+    expected_output: list[dict[str, Any]] = Field(
+        ...,
+        description="Expected output for accuracy comparison",
+    )
 
 
 class TestCaseCreate(TestCaseBase):
@@ -221,14 +263,54 @@ class TestCaseListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TestCasesFromTracesRequest(BaseModel):
+    """Schema for creating test cases from existing traces."""
+
+    __test__ = False
+
+    task_id: int = Field(..., description="ID of the task to create test cases for")
+    trace_ids: list[int] = Field(
+        ...,
+        description="List of trace IDs to convert to test cases",
+        min_length=1,
+    )
+
+
+class TestCasesFromTracesResponse(BaseModel):
+    """Schema for response when creating test cases from traces."""
+
+    __test__ = False
+
+    created_count: int = Field(..., description="Number of test cases created")
+    test_cases: list[TestCaseRead] = Field(..., description="Created test cases")
+
+
 # Evaluation Config Schemas
 class EvaluationConfigBase(BaseModel):
     """Base schema for evaluation configuration."""
 
-    quality_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for quality score (0.0 - 1.0)")
-    cost_weight: float = Field(0.3, ge=0.0, le=1.0, description="Weight for cost efficiency score (0.0 - 1.0)")
-    time_weight: float = Field(0.2, ge=0.0, le=1.0, description="Weight for time efficiency score (0.0 - 1.0)")
-    grader_ids: list[int] = Field(default_factory=list, description="List of grader IDs to use for evaluation")
+    quality_weight: float = Field(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Weight for quality score (0.0 - 1.0)",
+    )
+    cost_weight: float = Field(
+        0.3,
+        ge=0.0,
+        le=1.0,
+        description="Weight for cost efficiency score (0.0 - 1.0)",
+    )
+    time_weight: float = Field(
+        0.2,
+        ge=0.0,
+        le=1.0,
+        description="Weight for time efficiency score (0.0 - 1.0)",
+    )
+    grader_ids: list[int] = Field(
+        default_factory=list,
+        description="List of grader IDs to use for evaluation",
+    )
 
     @field_validator("quality_weight", "cost_weight", "time_weight")
     @classmethod
@@ -244,7 +326,6 @@ class EvaluationConfigBase(BaseModel):
 
 class EvaluationConfigCreate(EvaluationConfigBase):
     """Schema for creating evaluation configuration."""
-
 
 
 class EvaluationConfigUpdate(BaseModel):
@@ -271,26 +352,69 @@ class EvaluationConfigRead(EvaluationConfigBase):
 class EvaluationBase(BaseModel):
     """Base schema for evaluation details."""
 
-    status: EvaluationStatus = Field(EvaluationStatus.PENDING, description="Status of the evaluation")
+    status: EvaluationStatus = Field(
+        EvaluationStatus.PENDING,
+        description="Status of the evaluation",
+    )
     started_at: datetime | None = Field(None, description="When the evaluation started")
-    completed_at: datetime | None = Field(None, description="When the evaluation completed")
-    test_case_count: int | None = Field(None, description="Number of test cases executed")
+    completed_at: datetime | None = Field(
+        None,
+        description="When the evaluation completed",
+    )
+    test_case_count: int | None = Field(
+        None,
+        description="Number of test cases executed",
+    )
     error: str | None = Field(None, description="Error message if evaluation failed")
 
     # Metrics fields
-    grader_scores: dict[str, float] = Field(default_factory=dict, description="Average score per grader")
-    quality_score: float | None = Field(None, ge=0.0, le=1.0, description="Overall quality score (average of all grader scores)")
-    avg_cost: float | None = Field(None, ge=0.0, description="Average cost across all test executions")
-    avg_execution_time_ms: float | None = Field(None, ge=0.0, description="Average execution time in milliseconds")
-    cost_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Cost efficiency score (0-1, higher is better)")
-    time_efficiency_score: float | None = Field(None, ge=0.0, le=1.0, description="Time efficiency score (0-1, higher is better)")
-    final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0, description="Final weighted evaluation score")
+    grader_scores: dict[str, float] = Field(
+        default_factory=dict,
+        description="Average score per grader",
+    )
+    quality_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Overall quality score (average of all grader scores)",
+    )
+    avg_cost: float | None = Field(
+        None,
+        ge=0.0,
+        description="Average cost across all test executions",
+    )
+    avg_execution_time_ms: float | None = Field(
+        None,
+        ge=0.0,
+        description="Average execution time in milliseconds",
+    )
+    cost_efficiency_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Cost efficiency score (0-1, higher is better)",
+    )
+    time_efficiency_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Time efficiency score (0-1, higher is better)",
+    )
+    final_evaluation_score: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Final weighted evaluation score",
+    )
 
 
 class EvaluationRunRequest(BaseModel):
     """Schema for running an evaluation."""
 
-    implementation_id: int = Field(..., description="ID of the implementation to evaluate")
+    implementation_id: int = Field(
+        ...,
+        description="ID of the implementation to evaluate",
+    )
 
 
 class EvaluationCreate(BaseModel):
@@ -335,14 +459,24 @@ class EvaluationListItem(BaseModel):
 class TargetTaskMetricsBase(BaseModel):
     """Base schema for target task metrics."""
 
-    cost: float | None = Field(None, ge=0.0, description="Target cost (best known value)")
-    time_ms: float | None = Field(None, ge=0.0, description="Target execution time in milliseconds (best known value)")
-    last_updated_at: datetime | None = Field(None, description="When the targets were last updated")
+    cost: float | None = Field(
+        None,
+        ge=0.0,
+        description="Target cost (best known value)",
+    )
+    time_ms: float | None = Field(
+        None,
+        ge=0.0,
+        description="Target execution time in milliseconds (best known value)",
+    )
+    last_updated_at: datetime | None = Field(
+        None,
+        description="When the targets were last updated",
+    )
 
 
 class TargetTaskMetricsCreate(TargetTaskMetricsBase):
     """Schema for creating target task metrics."""
-
 
 
 class TargetTaskMetricsUpdate(BaseModel):
@@ -390,11 +524,11 @@ class EvaluationResultItem(BaseModel):
     test_case_id: int | None
     test_case_description: str | None
     arguments: dict[str, Any] | None
-    expected_output: str | None
+    expected_output: list[dict[str, Any]] | None
 
     # Outputs
     result_text: str | None
-    result_json: dict[str, Any] | None
+    result_json: list[dict[str, Any]] | None
     error: str | None
 
     # Execution metrics
@@ -426,4 +560,3 @@ class ImplementationEvaluationStats(BaseModel):
     avg_final_evaluation_score: float | None = Field(None, ge=0.0, le=1.0)
 
     model_config = ConfigDict(from_attributes=True)
-

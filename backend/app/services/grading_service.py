@@ -348,7 +348,7 @@ class GradingService:
             result = await session.execute(query)
             test_case = result.scalar_one_or_none()
             if test_case:
-                grading_variables["expected_output"] = test_case.expected_output or ""
+                grading_variables["expected_output"] = test_case.expected_output
 
         # Create a temporary implementation-like object for executor
         from app.models.tasks import Implementation, Task

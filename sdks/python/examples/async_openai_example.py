@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Async OpenAI API Tracing Example
+"""Async OpenAI API Tracing Example
 
 This example demonstrates how to trace asynchronous OpenAI API calls with R4U.
 The AsyncOpenAI client uses httpx.AsyncClient internally, so we trace at the HTTP level.
@@ -15,6 +14,7 @@ import asyncio
 import os
 import sys
 import time
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -138,7 +138,7 @@ async def example_async_streaming():
         stream = await client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "user", "content": "Count from 1 to 5 in words, one per line."}
+                {"role": "user", "content": "Count from 1 to 5 in words, one per line."},
             ],
             stream=True,
             max_tokens=50,
@@ -184,7 +184,7 @@ async def example_error_handling():
                 {
                     "role": "user",
                     "content": "Write a detailed essay about artificial intelligence.",
-                }
+                },
             ],
             max_tokens=5,  # Too few tokens for the request
         )
