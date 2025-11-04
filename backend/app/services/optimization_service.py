@@ -22,7 +22,7 @@ from app.schemas.optimizations import (
     OptimizationMutableField,
     OutperformingVersionItem,
 )
-from app.schemas.traces import MessageItem
+from app.schemas.traces import MessageItem, OutputItem, OutputMessageItem
 from app.services.evaluation_service import EvaluationService
 from app.services.executor import LLMExecutor
 from app.services.pricing_service import PricingService
@@ -463,14 +463,56 @@ class OptimizationService:
         meta_impl.task = temp_task
         return meta_impl
 
-    def _parse_execution_result(self, execution: Any) -> dict[str, Any] | None:
-        """Parse execution result into a dict, handling both JSON and text responses."""
-        if getattr(execution, "result_json", None) and isinstance(execution.result_json, dict):
-            return execution.result_json
+    def _extract_text_from_output_item(self, item: OutputItem) -> str | None:
+        """Extract text content from an OutputItem using schema."""
+        if isinstance(item, OutputMessageItem) and item.content:
+            for content_part in item.content:
+                if content_part.text:
+                    return content_part.text
+        return None
 
-        if getattr(execution, "result_text", None) and isinstance(execution.result_text, str):
+    def _parse_execution_result(self, execution: Any) -> dict[str, Any] | None:
+        """Parse execution result into a dict from OutputItem list or JSON text.
+
+        Uses OutputItem schema types to properly extract JSON from OutputMessageItem content.
+        """
+        rj = getattr(execution, "result_json", None)
+
+        # Handle legacy dict directly
+        if isinstance(rj, dict):
+            return rj
+
+        # Handle list[OutputItem] - parse using schema types
+        if isinstance(rj, list) and rj:
+            for item in rj:
+                # Validate item as OutputItem schema
+                if isinstance(item, dict):
+                    try:
+                        # Try to parse as OutputMessageItem
+                        parsed_item = OutputMessageItem.model_validate(item)
+                    except Exception:
+                        # If validation fails, check if it's a plain dict payload
+                        if any(k in item for k in ("score", "reasoning", "confidence", "version", "model")):
+                            return item
+                        continue
+                else:
+                    parsed_item = item
+
+                # Extract text from OutputMessageItem and try to parse as JSON
+                text = self._extract_text_from_output_item(parsed_item)
+                if text:
+                    try:
+                        parsed = json.loads(text)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except json.JSONDecodeError:
+                        pass
+
+        # Fallback: parse result_text as JSON
+        rt = getattr(execution, "result_text", None)
+        if isinstance(rt, str):
             try:
-                parsed = json.loads(execution.result_text)
+                parsed = json.loads(rt)
                 if isinstance(parsed, dict):
                     return parsed
             except json.JSONDecodeError as e:

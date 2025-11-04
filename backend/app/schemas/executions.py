@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from app.enums import FinishReason
+from app.schemas.traces import OutputItem
 
 
 class ExecutionRequest(BaseModel):
@@ -37,7 +38,7 @@ class ExecutionResultBase(BaseModel):
 
     # Results
     result_text: str | None = None
-    result_json: dict[str, Any] | None = None
+    result_json: list[OutputItem] | None = None
     error: str | None = None
 
     # Execution metadata

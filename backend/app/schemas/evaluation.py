@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.enums import EvaluationStatus, ScoreType
+from app.schemas.traces import OutputItem
 
 
 # Grader Schemas
@@ -528,7 +529,7 @@ class EvaluationResultItem(BaseModel):
 
     # Outputs
     result_text: str | None
-    result_json: list[dict[str, Any]] | None
+    result_json: list[OutputItem] | None
     error: str | None
 
     # Execution metrics
