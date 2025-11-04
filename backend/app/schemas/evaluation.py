@@ -234,7 +234,7 @@ class TestCaseUpdate(BaseModel):
 
     description: str | None = Field(None, max_length=500)
     arguments: dict[str, Any] | None = None
-    expected_output: str | None = None
+    expected_output: list[dict[str, Any]] | None = None
 
 
 class TestCaseRead(TestCaseBase):

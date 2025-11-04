@@ -84,7 +84,7 @@ async def test_extract_system_prompt_from_input_items(test_session: AsyncSession
 
 @pytest.mark.asyncio
 async def test_trace_auto_matches_to_implementation(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test that a trace automatically matches an implementation."""
     # Create an implementation with a template
@@ -124,7 +124,7 @@ async def test_trace_auto_matches_to_implementation(
 
 @pytest.mark.asyncio
 async def test_multiple_traces_match_same_implementation(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test that multiple traces match the same implementation with different variables."""
     # Create an implementation
@@ -170,7 +170,7 @@ async def test_multiple_traces_match_same_implementation(
 
 @pytest.mark.asyncio
 async def test_traces_with_different_paths_match_different_implementations(
-    test_session: AsyncSession, client: AsyncClient, project: Project
+    test_session: AsyncSession, client: AsyncClient, project: Project,
 ):
     """Test that traces with different contexts match different implementations."""
     # Create task and implementations for different purposes
@@ -237,7 +237,7 @@ async def test_traces_with_different_paths_match_different_implementations(
 
 @pytest.mark.asyncio
 async def test_placeholder_extraction_with_special_characters(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test placeholder extraction with special characters like emails and numbers."""
     impl = Implementation(
@@ -276,7 +276,7 @@ async def test_placeholder_extraction_with_special_characters(
 
 @pytest.mark.asyncio
 async def test_no_match_when_structure_differs(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test that traces don't match when the structure is completely different."""
     impl = Implementation(
@@ -330,7 +330,7 @@ async def test_template_matching_is_case_sensitive():
 
 @pytest.mark.asyncio
 async def test_multiline_template_matching(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test matching with multiline templates."""
     impl = Implementation(
@@ -374,7 +374,7 @@ Task: Review code""",
 
 @pytest.mark.asyncio
 async def test_first_implementation_wins_when_multiple_match(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test that when multiple implementations match, the first one is used."""
     # Create two implementations with same template
@@ -418,11 +418,11 @@ async def test_first_implementation_wins_when_multiple_match(
 
 @pytest.mark.asyncio
 async def test_model_must_match_for_implementation_matching(
-    test_session: AsyncSession, client: AsyncClient, task: Task
+    test_session: AsyncSession, client: AsyncClient, task: Task,
 ):
     """Test that model name must match for implementation matching."""
     impl = Implementation(
-        task_id=task.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000
+        task_id=task.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000,
     )
     test_session.add(impl)
     await test_session.commit()
@@ -447,7 +447,7 @@ async def test_model_must_match_for_implementation_matching(
 
 @pytest.mark.asyncio
 async def test_project_isolation_in_matching(
-    test_session: AsyncSession, client: AsyncClient
+    test_session: AsyncSession, client: AsyncClient,
 ):
     """Test that implementations from different projects don't match."""
     # Create two projects with similar implementations
@@ -462,10 +462,10 @@ async def test_project_isolation_in_matching(
     await test_session.flush()
 
     impl1 = Implementation(
-        task_id=task1.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000
+        task_id=task1.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000,
     )
     impl2 = Implementation(
-        task_id=task2.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000
+        task_id=task2.id, prompt="Hello {{name}}", model="gpt-4", max_output_tokens=1000,
     )
     test_session.add_all([impl1, impl2])
     await test_session.commit()
@@ -491,7 +491,7 @@ async def test_project_isolation_in_matching(
 
 @pytest.mark.asyncio
 async def test_api_group_endpoint_is_disabled(
-    client: AsyncClient, test_session: AsyncSession, project: Project
+    client: AsyncClient, test_session: AsyncSession, project: Project,
 ):
     """Test that the old /traces/{id}/group endpoint is disabled/no-op."""
     trace = Trace(
