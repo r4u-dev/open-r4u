@@ -604,7 +604,7 @@ Expected Output: {{expected_output}}
             score_type=ScoreType.FLOAT,
             model="gpt-5",
             temperature=0.0,
-            max_output_tokens=500,
+            max_output_tokens=2000,
             response_schema={
                 "type": "object",
                 "properties": {
@@ -647,17 +647,16 @@ Expected Output: {{expected_output}}
             session=session,
             project_id=project_id,
             name="Pairwise",
-            description="Pairwise comparison (continuous): 0.0 worse … 0.5 tie … 1.0 better",
+            description="Pairwise comparison: 0.0 worse … 0.5 tie … 1.0 better",
             prompt="""You are comparing two outputs for the same task.
-Task Prompt: {{task_prompt}}
 Task Arguments: {{task_arguments}}
-Candidate A (Baseline): {{expected_output}}
-Candidate B (Actual/New): {{actual_output}}
+Output from the baseline implementation: {{expected_output}}
+Output from the current implementation: {{actual_output}}
 
-Assign a numeric score in the continuous range [0.0, 1.0] representing how much Candidate B is better than Candidate A:
-- 1.0 if B is clearly better than A
-- 0.5 if B and A are equally good (tie / indifference)
-- 0.0 if B is clearly worse than A
+Assign a numeric score in the continuous range [0.0, 1.0] representing how much the current implementation is better than the baseline implementation:
+- 1.0 if the current implementation is clearly better than the baseline implementation
+- 0.5 if the current implementation and the baseline implementation are equally good (tie / indifference)
+- 0.0 if the current implementation is clearly worse than the baseline implementation
 - Use intermediate values (e.g., 0.1, 0.2, ..., 0.8...) to reflect graded preference strength
 
 Return only the structured response.
@@ -665,7 +664,7 @@ Return only the structured response.
             score_type=ScoreType.FLOAT,
             model="gpt-5",
             temperature=0.0,
-            max_output_tokens=300,
+            max_output_tokens=2000,
             response_schema={
                 "type": "object",
                 "properties": {
