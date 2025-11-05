@@ -29,9 +29,9 @@ const Evaluations = () => {
     const [evaluations, setEvaluations] = useState<EvaluationListItem[]>([]);
     const [selectedEvaluationId, setSelectedEvaluationId] =
         useState<number | null>(null);
-    const [mockEvaluations, setMockEvaluations] = useState<EvaluationListItem[]>([]);
+    
     const [isLoading, setIsLoading] = useState(false);
-    const [mockEvaluationDetails, setMockEvaluationDetails] = useState<Record<number, EvaluationRead>>({});
+    
     const [hasMore, setHasMore] = useState(true);
     const [sortField, setSortField] = useState<SortField>("created");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -115,9 +115,8 @@ const Evaluations = () => {
             return 0;
         });
 
-        // Append mocks after real evaluations regardless of sort
-        return [...sortedReal, ...mockEvaluations];
-    }, [evaluations, mockEvaluations, sortField, sortDirection]);
+        return sortedReal;
+    }, [evaluations, sortField, sortDirection]);
 
     // We'll need to fetch the full evaluation data for the detail panel
     const [selectedEvaluationData, setSelectedEvaluationData] =
@@ -128,12 +127,6 @@ const Evaluations = () => {
         const fetchEvaluationDetails = async () => {
             if (!selectedEvaluationId) {
                 setSelectedEvaluationData(null);
-                return;
-            }
-
-            // If selected is a mock, serve from local details
-            if (mockEvaluationDetails[selectedEvaluationId]) {
-                setSelectedEvaluationData(mockEvaluationDetails[selectedEvaluationId]);
                 return;
             }
 
@@ -151,56 +144,7 @@ const Evaluations = () => {
         };
 
         fetchEvaluationDetails();
-    }, [selectedEvaluationId, mockEvaluationDetails]);
-
-    // Helper: generate mocked evaluations (5 items)
-    const generateMockEvaluations = useCallback((): { items: EvaluationListItem[]; details: Record<number, EvaluationRead> } => {
-        const now = Date.now();
-        const details: Record<number, EvaluationRead> = {};
-        const makeItem = (i: number): EvaluationListItem => {
-            const created = new Date(now - (i + 1) * 90_000); // 1.5 min apart
-            const start = new Date(created.getTime() + 5_000);
-            const complete = new Date(start.getTime() + 3_500 + i * 250);
-            const quality = Number((0.7 - i * 0.05).toFixed(2));
-            const finalScore = Number((quality - 0.03).toFixed(2));
-            const id = 100000 + i;
-            details[id] = {
-                id,
-                implementation_id: 1,
-                task_id: 1,
-                status: "completed",
-                started_at: start.toISOString(),
-                completed_at: complete.toISOString(),
-                test_case_count: 1,
-                error: null,
-                grader_scores: { "1": quality },
-                quality_score: quality,
-                avg_cost: 0.000123,
-                avg_execution_time_ms: complete.getTime() - start.getTime(),
-                cost_efficiency_score: 0.92,
-                time_efficiency_score: 0.88,
-                final_evaluation_score: finalScore,
-                created_at: created.toISOString(),
-                updated_at: created.toISOString(),
-            };
-            return {
-                id,
-                implementation_id: 1,
-                implementation_version: "0.1",
-                task_id: 1,
-                status: "completed",
-                started_at: start.toISOString(),
-                completed_at: complete.toISOString(),
-                test_case_count: 1,
-                error: null,
-                quality_score: quality,
-                final_evaluation_score: finalScore,
-                created_at: created.toISOString(),
-            };
-        };
-        const items = Array.from({ length: 5 }, (_, i) => makeItem(i));
-        return { items, details };
-    }, []);
+    }, [selectedEvaluationId]);
 
     // Fetch initial evaluations
     useEffect(() => {
@@ -211,9 +155,6 @@ const Evaluations = () => {
                 const response = await evaluationsApi.listEvaluations();
                 if (response.data) {
                     setEvaluations(response.data);
-                    const mock = generateMockEvaluations();
-                    setMockEvaluations(mock.items);
-                    setMockEvaluationDetails(mock.details);
                     setHasMore(response.data.length === ITEMS_PER_LOAD);
                 }
             } catch (error) {
@@ -224,7 +165,7 @@ const Evaluations = () => {
         };
 
         fetchInitialEvaluations();
-    }, [activeProject?.id, generateMockEvaluations]);
+    }, [activeProject?.id]);
 
     // Auto-select first evaluation when evaluations are loaded
     useEffect(() => {
@@ -251,9 +192,6 @@ const Evaluations = () => {
             const response = await evaluationsApi.listEvaluations();
             if (response.data) {
                 setEvaluations(response.data);
-                const mock = generateMockEvaluations();
-                setMockEvaluations(mock.items);
-                setMockEvaluationDetails(mock.details);
                 setHasMore(response.data.length === ITEMS_PER_LOAD);
             }
         } catch (error) {
@@ -261,7 +199,7 @@ const Evaluations = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [activeProject?.id, generateMockEvaluations]);
+    }, [activeProject?.id]);
 
     // Background polling while there are active evaluations
     const hasActive = useMemo(
@@ -430,6 +368,11 @@ const Evaluations = () => {
                     >
                         <EvaluationDetailPanel
                             evaluation={selectedEvaluationData}
+                            onDeleted={(id) => {
+                                setEvaluations((prev) => prev.filter((e) => e.id !== id));
+                                setSelectedEvaluationId(null);
+                                setSelectedEvaluationData(null);
+                            }}
                         />
                     </div>
                 )}
