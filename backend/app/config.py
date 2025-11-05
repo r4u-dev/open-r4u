@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     together_api_key: str | None = None
     # Add more providers as needed
 
+    min_segment_words: int = 10
+    min_matching_traces: int = 3
+
 
 @lru_cache
 def get_settings() -> Settings:

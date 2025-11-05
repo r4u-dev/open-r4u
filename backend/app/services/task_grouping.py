@@ -1,763 +1,266 @@
-"""Task grouping service for automatically organizing traces into tasks.
-
-This module implements intelligent grouping of traces based on:
-1. Path similarity
-2. Instructions/system message similarity
-3. Template inference to handle parameterized instructions
-"""
-
 import re
 from collections import defaultdict
 
-from datasketch import MinHash, MinHashLSH
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.models.projects import Project
-from app.models.tasks import Implementation, Task
-from app.models.traces import Trace
-from app.schemas.tasks import ImplementationCreate, TaskCreate
-from app.services.implementation_matcher import ImplementationMatcher
-from app.services.task_service import TaskService
-from app.services.template_inference import infer_template_from_strings
+class TemplateFinder:
+    """Finds common templates in strings by extracting shared segments.
 
-
-class TaskGrouper:
-    """Groups traces into tasks based on similarity of path and instructions.
-
-    Strategy:
-    1. Group traces by path
-    2. Within each path group, extract instructions from traces
-    3. Compare instructions to find similar patterns
-    4. For similar traces, infer a common template
-    5. Create Task + Implementation(s) for each distinct template
+    Templates consist of fixed segments separated by variable placeholders.
+    Example: "hello {{var_0}} world {{var_1}} test"
     """
 
-    def __init__(
-        self,
-        session: AsyncSession,
-        min_cluster_size: int = 3,
-        similarity_threshold: float = 0.6,
-    ):
-        """Initialize task grouper.
+    def __init__(self, min_segment_words: int, min_matching_strings: int):
+        """Initialize the TemplateFinder.
 
         Args:
-            session: Database session
-            min_cluster_size: Minimum traces needed to create a group
-            similarity_threshold: Similarity score threshold (0-1) to group traces
+            min_segment_words: Minimum number of words in a template segment
+            min_matching_traces: Minimum number of strings that must match a template
 
         """
-        self.session = session
-        self.min_cluster_size = min_cluster_size
-        self.similarity_threshold = similarity_threshold
-        self.task_service = TaskService(session)
+        self.min_segment_words = min_segment_words
+        self.min_matching_traces = min_matching_strings
 
-    async def find_or_create_task_for_trace(
-        self,
-        trace_id: int,
-    ) -> Task | None:
-        """Find or create a task for a single trace.
-
-        This looks for similar traces and tries to create a task if enough
-        similar traces exist.
+    def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
+        """Check if a string matches a template and extract variable values.
 
         Args:
-            trace_id: ID of the trace to process
+            template: Template string with {{var_X}} placeholders
+            s: String to match against the template
 
         Returns:
-            Task if found or created, None otherwise
+            Tuple of (matches: bool, variables: dict[str, str])
+            If matches is True, variables contains the extracted values
 
         """
-        # Load trace with input items
-        query = (
-            select(Trace)
-            .where(Trace.id == trace_id)
-            .options(selectinload(Trace.input_items))
-        )
-        result = await self.session.execute(query)
-        trace = result.scalar_one_or_none()
+        # Parse template into segments and variable positions
 
-        if not trace:
-            return None
+        # Split template by variable placeholders
+        # Pattern matches {{var_0}}, {{var_1}}, etc.
+        var_pattern = r"\{\{var_\d+\}\}"
 
-        # Extract instructions from the trace
-        instructions = self.extract_instructions(trace)
+        # Find all variables and their positions
+        variables = re.findall(var_pattern, template)
 
-        if not instructions:
-            return None
+        # Split template by variables to get fixed segments
+        segments = re.split(var_pattern, template)
 
-        # Find existing task that matches
-        task = await self._find_matching_task(trace, instructions)
-        if task:
-            return task
+        # Convert segments to token lists
+        segment_tokens = [seg.split() for seg in segments if seg.strip()]
 
-        # Try to create new task from similar traces
-        return await self._create_task_from_similar_traces(trace, instructions)
+        # Tokenize the input string
+        string_tokens = s.split()
 
-    async def group_all_traces(
-        self,
-        project_id: int,
-        model: str | None = None,
-    ) -> list[Task]:
-        """Group all ungrouped traces in a project into tasks.
+        # Try to match the template
+        extracted_vars = {}
+        current_pos = 0
 
-        Args:
-            project_id: Project ID to group traces for
-            model: Optional model filter
-
-        Returns:
-            List of created tasks
-
-        """
-        # Get all traces without implementation
-        query = (
-            select(Trace)
-            .where(Trace.project_id == project_id)
-            .where(Trace.implementation_id.is_(None))
-            .options(selectinload(Trace.input_items))
-        )
-
-        result = await self.session.execute(query)
-        traces = result.scalars().all()
-
-        if len(traces) < self.min_cluster_size:
-            return []
-
-        # Group by path first
-        path_groups = defaultdict(list)
-        for trace in traces:
-            path_groups[trace.path].append(trace)
-
-        # Process each path group
-        created_tasks = []
-        for path, path_traces in path_groups.items():
-            if len(path_traces) < self.min_cluster_size:
+        for i, segment in enumerate(segment_tokens):
+            if not segment:  # Skip empty segments
                 continue
 
-            # Group by instruction similarity
-            instruction_groups = self._group_by_instructions(path_traces)
+            # Find this segment in the string starting from current_pos
+            seg_len = len(segment)
+            found = False
 
-            # Create task for each group
-            for group in instruction_groups:
-                if len(group) >= self.min_cluster_size:
-                    task = await self._create_task_for_group(group)
-                    if task:
-                        created_tasks.append(task)
+            for j in range(current_pos, len(string_tokens) - seg_len + 1):
+                if string_tokens[j : j + seg_len] == segment:
+                    # Extract variable value before this segment (if any)
+                    if i > 0 and current_pos < j:
+                        var_name = variables[i - 1].strip("{}")
+                        var_value = " ".join(string_tokens[current_pos:j])
+                        extracted_vars[var_name] = var_value
 
-        return created_tasks
+                    current_pos = j + seg_len
+                    found = True
+                    break
 
-    def extract_instructions(self, trace: Trace) -> str:
-        """Extract instructions from a trace.
+            if not found:
+                return False, {}
 
-        Priority:
-        1. trace.instructions field
-        2. First message from input (regardless of role)
+        # Handle trailing variable (after last segment)
+        if len(segment_tokens) < len(variables) + 1 and current_pos < len(
+            string_tokens,
+        ):
+            var_name = variables[-1].strip("{}")
+            var_value = " ".join(string_tokens[current_pos:])
+            extracted_vars[var_name] = var_value
+        elif len(segment_tokens) == len(variables) and current_pos < len(string_tokens):
+            # Variable at the end
+            var_name = variables[-1].strip("{}")
+            var_value = " ".join(string_tokens[current_pos:])
+            extracted_vars[var_name] = var_value
 
-        Args:
-            trace: Trace object with input_items loaded
+        # Check if we matched all expected variables
+        expected_vars = {var.strip("{}") for var in variables}
+        if extracted_vars.keys() != expected_vars:
+            return False, {}
 
-        Returns:
-            Extracted instructions string
+        return True, extracted_vars
 
-        """
-        # First check if trace has explicit instructions
-        if trace.instructions:
-            return trace.instructions
-
-        # Otherwise, extract the first message from input items
-        for input_item in sorted(trace.input_items, key=lambda x: x.position):
-            if input_item.type.value == "message":
-                content = input_item.data.get("content")
-                if content:
-                    return content
-
-        return ""
-
-    async def _find_matching_task(
-        self,
-        trace: Trace,
-        instructions: str,
-    ) -> Task | None:
-        """Find an existing task that matches this trace's instructions.
+    def group_strings(self, strs: list[str]) -> dict[str, list[int]]:
+        """Group strings by their templates.
 
         Args:
-            trace: Trace to match
-            instructions: Extracted instructions
+            strs: List of strings to analyze
 
         Returns:
-            Matching task or None
+            Dict mapping templates to list of string indices that match
 
         """
-        # Get all implementations for this project and model
-        query = (
-            select(Implementation)
-            .join(Task, Implementation.task_id == Task.id)
-            .where(Task.project_id == trace.project_id)
-            .where(Implementation.model == trace.model)
-            .options(selectinload(Implementation.task))
-        )
+        if not strs or self.min_matching_traces < 1:
+            return {}
 
-        result = await self.session.execute(query)
-        implementations = result.scalars().all()
+        self.tokenized = [s.split() for s in strs]
+        self._build_ngram_index()
 
-        # Try to match instructions against each implementation's prompt
-        matcher = ImplementationMatcher()
+        # Extract templates for each string
+        string_to_template = {}
 
-        for impl in implementations:
-            match_result = matcher.match_template(impl.prompt, instructions)
+        for idx in range(len(strs)):
+            segments, length = self._extract_best_template(idx)
 
-            if match_result and match_result["match"]:
-                # Assign trace to this implementation
-                trace.implementation_id = impl.id
-                trace.prompt_variables = match_result["variables"]
-                await self.session.flush()
+            if segments and length >= self.min_segment_words:
+                # Create template string with variable placeholders
+                template = self._segments_to_template(segments)
+                string_to_template[idx] = (template, length)
 
-                return impl.task
+        # Resolve conflicts: if a string matches multiple templates, assign to longest
+        final_assignment = {}
+        template_lengths = defaultdict(int)
 
-        return None
+        # Group by template and track lengths
+        template_to_candidates = defaultdict(list)
+        for idx, (template, length) in string_to_template.items():
+            template_to_candidates[template].append((idx, length))
+            template_lengths[template] = max(template_lengths[template], length)
 
-    async def _create_task_from_similar_traces(
-        self,
-        trace: Trace,
-        instructions: str,
-    ) -> Task | None:
-        """Create a task from similar traces.
+        # Assign each string to its best (longest) template
+        for idx, (template, length) in string_to_template.items():
+            if idx not in final_assignment or length > final_assignment[idx][1]:
+                final_assignment[idx] = (template, length)
 
-        Args:
-            trace: Seed trace
-            instructions: Instructions from seed trace
+        # Build final result
+        result = defaultdict(list)
+        for idx, (template, length) in final_assignment.items():
+            result[template].append(idx)
 
-        Returns:
-            Created task or None
-
-        """
-        # Find similar traces
-        similar_traces = await self._find_similar_traces(trace, instructions)
-
-        if len(similar_traces) < self.min_cluster_size:
-            return None
-
-        # Create task and implementation
-        return await self._create_task_for_group(similar_traces)
-
-    async def _find_similar_traces(
-        self,
-        seed_trace: Trace,
-        seed_instructions: str,
-    ) -> list[Trace]:
-        """Find traces similar to the seed trace.
-
-        Args:
-            seed_trace: Reference trace
-            seed_instructions: Instructions from seed trace
-
-        Returns:
-            List of similar traces (including seed)
-
-        """
-        # Query traces with same project, model, path, and no implementation
-        query = (
-            select(Trace)
-            .where(Trace.project_id == seed_trace.project_id)
-            .where(Trace.model == seed_trace.model)
-            .where(Trace.implementation_id.is_(None))
-            .options(selectinload(Trace.input_items))
-        )
-
-        # Handle path comparison (including null paths)
-        if seed_trace.path is not None:
-            query = query.where(Trace.path == seed_trace.path)
-        else:
-            query = query.where(Trace.path.is_(None))
-
-        result = await self.session.execute(query)
-        candidates = result.scalars().all()
-
-        # Filter by instruction similarity
-        similar = [seed_trace]
-
-        for trace in candidates:
-            if trace.id == seed_trace.id:
-                continue
-
-            trace_instructions = self.extract_instructions(trace)
-            if not trace_instructions:
-                continue
-
-            similarity = self._compute_instruction_similarity(
-                seed_instructions,
-                trace_instructions,
-            )
-
-            if similarity >= self.similarity_threshold:
-                similar.append(trace)
-
-        return similar
-
-    def _group_by_instructions(self, traces: list[Trace]) -> list[list[Trace]]:
-        """Group traces by instruction similarity using MinHash-based clusterization.
-
-        Uses ngram-based MinHash with LSH for efficient similarity search, filtering
-        to shared ngrams across the corpus to improve clustering quality.
-
-        Args:
-            traces: List of traces to group
-
-        Returns:
-            List of trace groups (clusters)
-
-        """
-        # Extract instructions from all traces
-        texts, trace_indices = self._extract_instruction_texts(traces)
-
-        if not texts:
-            return []
-
-        # If only one text, return single group
-        if len(texts) == 1:
-            return [[traces[trace_indices[0]]]]
-
-        # Compute shared ngrams across corpus
-        shared_ngrams = self._compute_shared_ngrams(texts)
-
-        # If no shared ngrams found, cannot produce meaningful clusters
-        # Empty shared_ngrams would cause empty MinHashes with similarity 1.0
-        if not shared_ngrams:
-            return []
-
-        # Calculate MinHashes using only shared ngrams
-        minhashes = [
-            self._get_minhash(text, allowed_ngrams=shared_ngrams) for text in texts
-        ]
-
-        # Build clusters using LSH
-        return self._build_clusters_with_lsh(
-            minhashes,
-            traces,
-            trace_indices,
-        )
-
-    def _extract_instruction_texts(
-        self,
-        traces: list[Trace],
-    ) -> tuple[list[str], list[int]]:
-        """Extract instruction texts from traces.
-
-        Args:
-            traces: List of traces
-
-        Returns:
-            Tuple of (texts list, trace_indices list)
-
-        """
-        texts = []
-        trace_indices = []
-
-        for i, trace in enumerate(traces):
-            instructions = self.extract_instructions(trace)
-            if instructions:
-                texts.append(instructions)
-                trace_indices.append(i)
-
-        return texts, trace_indices
-
-    def _compute_shared_ngrams(self, texts: list[str]) -> set[str]:
-        """Compute shared ngrams across corpus.
-
-        Args:
-            texts: List of instruction texts
-
-        Returns:
-            Set of shared ngrams
-
-        """
-        # Compute corpus-wide ngram frequencies
-        ngram_text_count = defaultdict(int)
-
-        for text in texts:
-            tokens = self._tokenize_preserve_case(text)
-            text_ngrams = self._generate_ngrams(tokens, n=3)
-
-            # Count that this ngram appears in this text
-            for gram in text_ngrams:
-                ngram_text_count[gram] += 1
-
-        min_ngram_count = 2
-        return {
-            gram for gram, count in ngram_text_count.items() if count >= min_ngram_count
+        # Filter out groups with fewer than min_matching_traces strings
+        result = {
+            template: indices
+            for template, indices in result.items()
+            if len(indices) >= self.min_matching_traces
         }
 
-    def _build_clusters_with_lsh(
-        self,
-        minhashes: list[MinHash],
-        traces: list[Trace],
-        trace_indices: list[int],
-    ) -> list[list[Trace]]:
-        """Build clusters using MinHashLSH.
+        return dict(result)
 
-        Args:
-            minhashes: List of MinHash objects
-            traces: Original list of traces
-            trace_indices: Indices mapping minhashes to traces
+    def _build_ngram_index(self):
+        """Build n-gram index for fast lookup."""
+        self.ngram_to_strings = defaultdict(set)
+        n = self.min_segment_words
 
-        Returns:
-            List of trace clusters
+        for idx, tokens in enumerate(self.tokenized):
+            for i in range(len(tokens) - n + 1):
+                ngram = tuple(tokens[i : i + n])
+                self.ngram_to_strings[ngram].add(idx)
 
+    def _segments_to_template(self, segments: list[list[str]]) -> str:
+        """Convert segments to template string with variable placeholders."""
+        if not segments:
+            return ""
+
+        template_parts = []
+        for i, segment in enumerate(segments):
+            template_parts.append(" ".join(segment))
+            if i < len(segments) - 1:
+                template_parts.append(f"{{{{var_{i}}}}}")
+
+        return " ".join(template_parts)
+
+    def _matches_segments(self, sentence: list[str], segments: list[list[str]]) -> bool:
+        """Check if sentence contains all segments in order."""
+        if not segments:
+            return True
+
+        start_idx = 0
+        for segment in segments:
+            seg_len = len(segment)
+            found = False
+            for i in range(start_idx, len(sentence) - seg_len + 1):
+                if sentence[i : i + seg_len] == segment:
+                    start_idx = i + seg_len
+                    found = True
+                    break
+            if not found:
+                return False
+        return True
+
+    def _get_candidate_matches(self, segment: list[str]) -> set[int]:
+        """Quickly find candidate strings that might contain this segment."""
+        if len(segment) < self.min_segment_words:
+            return set(range(len(self.tokenized)))
+
+        # Use n-gram index for fast filtering
+        ngram = tuple(segment[: self.min_segment_words])
+        return self.ngram_to_strings.get(ngram, set())
+
+    def _get_matching_indices(self, segments: list[list[str]]) -> list[int]:
+        """Get all string indices that match the given segments."""
+        if not segments:
+            return list(range(len(self.tokenized)))
+
+        # Start with candidates from first segment
+        candidates = self._get_candidate_matches(segments[0])
+
+        # Filter candidates that match all segments
+        matching = []
+        for idx in candidates:
+            if self._matches_segments(self.tokenized[idx], segments):
+                matching.append(idx)
+        return matching
+
+    def _extract_best_template(self, string_idx: int) -> tuple[list[list[str]], int]:
+        """Extract the longest valid template from a string using optimized greedy approach.
+        Returns (segments, total_length).
         """
-        # Use LSH for efficient similarity search
-        lsh = MinHashLSH(
-            threshold=self.similarity_threshold,
-            num_perm=128,
-        )
-
-        for i, mh in enumerate(minhashes):
-            lsh.insert(f"t{i}", mh)
-
-        # Build clusters
-        clusters = []
-        visited = set()
-
-        for i, mh in enumerate(minhashes):
-            if i in visited:
-                continue
-
-            # Find near-duplicates using LSH
-            similar = lsh.query(mh)
-            indices = [int(s[1:]) for s in similar]
-
-            # Filter by actual Jaccard similarity to remove false positives
-            filtered_indices = self._filter_similar_indices(
-                i,
-                indices,
-                mh,
-                minhashes,
-                visited,
-            )
-
-            # Create trace group from filtered indices
-            trace_group = [traces[trace_indices[idx]] for idx in filtered_indices]
-            clusters.append(trace_group)
-            visited.update(filtered_indices)
-
-        return clusters
-
-    def _filter_similar_indices(
-        self,
-        seed_idx: int,
-        candidate_indices: list[int],
-        seed_minhash: MinHash,
-        minhashes: list[MinHash],
-        visited: set[int],
-    ) -> list[int]:
-        """Filter candidate indices by actual Jaccard similarity.
-
-        Args:
-            seed_idx: Index of seed item
-            candidate_indices: Candidate indices from LSH query
-            seed_minhash: MinHash of seed item
-            minhashes: List of all MinHash objects
-            visited: Set of already visited indices
-
-        Returns:
-            List of filtered indices including seed
-
-        """
-        filtered_indices = [seed_idx]  # Always include self
-
-        for idx in candidate_indices:
-            if idx != seed_idx and idx not in visited:
-                actual_sim = seed_minhash.jaccard(minhashes[idx])
-                if actual_sim >= self.similarity_threshold:
-                    filtered_indices.append(idx)
-
-        return filtered_indices
-
-    def _compute_instruction_similarity(
-        self,
-        instructions1: str,
-        instructions2: str,
-    ) -> float:
-        """Compute similarity between two instruction strings.
-
-        Uses Jaccard similarity on tokenized instructions.
-
-        Args:
-            instructions1: First instruction string
-            instructions2: Second instruction string
-
-        Returns:
-            Similarity score (0-1)
-
-        """
-        tokens1 = set(self._tokenize(instructions1))
-        tokens2 = set(self._tokenize(instructions2))
-
-        if not tokens1 or not tokens2:
-            return 0.0
-
-        intersection = len(tokens1 & tokens2)
-        union = len(tokens1 | tokens2)
-
-        return intersection / union if union > 0 else 0.0
-
-    def _tokenize(self, text: str) -> list[str]:
-        """Tokenize text into words (lowercase).
-
-        Args:
-            text: Text to tokenize
-
-        Returns:
-            List of lowercase tokens
-
-        """
-        # Simple word tokenization (lowercase for backward compatibility)
-        return [token.lower() for token in re.findall(r"\w+", text)]
-
-    def _tokenize_preserve_case(self, text: str) -> list[str]:
-        """Tokenize text, preserving casing.
-
-        Args:
-            text: Text to tokenize
-
-        Returns:
-            List of tokens (words and punctuation)
-
-        """
-        # Tokenize preserving casing, including punctuation
-        return re.findall(r"\w+|[^\w\s]", text)
-
-    def _generate_ngrams(
-        self,
-        tokens: list[str],
-        n: int = 3,
-    ) -> set[str]:
-        """Generate ngrams from tokens.
-
-        Args:
-            tokens: List of tokens
-            n: Ngram size (default 3)
-
-        Returns:
-            Set of ngram strings
-
-        """
-        # Generate all ngrams
-        all_grams = [
-            " ".join(tokens[i : i + n]) for i in range(len(tokens) - n + 1)
-        ]
-        return set(all_grams)
-
-    def _get_minhash(
-        self,
-        text: str,
-        num_perm: int = 128,
-        allowed_ngrams: set[str] | None = None,
-    ) -> MinHash:
-        """Create MinHash from text, optionally filtering to allowed ngrams.
-
-        Args:
-            text: Text to create MinHash for
-            num_perm: Number of permutations for MinHash
-            allowed_ngrams: Optional set of ngrams to filter to (corpus-wide filtering)
-
-        Returns:
-            MinHash object
-
-        """
-        tokens = self._tokenize_preserve_case(text)
-        base_grams = self._generate_ngrams(tokens, n=3)
-        grams = set(base_grams)
-
-        # Filter to allowed ngrams if provided (corpus-wide filtering)
-        if allowed_ngrams is not None:
-            grams = grams & allowed_ngrams
-
-            # If nothing survives the corpus-wide filter, fall back to the
-            # unfiltered ngrams so we still get a meaningful signature.
-            if not grams:
-                grams = base_grams
-
-        # If we still have no shingles (e.g. short strings), fall back to
-        # individual tokens to avoid producing an empty MinHash.
-        if not grams:
-            grams = set(tokens)
-
-        # As an ultimate fallback for empty text, add a sentinel so that the
-        # MinHash always receives at least one update.
-        if not grams:
-            grams = {"__empty__"}
-
-        m = MinHash(num_perm=num_perm)
-        for g in grams:
-            m.update(g.encode("utf8"))
-        return m
-
-    async def _create_task_for_group(
-        self,
-        traces: list[Trace],
-    ) -> Task | None:
-        """Create a task and implementation for a group of similar traces.
-
-        Args:
-            traces: Group of similar traces
-
-        Returns:
-            Created task or None
-
-        """
-        if not traces:
-            return None
-
-        # Use first trace for metadata
-        first_trace = traces[0]
-
-        # Collect instruction strings for template inference
-        instruction_strings = []
-        for trace in traces:
-            instructions = self.extract_instructions(trace)
-            if instructions:
-                instruction_strings.append(instructions)
-
-        if not instruction_strings:
-            return None
-
-        # Infer template from instruction strings
-        template = infer_template_from_strings(instruction_strings)
-
-        # Get project name
-        project_query = select(Project).where(Project.id == first_trace.project_id)
-        project_result = await self.session.execute(project_query)
-        project = project_result.scalar_one()
-
-        # Create implementation data
-        implementation_data = ImplementationCreate(
-            version="0.1",
-            prompt=template,
-            model=first_trace.model,
-            temperature=first_trace.temperature,
-            tool_choice=first_trace.tool_choice,
-            tools=None,  # tools would need to be converted to schema format
-            reasoning=None,  # reasoning would need to be converted to schema format
-            max_output_tokens=first_trace.total_tokens or 4096,
-        )
-
-        # Create task data
-        task_data = TaskCreate(
-            project=project.name,
-            path=first_trace.path,
-            response_schema=first_trace.response_schema,
-            implementation=implementation_data,
-        )
-
-        # Create task and implementation using task service
-        task = await self.task_service.create_task(task_data)
-
-        # Get the created implementation
-        implementation = await self.session.get(
-            Implementation,
-            task.production_version_id,
-        )
-
-        # Match traces to this implementation
-        matcher = ImplementationMatcher()
-
-        for trace in traces:
-            instructions = self.extract_instructions(trace)
-            if not instructions:
-                continue
-
-            match_result = matcher.match_template(template, instructions)
-
-            if match_result and match_result["match"]:
-                trace.implementation_id = implementation.id
-                trace.prompt_variables = match_result["variables"]
-
-        await self.session.flush()
-
-        return task
-
-
-async def find_or_create_task_for_trace(
-    trace_id: int,
-    session: AsyncSession,
-    min_cluster_size: int = 3,
-    similarity_threshold: float = 0.6,
-) -> Task | None:
-    """Find or create task for a trace.
-
-    Args:
-        trace_id: Trace ID
-        session: Database session
-        min_cluster_size: Minimum traces for grouping
-        similarity_threshold: Similarity threshold for grouping
-
-    Returns:
-        Task if found/created, None otherwise
-
-    """
-    grouper = TaskGrouper(session, min_cluster_size, similarity_threshold)
-    return await grouper.find_or_create_task_for_trace(trace_id)
-
-
-async def group_all_traces(
-    project_id: int,
-    session: AsyncSession,
-    model: str | None = None,
-    min_cluster_size: int = 3,
-    similarity_threshold: float = 0.6,
-) -> list[Task]:
-    """Group all traces in a project.
-
-    Args:
-        project_id: Project ID
-        session: Database session
-        model: Optional model filter
-        min_cluster_size: Minimum traces for grouping
-        similarity_threshold: Similarity threshold for grouping
-
-    Returns:
-        List of created tasks
-
-    """
-    grouper = TaskGrouper(session, min_cluster_size, similarity_threshold)
-    return await grouper.group_all_traces(project_id, model)
-
-
-async def try_match_existing_task(
-    trace_id: int,
-    session: AsyncSession,
-    similarity_threshold: float = 0.6,
-) -> Task | None:
-    """Try to match trace to existing task without creating new ones.
-
-    Args:
-        trace_id: Trace ID
-        session: Database session
-        similarity_threshold: Similarity threshold
-
-    Returns:
-        Matched task or None
-
-    """
-    # Load trace
-    query = (
-        select(Trace)
-        .where(Trace.id == trace_id)
-        .options(selectinload(Trace.input_items))
-    )
-    result = await session.execute(query)
-    trace = result.scalar_one_or_none()
-
-    if not trace:
-        return None
-
-    # Extract instructions
-    grouper = TaskGrouper(session, similarity_threshold=similarity_threshold)
-    instructions = grouper.extract_instructions(trace)
-
-    if not instructions:
-        return None
-
-    # Try to match
-    return await grouper._find_matching_task(trace, instructions)
+        tokens = self.tokenized[string_idx]
+        segments = []
+        current_pos = 0
+        total_len = 0
+        n = self.min_segment_words
+
+        while current_pos <= len(tokens) - n:
+            # Find the longest segment starting at current_pos
+            best_seg = None
+            best_seg_len = 0
+
+            # Binary search for maximum valid segment length
+            left, right = n, len(tokens) - current_pos
+
+            while left <= right:
+                mid = (left + right) // 2
+                candidate_seg = tokens[current_pos : current_pos + mid]
+                test_segments = segments + [candidate_seg]
+
+                # Quick check using n-gram index
+                candidates = self._get_candidate_matches(candidate_seg)
+                match_count = sum(
+                    1
+                    for idx in candidates
+                    if self._matches_segments(self.tokenized[idx], test_segments)
+                )
+
+                if match_count >= self.min_matching_traces:
+                    best_seg = candidate_seg
+                    best_seg_len = mid
+                    left = mid + 1  # Try longer
+                else:
+                    right = mid - 1  # Try shorter
+
+            if best_seg:
+                segments.append(best_seg)
+                total_len += len(best_seg)
+                current_pos += len(best_seg)
+            else:
+                current_pos += 1
+
+        return segments, total_len

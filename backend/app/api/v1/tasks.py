@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.schemas.tasks import TaskCreate, TaskSchema
-from app.services.task_grouping import group_all_traces
 from app.services.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
