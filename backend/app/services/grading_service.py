@@ -602,7 +602,7 @@ Actual Output: {{actual_output}}
 Expected Output: {{expected_output}}
 """,
             score_type=ScoreType.FLOAT,
-            model="gpt-4o-mini",
+            model="gpt-5",
             temperature=0.0,
             max_output_tokens=500,
             response_schema={
@@ -663,7 +663,7 @@ Assign a numeric score in the continuous range [0.0, 1.0] representing how much 
 Return only the structured response.
 """,
             score_type=ScoreType.FLOAT,
-            model="gpt-4o-mini",
+            model="gpt-5",
             temperature=0.0,
             max_output_tokens=300,
             response_schema={
