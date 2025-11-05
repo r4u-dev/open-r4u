@@ -6,9 +6,11 @@ the API layer remains free of direct SQL/ORM queries.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -40,6 +42,23 @@ class BadRequestError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+def _serialize_for_json(value: Any) -> Any:
+    """Recursively serialize Pydantic models and other objects to JSON-serializable types."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode='json')
+    if isinstance(value, list):
+        return [_serialize_for_json(item) for item in value]
+    if isinstance(value, dict):
+        return {k: _serialize_for_json(v) for k, v in value.items()}
+    # For other types, try to convert using json serialization
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        # If not JSON serializable, convert to string
+        return str(value)
 
 
 async def _create_temp_implementation(
@@ -195,6 +214,11 @@ async def execute(
         )
 
     # Persist execution
+    # Ensure result_json is fully serialized to plain dicts (handle nested Pydantic models)
+    result_json_serialized = None
+    if service_result.result_json is not None:
+        result_json_serialized = _serialize_for_json(service_result.result_json)
+
     db_execution = ExecutionResult(
         task_id=resolved_task_id,
         implementation_id=resolved_impl_id,
@@ -203,7 +227,7 @@ async def execute(
         prompt_rendered=service_result.prompt_rendered,
         arguments=arguments,
         result_text=service_result.result_text,
-        result_json=service_result.result_json,
+        result_json=result_json_serialized,
         error=service_result.error,
         finish_reason=service_result.finish_reason,
         prompt_tokens=service_result.prompt_tokens,
