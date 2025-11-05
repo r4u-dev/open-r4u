@@ -34,7 +34,7 @@ from app.schemas.evaluation import (
     EvaluationResultItem,
     ImplementationEvaluationStats,
 )
-from app.schemas.traces import OutputItem
+from app.schemas.traces import OutputItem, OutputMessageItem, OutputMessageContent
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
 
@@ -70,16 +70,27 @@ class EvaluationService:
         task_id: int,
         description: str | None,
         arguments: dict[str, Any] | None,
-        expected_output: list[OutputItem],
+        expected_output: list[OutputItem] | str,
     ) -> TestCase:
         """Create a new test case for a task."""
         # Verify task exists
         task = await self._get_task(session, task_id)
 
-        # Serialize OutputItem objects to dicts for database storage
+        # Normalize expected_output: allow raw string and convert to OutputMessageItem list
+        if isinstance(expected_output, str):
+            msg = OutputMessageItem(
+                id=f"msg-id-hex",
+                content=[OutputMessageContent(type="text", text=expected_output)],
+                status="completed",
+            )
+            normalized_list: list[OutputItem] = [msg]
+        else:
+            normalized_list = expected_output
+
+        # Serialize OutputItem objects to plain dicts for database storage
         expected_output_serialized = [
-            item.model_dump(mode='json') if hasattr(item, "model_dump") else item
-            for item in expected_output
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in normalized_list
         ]
 
         test_case = TestCase(
@@ -134,12 +145,20 @@ class EvaluationService:
 
         for key, value in updates.items():
             if value is not None and hasattr(test_case, key):
-                # Serialize OutputItem objects to dicts for expected_output
-                if key == "expected_output" and isinstance(value, list):
-                    value = [
-                        item.model_dump(mode='json') if hasattr(item, "model_dump") else item
-                        for item in value
-                    ]
+                # Normalize and serialize expected_output when present
+                if key == "expected_output":
+                    if isinstance(value, str):
+                        msg = OutputMessageItem(
+                            id=f"msg-id-hex",
+                            content=[OutputMessageContent(type="text", text=value)],
+                            status="completed",
+                        )
+                        value = [msg.model_dump(mode="json")]
+                    elif isinstance(value, list):
+                        value = [
+                            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+                            for item in value
+                        ]
                 setattr(test_case, key, value)
 
         await session.commit()

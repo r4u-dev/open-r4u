@@ -214,7 +214,7 @@ class TestCaseBase(BaseModel):
         None,
         description="Arguments containing variables for prompt rendering and optional 'messages' key",
     )
-    expected_output: list[OutputItem] = Field(
+    expected_output: list[OutputItem] | str = Field(
         ...,
         description="Expected output for accuracy comparison",
     )
@@ -235,7 +235,7 @@ class TestCaseUpdate(BaseModel):
 
     description: str | None = Field(None, max_length=500)
     arguments: dict[str, Any] | None = None
-    expected_output: list[OutputItem] | None = None
+    expected_output: list[OutputItem] | str | None = None
 
 
 class TestCaseRead(TestCaseBase):
