@@ -37,8 +37,8 @@ const TestCaseDialog = ({ isOpen, onClose, onSubmit, testCase, loading = false, 
     if (testCase) {
       setFormData({
         description: testCase.description,
-        input_data: JSON.stringify(testCase.input_data, null, 2),
-        expected_output: testCase.expected_output ? JSON.stringify(testCase.expected_output, null, 2) : '',
+        input_data: JSON.stringify(testCase.arguments, null, 2),
+        expected_output: testCase.expected_output ? JSON.stringify(testCase.expected_output, null, 2) : '[]',
         subtask_responses: testCase.subtask_responses,
         comparison_method: testCase.comparison_method,
       });
@@ -46,7 +46,7 @@ const TestCaseDialog = ({ isOpen, onClose, onSubmit, testCase, loading = false, 
       setFormData({
         description: '',
         input_data: '{}',
-        expected_output: '',
+        expected_output: '[]',
         subtask_responses: {},
         comparison_method: ComparisonMethod.EXACT_MATCH,
       });
@@ -152,7 +152,7 @@ const TestCaseDialog = ({ isOpen, onClose, onSubmit, testCase, loading = false, 
 
     onSubmit({
       description: formData.description,
-      input_data: inputData,
+      arguments: inputData,
       expected_output: expectedOutput,
       subtask_responses: formData.subtask_responses,
       comparison_method: formData.comparison_method,

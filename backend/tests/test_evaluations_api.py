@@ -28,10 +28,7 @@ async def test_create_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -42,7 +39,9 @@ async def test_create_evaluation_config(client: AsyncClient, test_session):
         "grader_ids": [1, 2, 3],
     }
 
-    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.post(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 201
 
     data = response.json()
@@ -65,16 +64,15 @@ async def test_create_evaluation_config(client: AsyncClient, test_session):
 
 
 @pytest.mark.asyncio
-async def test_create_evaluation_config_default_weights(client: AsyncClient, test_session):
+async def test_create_evaluation_config_default_weights(
+    client: AsyncClient, test_session,
+):
     """Test creating evaluation config with default weights."""
     project = Project(name="Test Project")
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -82,27 +80,28 @@ async def test_create_evaluation_config_default_weights(client: AsyncClient, tes
         "grader_ids": [1, 2],
     }
 
-    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.post(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 201
 
     data = response.json()
     assert data["quality_weight"] == 0.5  # Default
-    assert data["cost_weight"] == 0.3     # Default
-    assert data["time_weight"] == 0.2     # Default
+    assert data["cost_weight"] == 0.3  # Default
+    assert data["time_weight"] == 0.2  # Default
     assert data["grader_ids"] == [1, 2]
 
 
 @pytest.mark.asyncio
-async def test_create_evaluation_config_invalid_weights(client: AsyncClient, test_session):
+async def test_create_evaluation_config_invalid_weights(
+    client: AsyncClient, test_session,
+):
     """Test creating evaluation config with invalid weights."""
     project = Project(name="Test Project")
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -113,7 +112,9 @@ async def test_create_evaluation_config_invalid_weights(client: AsyncClient, tes
         "grader_ids": [],
     }
 
-    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.post(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 422
 
     data = response.json()
@@ -144,10 +145,7 @@ async def test_get_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -157,7 +155,8 @@ async def test_get_evaluation_config(client: AsyncClient, test_session):
         quality_weight=0.6,
         cost_weight=0.3,
         time_weight=0.1,
-        grader_ids=[1, 2, 3])
+        grader_ids=[1, 2, 3],
+    )
     test_session.add(config)
     await test_session.commit()
 
@@ -179,10 +178,7 @@ async def test_get_evaluation_config_not_found(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -200,10 +196,7 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -213,7 +206,8 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
         quality_weight=0.5,
         cost_weight=0.3,
         time_weight=0.2,
-        grader_ids=[1, 2])
+        grader_ids=[1, 2],
+    )
     test_session.add(config)
     await test_session.commit()
 
@@ -224,7 +218,9 @@ async def test_update_evaluation_config(client: AsyncClient, test_session):
         "grader_ids": [1, 2, 3, 4],
     }
 
-    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.patch(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 200
 
     data = response.json()
@@ -241,10 +237,7 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -254,7 +247,8 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
         quality_weight=0.5,
         cost_weight=0.3,
         time_weight=0.2,
-        grader_ids=[1, 2])
+        grader_ids=[1, 2],
+    )
     test_session.add(config)
     await test_session.commit()
 
@@ -264,7 +258,9 @@ async def test_update_evaluation_config_partial(client: AsyncClient, test_sessio
         "time_weight": 0.1,
     }
 
-    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.patch(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 200
 
     data = response.json()
@@ -281,10 +277,7 @@ async def test_update_evaluation_config_not_found(client: AsyncClient, test_sess
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -292,7 +285,9 @@ async def test_update_evaluation_config_not_found(client: AsyncClient, test_sess
         "quality_weight": 0.8,
     }
 
-    response = await client.patch(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+    response = await client.patch(
+        f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+    )
     assert response.status_code == 404
 
     data = response.json()
@@ -307,10 +302,7 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -319,7 +311,8 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
@@ -330,7 +323,8 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         prompt="Rate accuracy: {{context}}",
         score_type=ScoreType.FLOAT,
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(grader)
     await test_session.flush()
 
@@ -339,14 +333,16 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output="expected1")
+        expected_output=[{"role": "assistant", "content": "expected1"}],
+    )
     test_session.add(test_case1)
 
     test_case2 = TestCase(
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output="expected2")
+        expected_output=[{"role": "assistant", "content": "expected2"}],
+    )
     test_session.add(test_case2)
     await test_session.commit()
 
@@ -359,7 +355,8 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 1",
         result_text="Test result 1",
-        cost=0.01)
+        cost=0.01,
+    )
 
     execution_result2 = ExecutionResult(
         id=2,
@@ -369,7 +366,8 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt rendered 2",
         result_text="Test result 2",
-        cost=0.02)
+        cost=0.02,
+    )
 
     grade1 = Grade(
         id=1,
@@ -377,7 +375,8 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         execution_result_id=1,
         score_float=0.8,
         grading_started_at=datetime.now(UTC),
-        grading_completed_at=datetime.now(UTC))
+        grading_completed_at=datetime.now(UTC),
+    )
 
     grade2 = Grade(
         id=2,
@@ -385,14 +384,22 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         execution_result_id=2,
         score_float=0.9,
         grading_started_at=datetime.now(UTC),
-        grading_completed_at=datetime.now(UTC))
+        grading_completed_at=datetime.now(UTC),
+    )
 
     # Start evaluation - should return immediately with status running
-    with patch("app.services.evaluation_service.execute_task") as mock_execute, \
-         patch("app.services.evaluation_service.EvaluationService._get_all_project_graders") as mock_get_graders, \
-         patch("app.services.grading_service.GradingService.get_grader") as mock_get_grader, \
-         patch("app.services.grading_service.GradingService.execute_grading") as mock_execute_grading:
-
+    with (
+        patch("app.services.evaluation_service.execute_task") as mock_execute,
+        patch(
+            "app.services.evaluation_service.EvaluationService._get_all_project_graders",
+        ) as mock_get_graders,
+        patch(
+            "app.services.grading_service.GradingService.get_grader",
+        ) as mock_get_grader,
+        patch(
+            "app.services.grading_service.GradingService.execute_grading",
+        ) as mock_execute_grading,
+    ):
         # Mock execute_task to return execution results
         mock_execute.side_effect = [execution_result1, execution_result2]
 
@@ -403,7 +410,9 @@ async def test_run_evaluation_success(client: AsyncClient, test_session):
         # Mock grading execution
         mock_execute_grading.side_effect = [grade1, grade2]
 
-        response = await client.post("/v1/evaluations", json={"implementation_id": implementation.id})
+        response = await client.post(
+            "/v1/evaluations", json={"implementation_id": implementation.id},
+        )
         assert response.status_code == 201
 
     data = response.json()
@@ -458,10 +467,7 @@ async def test_run_evaluation_no_test_cases(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -470,11 +476,14 @@ async def test_run_evaluation_no_test_cases(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
-    response = await client.post("/v1/evaluations", json={"implementation_id": implementation.id})
+    response = await client.post(
+        "/v1/evaluations", json={"implementation_id": implementation.id},
+    )
     assert response.status_code == 400
 
     data = response.json()
@@ -498,10 +507,7 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -510,7 +516,8 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
@@ -525,7 +532,8 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         quality_score=0.8,
         avg_cost=0.01,
         avg_execution_time_ms=1000.0,
-        grader_scores={"1": 0.8})
+        grader_scores={"1": 0.8},
+    )
     test_session.add(evaluation1)
 
     evaluation2 = Evaluation(
@@ -536,11 +544,14 @@ async def test_list_implementation_evaluations(client: AsyncClient, test_session
         completed_at=datetime.now(UTC),
         test_case_count=1,
         error="Execution failed",
-        grader_scores={})
+        grader_scores={},
+    )
     test_session.add(evaluation2)
     await test_session.commit()
 
-    response = await client.get(f"/v1/evaluations?implementation_id={implementation.id}")
+    response = await client.get(
+        f"/v1/evaluations?implementation_id={implementation.id}",
+    )
     assert response.status_code == 200
 
     data = response.json()
@@ -567,10 +578,7 @@ async def test_list_implementation_evaluations_empty(client: AsyncClient, test_s
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -579,11 +587,14 @@ async def test_list_implementation_evaluations_empty(client: AsyncClient, test_s
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
-    response = await client.get(f"/v1/evaluations?implementation_id={implementation.id}")
+    response = await client.get(
+        f"/v1/evaluations?implementation_id={implementation.id}",
+    )
     assert response.status_code == 200
 
     data = response.json()
@@ -597,10 +608,7 @@ async def test_get_evaluation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -609,7 +617,8 @@ async def test_get_evaluation(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
@@ -623,7 +632,8 @@ async def test_get_evaluation(client: AsyncClient, test_session):
         quality_score=0.85,
         avg_cost=0.015,
         avg_execution_time_ms=1500.0,
-        grader_scores={"1": 0.85})
+        grader_scores={"1": 0.85},
+    )
     test_session.add(evaluation)
     await test_session.commit()
 
@@ -659,10 +669,7 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -671,7 +678,8 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
@@ -682,7 +690,8 @@ async def test_delete_evaluation(client: AsyncClient, test_session):
         started_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
         test_case_count=1,
-        grader_scores={})
+        grader_scores={},
+    )
     test_session.add(evaluation)
     await test_session.commit()
 
@@ -713,10 +722,7 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -725,15 +731,13 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
         version="0.1",
         prompt="Test prompt",
         model="gpt-4",
-        max_output_tokens=500)
+        max_output_tokens=500,
+    )
     test_session.add(implementation)
     await test_session.flush()
 
     # Create target metrics
-    target_metrics = TargetTaskMetrics(
-        task_id=task.id,
-        cost=0.01,
-        time_ms=1000.0)
+    target_metrics = TargetTaskMetrics(task_id=task.id, cost=0.01, time_ms=1000.0)
     test_session.add(target_metrics)
 
     evaluation = Evaluation(
@@ -746,7 +750,8 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
         quality_score=0.8,
         avg_cost=0.02,  # 2x target cost
         avg_execution_time_ms=2000.0,  # 2x target time
-        grader_scores={"1": 0.8})
+        grader_scores={"1": 0.8},
+    )
     test_session.add(evaluation)
     await test_session.commit()
 
@@ -760,16 +765,15 @@ async def test_evaluation_with_efficiency_scores(client: AsyncClient, test_sessi
 
 
 @pytest.mark.asyncio
-async def test_evaluation_config_validation_weights_sum(client: AsyncClient, test_session):
+async def test_evaluation_config_validation_weights_sum(
+    client: AsyncClient, test_session,
+):
     """Test evaluation config validation for weights that don't sum to 1.0."""
     project = Project(name="Test Project")
     test_session.add(project)
     await test_session.flush()
 
-    task = Task(
-        name="Test Task",
-        description="Test task",
-        project_id=project.id)
+    task = Task(name="Test Task", description="Test task", project_id=project.id)
     test_session.add(task)
     await test_session.flush()
 
@@ -781,12 +785,18 @@ async def test_evaluation_config_validation_weights_sum(client: AsyncClient, tes
     ]
 
     for i, payload in enumerate(invalid_payloads[:-1]):  # Skip the valid one
-        response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=payload)
+        response = await client.post(
+            f"/v1/evaluations/tasks/{task.id}/config", json=payload,
+        )
         if i < 2:  # First two should fail
             assert response.status_code == 422
             data = response.json()
-            assert "Quality, cost, and time weights must sum to 1.0" in str(data["detail"])
+            assert "Quality, cost, and time weights must sum to 1.0" in str(
+                data["detail"],
+            )
 
     # Test the valid one
-    response = await client.post(f"/v1/evaluations/tasks/{task.id}/config", json=invalid_payloads[-1])
+    response = await client.post(
+        f"/v1/evaluations/tasks/{task.id}/config", json=invalid_payloads[-1],
+    )
     assert response.status_code == 201

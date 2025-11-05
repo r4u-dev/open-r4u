@@ -21,22 +21,34 @@ router = APIRouter(prefix="/traces", tags=["traces"])
 async def list_traces(
     limit: int = Query(25, ge=1, le=100, description="Number of traces to return"),
     offset: int = Query(0, ge=0, description="Number of traces to skip"),
+    task_id: int | None = Query(None, description="Filter by task ID"),
+    implementation_id: int | None = Query(
+        None, description="Filter by implementation ID",
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
     """Return paginated traces with their associated input items.
 
     Supports infinite scrolling with limit and offset parameters.
+    Can be filtered by task_id or implementation_id.
     """
-    query = (
-        select(Trace)
-        .options(
-            joinedload(Trace.input_items),
-            joinedload(Trace.output_items),
-        )
-        .order_by(Trace.started_at.desc())
-        .limit(limit)
-        .offset(offset)
+    query = select(Trace).options(
+        joinedload(Trace.input_items),
+        joinedload(Trace.output_items),
     )
+
+    # Apply filters if provided
+    if task_id is not None:
+        # Filter by task_id through implementation relationship
+        query = query.join(Trace.implementation).filter(
+            Trace.implementation.has(task_id=task_id),
+        )
+
+    if implementation_id is not None:
+        query = query.filter(Trace.implementation_id == implementation_id)
+
+    query = query.order_by(Trace.started_at.desc()).limit(limit).offset(offset)
+
     result = await session.execute(query)
     traces: Sequence[Trace] = result.unique().scalars().all()
 

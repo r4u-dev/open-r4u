@@ -1,3 +1,5 @@
+import { OutputItem } from "./trace";
+
 export type EvaluationStatus = "pending" | "running" | "completed" | "failed";
 
 export interface EvaluationListItem {
@@ -65,12 +67,12 @@ export interface Grade {
 
 export interface EvaluationResultItem {
     execution_result_id: number;
-    test_case_id: number;
-    test_case_description: string;
-    arguments: Record<string, unknown>;
-    expected_output: string;
+    test_case_id: number | null;
+    test_case_description: string | null;
+    arguments: Record<string, unknown> | null;
+    expected_output: OutputItem[] | null;
     result_text: string | null;
-    result_json: Record<string, unknown> | null;
+    result_json: OutputItem[] | null;
     error: string | null;
     started_at: string;
     completed_at: string;

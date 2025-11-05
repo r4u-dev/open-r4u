@@ -1,4 +1,5 @@
 import { apiClient, ApiResponse } from "./api";
+import { OutputItem } from "@/lib/types/trace";
 
 // Test Case Types based on backend design
 export interface TestCase {
@@ -8,7 +9,7 @@ export interface TestCase {
     updated_at: string;
     task_id: string;
     arguments: Record<string, unknown>;
-    expected_output: string | null;
+    expected_output: OutputItem[];
     subtask_responses: Record<string, Record<string, unknown>>;
     comparison_method: ComparisonMethod;
 }
@@ -23,7 +24,7 @@ export interface CreateTestCaseRequest {
     description: string;
     task_id: string;
     arguments: Record<string, unknown>;
-    expected_output?: string;
+    expected_output?: OutputItem[];
     subtask_responses?: Record<string, Record<string, unknown>>;
     comparison_method?: ComparisonMethod;
 }
@@ -31,7 +32,7 @@ export interface CreateTestCaseRequest {
 export interface UpdateTestCaseRequest {
     description?: string;
     arguments?: Record<string, unknown>;
-    expected_output?: string;
+    expected_output?: OutputItem[];
     subtask_responses?: Record<string, Record<string, unknown>>;
     comparison_method?: ComparisonMethod;
 }
@@ -120,6 +121,25 @@ class TestCasesApiService {
             data,
         );
     }
+
+    async createTestCasesFromTraces(
+        data: CreateTestCasesFromTracesRequest,
+    ): Promise<ApiResponse<CreateTestCasesFromTracesResponse>> {
+        return apiClient.post<CreateTestCasesFromTracesResponse>(
+            `${this.baseEndpoint}/from-traces`,
+            data,
+        );
+    }
+}
+
+export interface CreateTestCasesFromTracesRequest {
+    task_id: number;
+    trace_ids: number[];
+}
+
+export interface CreateTestCasesFromTracesResponse {
+    created_count: number;
+    test_cases: TestCase[];
 }
 
 export const testCasesApi = new TestCasesApiService();

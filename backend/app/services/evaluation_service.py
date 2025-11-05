@@ -26,6 +26,7 @@ from app.models.evaluation import (
 )
 from app.models.executions import ExecutionResult
 from app.models.tasks import Implementation, Task
+from app.models.traces import Trace
 from app.schemas.evaluation import (
     EvaluationListItem,
     EvaluationRead,
@@ -33,6 +34,7 @@ from app.schemas.evaluation import (
     EvaluationResultItem,
     ImplementationEvaluationStats,
 )
+from app.schemas.traces import OutputItem, OutputMessageItem, OutputMessageContent
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
 
@@ -68,17 +70,34 @@ class EvaluationService:
         task_id: int,
         description: str | None,
         arguments: dict[str, Any] | None,
-        expected_output: str,
+        expected_output: list[OutputItem] | str,
     ) -> TestCase:
         """Create a new test case for a task."""
         # Verify task exists
         task = await self._get_task(session, task_id)
 
+        # Normalize expected_output: allow raw string and convert to OutputMessageItem list
+        if isinstance(expected_output, str):
+            msg = OutputMessageItem(
+                id=f"msg-id-hex",
+                content=[OutputMessageContent(type="text", text=expected_output)],
+                status="completed",
+            )
+            normalized_list: list[OutputItem] = [msg]
+        else:
+            normalized_list = expected_output
+
+        # Serialize OutputItem objects to plain dicts for database storage
+        expected_output_serialized = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in normalized_list
+        ]
+
         test_case = TestCase(
             task_id=task_id,
             description=description,
             arguments=arguments,
-            expected_output=expected_output,
+            expected_output=expected_output_serialized,
         )
 
         session.add(test_case)
@@ -99,7 +118,9 @@ class EvaluationService:
         return test_case
 
     async def list_test_cases(
-        self, session: AsyncSession, task_id: int | None = None,
+        self,
+        session: AsyncSession,
+        task_id: int | None = None,
     ) -> list[TestCase]:
         """List all test cases, optionally filtered by task_id."""
         query = select(TestCase)
@@ -124,6 +145,20 @@ class EvaluationService:
 
         for key, value in updates.items():
             if value is not None and hasattr(test_case, key):
+                # Normalize and serialize expected_output when present
+                if key == "expected_output":
+                    if isinstance(value, str):
+                        msg = OutputMessageItem(
+                            id=f"msg-id-hex",
+                            content=[OutputMessageContent(type="text", text=value)],
+                            status="completed",
+                        )
+                        value = [msg.model_dump(mode="json")]
+                    elif isinstance(value, list):
+                        value = [
+                            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+                            for item in value
+                        ]
                 setattr(test_case, key, value)
 
         await session.commit()
@@ -136,6 +171,84 @@ class EvaluationService:
         test_case = await self.get_test_case(session, test_case_id)
         await session.delete(test_case)
         await session.commit()
+
+    async def create_test_cases_from_traces(
+        self,
+        session: AsyncSession,
+        task_id: int,
+        trace_ids: list[int],
+    ) -> list[TestCase]:
+        """Create test cases from existing traces.
+
+        Args:
+            session: Database session
+            task_id: Task ID to create test cases for
+            trace_ids: List of trace IDs to convert to test cases
+
+        Returns:
+            List of created test cases
+
+        Raises:
+            NotFoundError: If task or any trace not found
+            BadRequestError: If trace data is invalid
+
+        """
+        # Verify task exists
+        await self._get_task(session, task_id)
+
+        # Fetch all traces with their input and output items
+        query = (
+            select(Trace)
+            .where(Trace.id.in_(trace_ids))
+            .options(
+                selectinload(Trace.input_items),
+                selectinload(Trace.output_items),
+            )
+        )
+        result = await session.execute(query)
+        traces = list(result.scalars().all())
+
+        # Verify all traces were found
+        if len(traces) != len(trace_ids):
+            found_ids = {trace.id for trace in traces}
+            missing_ids = set(trace_ids) - found_ids
+            raise NotFoundError(f"Traces not found: {missing_ids}")
+
+        test_cases = []
+
+        for trace in traces:
+            # Extract messages from input items for arguments
+            messages = []
+            for item in sorted(trace.input_items, key=lambda x: x.position):
+                messages.append({"type": item.type.value, **item.data})
+
+            # Build arguments dict with messages
+            arguments = {"messages": messages} if messages else {}
+            output = []
+            for item in sorted(trace.output_items, key=lambda x: x.position):
+                output.append({"type": item.type, **item.data})
+
+            description = f"Test case from trace {trace.id}"
+            if trace.started_at:
+                description += f" ({trace.started_at.strftime('%Y-%m-%d %H:%M:%S')})"
+
+            test_case = TestCase(
+                task_id=task_id,
+                description=description,
+                arguments=arguments,
+                expected_output=output,
+            )
+
+            session.add(test_case)
+            test_cases.append(test_case)
+
+        await session.commit()
+
+        # Refresh all test cases to get their IDs
+        for test_case in test_cases:
+            await session.refresh(test_case)
+
+        return test_cases
 
     # Evaluation Configuration Management
     async def create_or_update_evaluation_config(
@@ -187,7 +300,9 @@ class EvaluationService:
         return config
 
     async def get_evaluation_config(
-        self, session: AsyncSession, task_id: int,
+        self,
+        session: AsyncSession,
+        task_id: int,
     ) -> EvaluationConfig | None:
         """Get evaluation configuration for a task."""
         query = select(EvaluationConfig).where(EvaluationConfig.task_id == task_id)
@@ -196,7 +311,9 @@ class EvaluationService:
 
     # Evaluation Execution
     async def create_evaluation(
-        self, session: AsyncSession, implementation_id: int,
+        self,
+        session: AsyncSession,
+        implementation_id: int,
     ) -> Evaluation:
         """Create an evaluation record and return it immediately."""
         # Load implementation and task
@@ -238,7 +355,8 @@ class EvaluationService:
         return evaluation
 
     async def execute_evaluation_in_background(
-        self, evaluation_id: int,
+        self,
+        evaluation_id: int,
     ) -> None:
         """Execute evaluation logic in the background."""
         from app.database import AsyncSessionMaker
@@ -255,13 +373,19 @@ class EvaluationService:
                     return
 
                 # Load associated data
-                implementation = await self._get_implementation(session, evaluation.implementation_id)
+                implementation = await self._get_implementation(
+                    session,
+                    evaluation.implementation_id,
+                )
                 task = implementation.task
 
                 # Load evaluation config
                 config = await self.get_evaluation_config(session, task.id)
                 if not config:
-                    config = await self.create_or_update_evaluation_config(session, task.id)
+                    config = await self.create_or_update_evaluation_config(
+                        session,
+                        task.id,
+                    )
 
                 # Load test cases
                 test_cases = await self.list_test_cases(session, task.id)
@@ -282,13 +406,17 @@ class EvaluationService:
                         execution_result.test_case_id = test_case.id
                         session.add(execution_result)
                         execution_results.append(execution_result)
+
                     # Persist associations before grading
                     await session.commit()
 
                     # Grade execution results
                     grader_scores = {}
                     for grader_id in config.grader_ids:
-                        grader = await self.grading_service.get_grader(session, grader_id)
+                        grader = await self.grading_service.get_grader(
+                            session,
+                            grader_id,
+                        )
                         scores = []
 
                         # Iterate through execution results with matching test cases
@@ -317,10 +445,16 @@ class EvaluationService:
                             grader_scores[str(grader_id)] = statistics.mean(scores)
 
                     # Calculate metrics
-                    quality_score = statistics.mean(grader_scores.values()) if grader_scores else None
+                    quality_score = (
+                        statistics.mean(grader_scores.values())
+                        if grader_scores
+                        else None
+                    )
 
                     # Calculate average cost (handle empty list)
-                    cost_values = [r.cost for r in execution_results if r.cost is not None]
+                    cost_values = [
+                        r.cost for r in execution_results if r.cost is not None
+                    ]
                     avg_cost = statistics.mean(cost_values) if cost_values else None
 
                     # Calculate average execution time (handle empty list)
@@ -356,7 +490,11 @@ class EvaluationService:
             except Exception:
                 await session.rollback()
 
-    async def get_evaluation(self, session: AsyncSession, evaluation_id: int) -> EvaluationRead:
+    async def get_evaluation(
+        self,
+        session: AsyncSession,
+        evaluation_id: int,
+    ) -> EvaluationRead:
         """Get an evaluation by ID with calculated scores."""
         query = select(Evaluation).where(Evaluation.id == evaluation_id)
         result = await session.execute(query)
@@ -366,10 +504,17 @@ class EvaluationService:
             raise NotFoundError(f"Evaluation with id {evaluation_id} not found")
 
         # Calculate scores on-demand
-        cost_efficiency_score, time_efficiency_score = await self.calculate_efficiency_scores(
-            session, evaluation,
+        (
+            cost_efficiency_score,
+            time_efficiency_score,
+        ) = await self.calculate_efficiency_scores(
+            session,
+            evaluation,
         )
-        final_evaluation_score = await self.calculate_final_evaluation_score(session, evaluation)
+        final_evaluation_score = await self.calculate_final_evaluation_score(
+            session,
+            evaluation,
+        )
 
         # Create EvaluationRead with calculated scores
         return EvaluationRead(
@@ -393,7 +538,9 @@ class EvaluationService:
         )
 
     async def list_evaluation_results(
-        self, session: AsyncSession, evaluation_id: int,
+        self,
+        session: AsyncSession,
+        evaluation_id: int,
     ) -> list[dict[str, Any]]:
         """List per-execution results for an evaluation with grades.
 
@@ -421,44 +568,53 @@ class EvaluationService:
 
         items: list[EvaluationResultItem] = []
         for er in executions:
-            items.append(EvaluationResultItem(
-                execution_result_id=er.id,
-                test_case_id=er.test_case_id,
-                test_case_description=er.test_case.description if er.test_case else None,
-                arguments=er.arguments,
-                expected_output=er.test_case.expected_output if er.test_case else None,
-                result_text=er.result_text,
-                result_json=er.result_json,
-                error=er.error,
-                started_at=er.started_at,
-                completed_at=er.completed_at,
-                prompt_tokens=er.prompt_tokens,
-                cached_tokens=er.cached_tokens,
-                completion_tokens=er.completion_tokens,
-                reasoning_tokens=er.reasoning_tokens,
-                total_tokens=er.total_tokens,
-                cost=er.cost,
-                grades=[
-                    EvaluationResultGradeItem(
-                        id=g.id,
-                        grader_id=g.grader_id,
-                        grader_name=g.grader.name if g.grader else None,
-                        score_float=g.score_float,
-                        score_boolean=g.score_boolean,
-                        reasoning=g.reasoning,
-                        confidence=g.confidence,
-                        grading_started_at=g.grading_started_at,
-                        grading_completed_at=g.grading_completed_at,
-                        error=g.error,
-                        created_at=g.created_at,
-                    )
-                    for g in (er.grades or [])
-                ],
-            ))
+            items.append(
+                EvaluationResultItem(
+                    execution_result_id=er.id,
+                    test_case_id=er.test_case_id,
+                    test_case_description=er.test_case.description
+                    if er.test_case
+                    else None,
+                    arguments=er.arguments,
+                    expected_output=er.test_case.expected_output
+                    if er.test_case
+                    else None,
+                    result_text=er.result_text,
+                    result_json=er.result_json,
+                    error=er.error,
+                    started_at=er.started_at,
+                    completed_at=er.completed_at,
+                    prompt_tokens=er.prompt_tokens,
+                    cached_tokens=er.cached_tokens,
+                    completion_tokens=er.completion_tokens,
+                    reasoning_tokens=er.reasoning_tokens,
+                    total_tokens=er.total_tokens,
+                    cost=er.cost,
+                    grades=[
+                        EvaluationResultGradeItem(
+                            id=g.id,
+                            grader_id=g.grader_id,
+                            grader_name=g.grader.name if g.grader else None,
+                            score_float=g.score_float,
+                            score_boolean=g.score_boolean,
+                            reasoning=g.reasoning,
+                            confidence=g.confidence,
+                            grading_started_at=g.grading_started_at,
+                            grading_completed_at=g.grading_completed_at,
+                            error=g.error,
+                            created_at=g.created_at,
+                        )
+                        for g in (er.grades or [])
+                    ],
+                ),
+            )
         return items
 
     async def list_evaluations(
-        self, session: AsyncSession, implementation_id: int | None = None, task_id: int | None = None,
+        self,
+        session: AsyncSession,
+        implementation_id: int | None = None,
+        task_id: int | None = None,
     ) -> list[EvaluationListItem]:
         """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
         
@@ -476,32 +632,45 @@ class EvaluationService:
         # Calculate scores for each evaluation
         evaluations_with_scores = []
         for evaluation in evaluations:
-            cost_efficiency_score, time_efficiency_score = await self.calculate_efficiency_scores(
-                session, evaluation,
+            (
+                cost_efficiency_score,
+                time_efficiency_score,
+            ) = await self.calculate_efficiency_scores(
+                session,
+                evaluation,
             )
-            final_evaluation_score = await self.calculate_final_evaluation_score(session, evaluation)
+            final_evaluation_score = await self.calculate_final_evaluation_score(
+                session,
+                evaluation,
+            )
 
-            evaluations_with_scores.append(EvaluationListItem(
-                id=evaluation.id,
-                implementation_id=evaluation.implementation_id,
-                implementation_version=evaluation.implementation.version,
-                task_id=evaluation.task_id,
-                task_name=evaluation.task.name,
-                status=evaluation.status,
-                started_at=evaluation.started_at,
-                completed_at=evaluation.completed_at,
-                test_case_count=evaluation.test_case_count,
-                error=evaluation.error,
-                quality_score=evaluation.quality_score,
-                cost_efficiency_score=cost_efficiency_score,
-                time_efficiency_score=time_efficiency_score,
-                final_evaluation_score=final_evaluation_score,
-                created_at=evaluation.created_at,
-            ))
+            evaluations_with_scores.append(
+                EvaluationListItem(
+                    id=evaluation.id,
+                    implementation_id=evaluation.implementation_id,
+                    implementation_version=evaluation.implementation.version,
+                    task_id=evaluation.task_id,
+                    task_name=evaluation.task.name,
+                    status=evaluation.status,
+                    started_at=evaluation.started_at,
+                    completed_at=evaluation.completed_at,
+                    test_case_count=evaluation.test_case_count,
+                    error=evaluation.error,
+                    quality_score=evaluation.quality_score,
+                    cost_efficiency_score=cost_efficiency_score,
+                    time_efficiency_score=time_efficiency_score,
+                    final_evaluation_score=final_evaluation_score,
+                    created_at=evaluation.created_at,
+                ),
+            )
 
         return evaluations_with_scores
 
-    async def delete_evaluation(self, session: AsyncSession, evaluation_id: int) -> None:
+    async def delete_evaluation(
+        self,
+        session: AsyncSession,
+        evaluation_id: int,
+    ) -> None:
         """Delete an evaluation."""
         query = select(Evaluation).where(Evaluation.id == evaluation_id)
         result = await session.execute(query)
@@ -515,7 +684,9 @@ class EvaluationService:
 
     # Target Metrics Management
     async def _get_or_create_target_metrics(
-        self, session: AsyncSession, task_id: int,
+        self,
+        session: AsyncSession,
+        task_id: int,
     ) -> TargetTaskMetrics | None:
         """Get or create target metrics for a task."""
         query = select(TargetTaskMetrics).where(TargetTaskMetrics.task_id == task_id)
@@ -531,7 +702,9 @@ class EvaluationService:
         return target_metrics
 
     async def calculate_target_metrics(
-        self, session: AsyncSession, task_id: int,
+        self,
+        session: AsyncSession,
+        task_id: int,
     ) -> TargetTaskMetrics:
         """Calculate and update target metrics for a task using SQL-based outlier detection."""
         # First, verify the task exists
@@ -561,7 +734,11 @@ class EvaluationService:
                 select(
                     func.min(ExecutionResult.cost).label("best_cost"),
                     func.min(
-                        func.extract("epoch", ExecutionResult.completed_at - ExecutionResult.started_at) * 1000,
+                        func.extract(
+                            "epoch",
+                            ExecutionResult.completed_at - ExecutionResult.started_at,
+                        )
+                        * 1000,
                     ).label("best_time_ms"),
                 )
                 .where(ExecutionResult.task_id == task_id)
@@ -587,27 +764,27 @@ class EvaluationService:
             # This is more statistically sound than simple percentile trimming
             outlier_query = """
             WITH cost_stats AS (
-                SELECT 
+                SELECT
                     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY cost) as q1,
                     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY cost) as q3
-                FROM execution_result 
+                FROM execution_result
                 WHERE task_id = :task_id AND cost IS NOT NULL
             ),
             cost_bounds AS (
-                SELECT 
+                SELECT
                     q1 - 1.5 * (q3 - q1) as lower_bound,
                     q3 + 1.5 * (q3 - q1) as upper_bound
                 FROM cost_stats
             ),
             time_stats AS (
-                SELECT 
+                SELECT
                     PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) as q1,
                     PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) as q3
-                FROM execution_result 
+                FROM execution_result
                 WHERE task_id = :task_id AND completed_at IS NOT NULL AND started_at IS NOT NULL
             ),
             time_bounds AS (
-                SELECT 
+                SELECT
                     q1 - 1.5 * (q3 - q1) as lower_bound,
                     q3 + 1.5 * (q3 - q1) as upper_bound
                 FROM time_stats
@@ -616,7 +793,7 @@ class EvaluationService:
                 SELECT MIN(er.cost) as best_cost
                 FROM execution_result er
                 CROSS JOIN cost_bounds cb
-                WHERE er.task_id = :task_id 
+                WHERE er.task_id = :task_id
                     AND er.cost IS NOT NULL
                     AND er.cost BETWEEN cb.lower_bound AND cb.upper_bound
             ),
@@ -624,12 +801,12 @@ class EvaluationService:
                 SELECT MIN(EXTRACT(EPOCH FROM (er.completed_at - er.started_at)) * 1000) as best_time_ms
                 FROM execution_result er
                 CROSS JOIN time_bounds tb
-                WHERE er.task_id = :task_id 
-                    AND er.completed_at IS NOT NULL 
+                WHERE er.task_id = :task_id
+                    AND er.completed_at IS NOT NULL
                     AND er.started_at IS NOT NULL
                     AND EXTRACT(EPOCH FROM (er.completed_at - er.started_at)) * 1000 BETWEEN tb.lower_bound AND tb.upper_bound
             )
-            SELECT 
+            SELECT
                 fc.best_cost,
                 ft.best_time_ms
             FROM filtered_costs fc
@@ -648,7 +825,12 @@ class EvaluationService:
                     select(
                         func.min(ExecutionResult.cost).label("best_cost"),
                         func.min(
-                            func.extract("epoch", ExecutionResult.completed_at - ExecutionResult.started_at) * 1000,
+                            func.extract(
+                                "epoch",
+                                ExecutionResult.completed_at
+                                - ExecutionResult.started_at,
+                            )
+                            * 1000,
                         ).label("best_time_ms"),
                     )
                     .where(ExecutionResult.task_id == task_id)
@@ -687,13 +869,18 @@ class EvaluationService:
 
     # On-demand score calculation methods
     async def calculate_efficiency_scores(
-        self, session: AsyncSession, evaluation: Evaluation,
+        self,
+        session: AsyncSession,
+        evaluation: Evaluation,
     ) -> tuple[float | None, float | None]:
         """Calculate cost and time efficiency scores for an evaluation."""
         if evaluation.avg_cost is None or evaluation.avg_execution_time_ms is None:
             return None, None
 
-        target_metrics = await self._get_or_create_target_metrics(session, evaluation.task_id)
+        target_metrics = await self._get_or_create_target_metrics(
+            session,
+            evaluation.task_id,
+        )
         if not target_metrics:
             return None, None
 
@@ -706,16 +893,24 @@ class EvaluationService:
             # Score < 1.0 means worse than target (proportionally)
             cost_efficiency_score = min(1.0, target_metrics.cost / evaluation.avg_cost)
 
-        if target_metrics.time_ms is not None and evaluation.avg_execution_time_ms is not None:
+        if (
+            target_metrics.time_ms is not None
+            and evaluation.avg_execution_time_ms is not None
+        ):
             # Calculate efficiency as target/actual, clamped to max 1.0
             # Score of 1.0 means equal to or better than target
             # Score < 1.0 means worse than target (proportionally)
-            time_efficiency_score = min(1.0, target_metrics.time_ms / evaluation.avg_execution_time_ms)
+            time_efficiency_score = min(
+                1.0,
+                target_metrics.time_ms / evaluation.avg_execution_time_ms,
+            )
 
         return cost_efficiency_score, time_efficiency_score
 
     async def calculate_final_evaluation_score(
-        self, session: AsyncSession, evaluation: Evaluation,
+        self,
+        session: AsyncSession,
+        evaluation: Evaluation,
     ) -> float | None:
         """Calculate final weighted evaluation score for an evaluation."""
         if evaluation.quality_score is None:
@@ -727,8 +922,12 @@ class EvaluationService:
             return evaluation.quality_score  # Just quality score if no config
 
         # Calculate efficiency scores
-        cost_efficiency_score, time_efficiency_score = await self.calculate_efficiency_scores(
-            session, evaluation,
+        (
+            cost_efficiency_score,
+            time_efficiency_score,
+        ) = await self.calculate_efficiency_scores(
+            session,
+            evaluation,
         )
 
         # Calculate final score
@@ -743,13 +942,15 @@ class EvaluationService:
         return final_score
 
     async def get_implementation_evaluation_stats(
-        self, session: AsyncSession, implementation_id: int,
+        self,
+        session: AsyncSession,
+        implementation_id: int,
     ) -> ImplementationEvaluationStats:
         """Return aggregate stats for all evaluations of an implementation, optimizing avg calculation with SQL."""
         # Use a direct SQL query for averages/counts (ignoring NULLs)
         # Prepare separate queries for each metric (averages only for non-null values)
         query = select(
-            func.count(Evaluation.id), # Total count
+            func.count(Evaluation.id),  # Total count
             func.avg(Evaluation.quality_score),
             func.avg(Evaluation.avg_cost),
             func.avg(Evaluation.avg_execution_time_ms),
@@ -782,8 +983,10 @@ class EvaluationService:
         avg_final_evaluation_score = None
 
         if task_id is not None:
+
             class DummyEval:
                 pass
+
             dummy = DummyEval()
             dummy.task_id = task_id
             dummy.quality_score = avg_quality_score
@@ -820,7 +1023,11 @@ class EvaluationService:
 
         return task
 
-    async def _get_implementation(self, session: AsyncSession, implementation_id: int) -> Implementation:
+    async def _get_implementation(
+        self,
+        session: AsyncSession,
+        implementation_id: int,
+    ) -> Implementation:
         """Get an implementation by ID."""
         query = (
             select(Implementation)
@@ -836,7 +1043,9 @@ class EvaluationService:
         return implementation
 
     async def _get_all_project_graders(
-        self, session: AsyncSession, project_id: int,
+        self,
+        session: AsyncSession,
+        project_id: int,
     ) -> list[int]:
         """Get all active graders for a project, creating default if none exist."""
         # Get all active graders for the project
@@ -850,8 +1059,10 @@ class EvaluationService:
 
         if not graders:
             # No graders exist, create default grader
-            default_grader = await self.grading_service.create_default_accuracy_grader(session, project_id)
+            default_grader = await self.grading_service.create_default_accuracy_grader(
+                session,
+                project_id,
+            )
             return [default_grader.id]
 
         return [grader.id for grader in graders]
-

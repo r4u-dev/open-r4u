@@ -1,7 +1,7 @@
 """Evaluation models for grader and grade system."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
@@ -23,6 +23,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums import EvaluationStatus, ScoreType
 from app.models.base import Base, created_at_col, intpk, updated_at_col
+
+if TYPE_CHECKING:
+    from app.models.executions import ExecutionResult
+    from app.models.projects import Project
+    from app.models.tasks import Implementation, Task
+    from app.models.traces import Trace
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
@@ -56,7 +62,8 @@ class Grader(Base):
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
     reasoning: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True,
+        JSONType,
+        nullable=True,
     )
     max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -115,15 +122,18 @@ class Grade(Base):
     reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     grader_response: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONType, nullable=True,
+        JSONType,
+        nullable=True,
     )
 
     # Execution metadata
     grading_started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False,
+        DateTime(timezone=True),
+        nullable=False,
     )
     grading_completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -136,7 +146,10 @@ class Grade(Base):
     # Relationships
     grader: Mapped["Grader"] = relationship("Grader", back_populates="grades")
     trace: Mapped["Trace | None"] = relationship("Trace", back_populates="grades")  # type: ignore
-    execution_result: Mapped["ExecutionResult | None"] = relationship("ExecutionResult", back_populates="grades")  # type: ignore
+    execution_result: Mapped["ExecutionResult | None"] = relationship(
+        "ExecutionResult",
+        back_populates="grades",
+    )  # type: ignore
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
@@ -148,9 +161,7 @@ class TestCase(Base):
     __test__ = False
 
     __tablename__ = "test_case"
-    __table_args__ = (
-        Index("ix_test_case_task_id", "task_id"),
-    )
+    __table_args__ = (Index("ix_test_case_task_id", "task_id"),)
 
     id: Mapped[intpk]
     task_id: Mapped[int] = mapped_column(
@@ -159,7 +170,10 @@ class TestCase(Base):
     )
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
-    expected_output: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_output: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONType,
+        nullable=False,
+    )
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="test_cases")  # type: ignore
@@ -190,7 +204,11 @@ class EvaluationConfig(Base):
     quality_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     cost_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.3)
     time_weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.2)
-    grader_ids: Mapped[list[int]] = mapped_column(JSONType, nullable=False, default=list)
+    grader_ids: Mapped[list[int]] = mapped_column(
+        JSONType,
+        nullable=False,
+        default=list,
+    )
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="evaluation_config")  # type: ignore
@@ -215,6 +233,7 @@ class Evaluation(Base):
         ForeignKey("implementation.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # TODO: Consider removing task_id
     task_id: Mapped[int] = mapped_column(
         ForeignKey("task.id", ondelete="CASCADE"),
         nullable=False,
@@ -225,16 +244,22 @@ class Evaluation(Base):
         default=EvaluationStatus.PENDING,
     )
     started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     test_case_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Metrics fields (stored)
-    grader_scores: Mapped[dict[str, float]] = mapped_column(JSONType, nullable=False, default=dict)
+    grader_scores: Mapped[dict[str, float]] = mapped_column(
+        JSONType,
+        nullable=False,
+        default=dict,
+    )
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     avg_execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -242,7 +267,10 @@ class Evaluation(Base):
     # Efficiency and final scores are calculated on-demand, not stored
 
     # Relationships
-    implementation: Mapped["Implementation"] = relationship("Implementation", back_populates="evaluations")  # type: ignore
+    implementation: Mapped["Implementation"] = relationship(
+        "Implementation",
+        back_populates="evaluations",
+    )  # type: ignore
     task: Mapped["Task"] = relationship("Task", back_populates="evaluations")  # type: ignore
 
     created_at: Mapped[created_at_col]
@@ -267,7 +295,8 @@ class TargetTaskMetrics(Base):
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # Relationships

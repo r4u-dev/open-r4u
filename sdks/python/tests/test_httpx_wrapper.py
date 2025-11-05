@@ -1,21 +1,22 @@
 """Tests for httpx HTTP wrapper."""
 
-import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock
-import httpx
 
+import httpx
+import pytest
+
+from r4u.client import HTTPTrace
 from r4u.tracing.http.httpx import (
-    trace_client,
-    trace_async_client,
-    trace_all,
-    untrace_all,
     StreamingResponseWrapper,
     _build_trace_context,
     _finalize_trace,
     _is_streaming_request,
+    trace_all,
+    trace_async_client,
+    trace_client,
+    untrace_all,
 )
-from r4u.client import HTTPTrace
 
 
 @pytest.fixture
@@ -184,7 +185,7 @@ class TestStreamingResponseWrapper:
         }
 
         wrapper = StreamingResponseWrapper(
-            mock_httpx_response, trace_ctx, capturing_tracer
+            mock_httpx_response, trace_ctx, capturing_tracer,
         )
 
         assert wrapper.status_code == 200
@@ -291,7 +292,7 @@ class TestTraceSyncClient:
         assert client.send is patched_send
 
     def test_trace_client_captures_request(
-        self, mock_httpx_request, mock_httpx_response, capturing_tracer
+        self, mock_httpx_request, mock_httpx_response, capturing_tracer,
     ):
         """Test trace_client captures request data."""
         client = httpx.Client()
@@ -324,7 +325,7 @@ class TestTraceSyncClient:
         assert trace.status_code == 200
 
     def test_trace_client_handles_exceptions(
-        self, mock_httpx_request, capturing_tracer
+        self, mock_httpx_request, capturing_tracer,
     ):
         """Test trace_client handles exceptions properly."""
         client = httpx.Client()
@@ -372,7 +373,7 @@ class TestTraceAsyncClient:
 
     @pytest.mark.asyncio
     async def test_trace_async_client_captures_request(
-        self, mock_httpx_request, mock_httpx_response, capturing_tracer
+        self, mock_httpx_request, mock_httpx_response, capturing_tracer,
     ):
         """Test trace_async_client captures request data."""
         client = httpx.AsyncClient()
@@ -397,7 +398,7 @@ class TestTraceAsyncClient:
 
     @pytest.mark.asyncio
     async def test_trace_async_client_handles_exceptions(
-        self, mock_httpx_request, capturing_tracer
+        self, mock_httpx_request, capturing_tracer,
     ):
         """Test trace_async_client handles exceptions properly."""
         client = httpx.AsyncClient()

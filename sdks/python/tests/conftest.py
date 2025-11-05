@@ -1,11 +1,11 @@
 """Pytest configuration and shared fixtures for R4U SDK tests."""
 
-import pytest
 from datetime import datetime, timezone
-from typing import List
 from unittest.mock import Mock
 
-from r4u.client import HTTPTrace, AbstractTracer
+import pytest
+
+from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import URLFilter, set_global_filter
 
 
@@ -78,7 +78,7 @@ class CapturingTracer(AbstractTracer):
     """Tracer that captures all logged traces for testing."""
 
     def __init__(self):
-        self.traces: List[HTTPTrace] = []
+        self.traces: list[HTTPTrace] = []
 
     def log(self, trace: HTTPTrace) -> None:
         """Capture the trace."""
@@ -101,7 +101,7 @@ def setup_test_filter():
     # Create a filter that allows test URLs
     test_filter = URLFilter(
         allow_urls=["https://api.example.com/*"],
-        extend_defaults=True
+        extend_defaults=True,
     )
     set_global_filter(test_filter)
     yield
@@ -115,7 +115,7 @@ def mock_http_server(monkeypatch):
     responses = {}
 
     def add_response(
-        url: str, method: str, status: int, body: bytes, headers: dict = None
+        url: str, method: str, status: int, body: bytes, headers: dict = None,
     ):
         key = f"{method.upper()}:{url}"
         responses[key] = {

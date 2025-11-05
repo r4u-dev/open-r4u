@@ -12,7 +12,14 @@ from app.config import Settings
 from app.enums import FinishReason, ItemType
 from app.models.tasks import Implementation
 from app.schemas.executions import ExecutionResultBase
-from app.schemas.traces import InputItem, ToolCallItem
+from app.schemas.traces import (
+    FunctionToolCallItem,
+    InputItem,
+    OutputItem,
+    OutputMessageContent,
+    OutputMessageItem,
+    ToolCallItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +47,9 @@ class LLMExecutor:
             os.environ["TOGETHER_API_KEY"] = self.settings.together_api_key
 
     def _render_prompt(
-        self, prompt: str, variables: dict[str, Any] | None = None,
+        self,
+        prompt: str,
+        variables: dict[str, Any] | None = None,
     ) -> str:
         """Render a prompt template with variables using double curly braces {{ }}."""
         if variables is None:
@@ -83,7 +92,9 @@ class LLMExecutor:
         return value
 
     def _convert_input_to_messages(
-        self, input_items: list[InputItem], variables: dict[str, Any] | None,
+        self,
+        input_items: list[InputItem],
+        variables: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         """Convert InputItem list to LiteLLM message format, rendering variables in message contents."""
         messages = []
@@ -97,7 +108,8 @@ class LLMExecutor:
                     "role": getattr(item, "role", None),
                     # Render variables inside content which can be str or structured content
                     "content": self._render_value(
-                        getattr(item, "content", None), variables,
+                        getattr(item, "content", None),
+                        variables,
                     ),
                 }
                 tool_call_id = getattr(item, "tool_call_id", None)
@@ -267,30 +279,61 @@ class LLMExecutor:
             choice = response.choices[0]
             result_text = choice.message.content
 
+            # Build output items list (OutputItem schema format)
+            output_items: list[OutputItem] = []
+            response_id = getattr(response, "id", "unknown")
+
             # Handle tool calls using proper schema
             tool_calls = None
             if hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
                 tool_calls = []
                 for tc in choice.message.tool_calls:
-                    # Convert to ToolCallItem schema
+                    # Convert to ToolCallItem schema (for input tracking)
                     tool_call_item = ToolCallItem(
                         id=tc.id,
                         tool_name=tc.function.name,
-                        arguments=tc.function.arguments if isinstance(tc.function.arguments, dict) else json.loads(tc.function.arguments),
+                        arguments=tc.function.arguments
+                        if isinstance(tc.function.arguments, dict)
+                        else json.loads(tc.function.arguments),
                     )
                     tool_calls.append(tool_call_item.model_dump())
+
+                    # Also add to output items as FunctionToolCallItem
+                    arguments_str = (
+                        json.dumps(tc.function.arguments)
+                        if isinstance(tc.function.arguments, dict)
+                        else (
+                            tc.function.arguments
+                            if isinstance(tc.function.arguments, str)
+                            else json.dumps(tc.function.arguments)
+                        )
+                    )
+                    output_items.append(
+                        FunctionToolCallItem(
+                            id=tc.id,
+                            call_id=tc.id,
+                            name=tc.function.name,
+                            arguments=arguments_str,
+                            status="completed",
+                        ),
+                    )
 
                 # If there are tool calls, result_text is usually None
                 if not result_text:
                     result_text = f"Made {len(tool_calls)} tool call(s)"
 
-            # Try to parse as JSON if response_schema was provided
-            result_json = None
-            if response_schema and result_text:
-                try:
-                    result_json = json.loads(result_text)
-                except json.JSONDecodeError:
-                    pass
+            # Convert assistant message content to OutputMessageItem
+            if result_text:
+                output_items.append(
+                    OutputMessageItem(
+                        id=f"msg_{response_id}",
+                        content=[OutputMessageContent(type="text", text=result_text)],
+                        status="completed",
+                    ),
+                )
+
+            # Set result_json to the list of OutputItems (proper schema format)
+            result_json = [item.model_dump() for item in output_items] if output_items else None
 
             # Map finish reason
             finish_reason = self._map_finish_reason(choice.finish_reason)
@@ -322,12 +365,18 @@ class LLMExecutor:
             # Reasoning_tokens extraction (handle dicts and objects)
             reasoning_tokens = None
             if usage:
-                completion_tokens_details = getattr(usage, "completion_tokens_details", None)
+                completion_tokens_details = getattr(
+                    usage, "completion_tokens_details", None,
+                )
                 if completion_tokens_details is not None:
                     if isinstance(completion_tokens_details, dict):
-                        reasoning_tokens = completion_tokens_details.get("reasoning_tokens")
+                        reasoning_tokens = completion_tokens_details.get(
+                            "reasoning_tokens",
+                        )
                     else:
-                        value = getattr(completion_tokens_details, "reasoning_tokens", None)
+                        value = getattr(
+                            completion_tokens_details, "reasoning_tokens", None,
+                        )
                         if value is not None:
                             reasoning_tokens = value
                 if reasoning_tokens is None:
@@ -341,7 +390,6 @@ class LLMExecutor:
                 prompt_rendered=prompt_rendered,
                 result_text=result_text,
                 result_json=result_json,
-                tool_calls=tool_calls,
                 finish_reason=finish_reason,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,

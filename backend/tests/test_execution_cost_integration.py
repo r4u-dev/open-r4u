@@ -62,7 +62,6 @@ def sample_execution_result():
         prompt_rendered="Test prompt rendered",
         result_text="Test response",
         result_json=None,
-        tool_calls=None,
         error=None,
         finish_reason=FinishReason.STOP,
         prompt_tokens=1000,

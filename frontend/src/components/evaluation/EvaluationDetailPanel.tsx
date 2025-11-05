@@ -399,7 +399,7 @@ export function EvaluationDetailPanel({
                                                         <div className="grid grid-cols-1 gap-3">
                                                             <div>
                                                                 <div className="text-[10px] text-muted-foreground mb-1">Expected Output</div>
-                                                                <pre className="text-[11px] whitespace-pre-wrap bg-muted/30 rounded-sm p-2 border border-border">{r.expected_output || "-"}</pre>
+                                                                <pre className="text-[11px] whitespace-pre-wrap bg-muted/30 rounded-sm p-2 border border-border">{r.expected_output ? JSON.stringify(r.expected_output, null, 2) : "-"}</pre>
                                                             </div>
                                                             <div>
                                                                 <div className="text-[10px] text-muted-foreground mb-1">Actual Output</div>

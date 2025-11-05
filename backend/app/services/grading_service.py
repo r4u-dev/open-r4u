@@ -19,6 +19,7 @@ from app.enums import ScoreType
 from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.traces import Trace
+from app.schemas.traces import OutputItem, OutputMessageItem
 from app.services.executor import LLMExecutor
 
 
@@ -163,10 +164,18 @@ class GradingService:
         await session.delete(grader)
         await session.commit()
 
+    def _extract_text_from_output_item(self, item: OutputItem) -> str | None:
+        """Extract text content from an OutputItem using schema."""
+        if isinstance(item, OutputMessageItem) and item.content:
+            for content_part in item.content:
+                if content_part.text:
+                    return content_part.text
+        return None
+
     def _parse_grading_response(
         self,
         result_text: str | None,
-        result_json: dict[str, Any] | None,
+        result_json: list[OutputItem] | list[dict[str, Any]] | dict[str, Any] | None,
         score_type: ScoreType,
     ) -> tuple[float | None, bool | None, str | None, float | None]:
         """Parse grading response to extract score, reasoning, and confidence.
@@ -182,13 +191,45 @@ class GradingService:
 
         # If we have structured JSON response
         if result_json:
-            if score_type == ScoreType.FLOAT:
-                score_float = result_json.get("score")
-            elif score_type == ScoreType.BOOLEAN:
-                score_boolean = result_json.get("score")
+            payload: dict[str, Any] | None = None
+            if isinstance(result_json, dict):
+                # Legacy dict format
+                payload = result_json
+            elif isinstance(result_json, list):
+                # Parse OutputItem list - extract text and parse as JSON
+                for item in result_json:
+                    # Validate item as OutputItem schema
+                    if isinstance(item, dict):
+                        try:
+                            # Try to parse as OutputMessageItem
+                            parsed_item = OutputMessageItem.model_validate(item)
+                        except Exception:
+                            # If validation fails, treat as raw dict
+                            if any(k in item for k in ("score", "reasoning", "confidence")):
+                                payload = item
+                                break
+                            continue
+                    else:
+                        parsed_item = item
 
-            reasoning = result_json.get("reasoning")
-            confidence = result_json.get("confidence")
+                    # Extract text from OutputMessageItem
+                    text = self._extract_text_from_output_item(parsed_item)
+                    if text:
+                        try:
+                            parsed = json.loads(text)
+                            if isinstance(parsed, dict):
+                                payload = parsed
+                                break
+                        except json.JSONDecodeError:
+                            pass
+            if payload:
+                if score_type == ScoreType.FLOAT:
+                    score_float = payload.get("score")
+                elif score_type == ScoreType.BOOLEAN:
+                    score_boolean = payload.get("score")
+
+                reasoning = payload.get("reasoning")
+                confidence = payload.get("confidence")
 
         # Fallback to text parsing if no JSON
         elif result_text:
@@ -348,7 +389,7 @@ class GradingService:
             result = await session.execute(query)
             test_case = result.scalar_one_or_none()
             if test_case:
-                grading_variables["expected_output"] = test_case.expected_output or ""
+                grading_variables["expected_output"] = test_case.expected_output
 
         # Create a temporary implementation-like object for executor
         from app.models.tasks import Implementation, Task

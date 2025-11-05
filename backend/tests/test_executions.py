@@ -234,18 +234,25 @@ class TestExecutor:
                 implementation, variables={"text": "What's the weather?"},
             )
 
-            # Verify tool calls are properly stored using schema
-            assert result.tool_calls is not None
-            assert len(result.tool_calls) == 1
-
-            tool_call = result.tool_calls[0]
-            assert tool_call["id"] == "call_123"
-            assert tool_call["tool_name"] == "get_weather"
-            assert tool_call["arguments"] == {"location": "New York"}
-            assert tool_call["type"] == "tool_call"
-
             assert result.finish_reason == FinishReason.TOOL_CALLS
-            assert result.result_text == "Made 1 tool call(s)"
+            # result_json is now list[OutputItem] - includes FunctionToolCallItem and OutputMessageItem
+            assert result.result_json is not None
+            assert len(result.result_json) == 2  # Tool call + message
+            # Find the tool call item (items are Pydantic models or dicts after model_dump)
+            tool_call_item = None
+            for item in result.result_json:
+                # Handle both Pydantic models and dicts
+                item_type = item.type if hasattr(item, "type") else item.get("type") if isinstance(item, dict) else None
+                if item_type == "function_call":
+                    tool_call_item = item.model_dump() if hasattr(item, "model_dump") else item
+                    break
+            assert tool_call_item is not None
+            assert tool_call_item["type"] == "function_call"
+            assert tool_call_item["id"] == "call_123"
+            assert tool_call_item["call_id"] == "call_123"
+            assert tool_call_item["name"] == "get_weather"
+            assert tool_call_item["arguments"] == '{"location": "New York"}'
+            assert tool_call_item["status"] == "completed"
 
     @pytest.mark.asyncio
     async def test_execute_task_with_overrides_creates_temp_implementation(
@@ -410,7 +417,7 @@ class TestExecutionAPI:
         self, client: AsyncClient, test_implementation: Implementation,
     ):
         """Test implementation execution with tool calls via API."""
-        # Mock the service result with tool calls
+        # Mock the service result with tool calls (no separate tool_calls field)
         mock_result = ExecutionResult(
             id=1,
             task_id=1,
@@ -419,14 +426,6 @@ class TestExecutionAPI:
             completed_at=datetime.now(UTC),
             prompt_rendered="What's the weather?",
             result_text="Made 1 tool call(s)",
-            tool_calls=[
-                {
-                    "id": "call_123",
-                    "type": "tool_call",
-                    "tool_name": "get_weather",
-                    "arguments": {"location": "New York"},
-                },
-            ],
             finish_reason=FinishReason.TOOL_CALLS,
             prompt_tokens=10,
             completion_tokens=5,
@@ -447,14 +446,7 @@ class TestExecutionAPI:
             data = response.json()
             assert data["implementation_id"] == test_implementation.id
             assert data["result_text"] == "Made 1 tool call(s)"
-            assert data["tool_calls"] is not None
-            assert len(data["tool_calls"]) == 1
 
-            tool_call = data["tool_calls"][0]
-            assert tool_call["id"] == "call_123"
-            assert tool_call["tool_name"] == "get_weather"
-            assert tool_call["arguments"] == {"location": "New York"}
-            assert tool_call["type"] == "tool_call"
 
 
     @pytest.mark.asyncio

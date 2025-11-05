@@ -306,7 +306,7 @@ async def test_execute_grading_trace_success(grading_service, test_session):
         completed_at=datetime.now(UTC),
         prompt_rendered="Rate accuracy: Test response",
         result_text='{"score": 0.8, "reasoning": "Good response", "confidence": 0.9}',
-        result_json={"score": 0.8, "reasoning": "Good response", "confidence": 0.9},
+        result_json=None,  # result_json is now list[OutputItem], parsing handled from result_text
         prompt_tokens=50,
         completion_tokens=30,
         total_tokens=80,
@@ -386,7 +386,7 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
         completed_at=datetime.now(UTC),
         prompt_rendered="Check toxicity: Test execution result",
         result_text='{"score": false, "reasoning": "Not toxic", "confidence": 0.95}',
-        result_json={"score": False, "reasoning": "Not toxic", "confidence": 0.95},
+        result_json=None,  # result_json is now list[OutputItem], parsing handled from result_text
         prompt_tokens=40,
         completion_tokens=20,
         total_tokens=60)

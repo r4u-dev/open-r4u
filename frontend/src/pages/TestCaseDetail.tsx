@@ -37,7 +37,7 @@ const TestCaseDetail = () => {
         setTc(data);
         setDescValue(data.description || "");
         setArgsValue(JSON.stringify((data as any).arguments ?? {}, null, 2));
-        setExpValue(data.expected_output ?? "");
+        setExpValue(JSON.stringify(data.expected_output ?? [], null, 2));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load test case");
       } finally {
@@ -168,12 +168,12 @@ const TestCaseDetail = () => {
             <div className="flex items-center justify-between mb-1">
               <div className="text-xs text-muted-foreground">Expected Output</div>
               {!editExp ? (
-                <Button variant="outline" size="icon" onClick={() => { setEditExp(true); setExpError(null); setExpValue(tc.expected_output ?? ""); }} aria-label="Edit expected output">
+                <Button variant="outline" size="icon" onClick={() => { setEditExp(true); setExpError(null); setExpValue(JSON.stringify(tc.expected_output ?? [], null, 2)); }} aria-label="Edit expected output">
                   <Pencil className="h-4 w-4" />
                 </Button>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={() => { setEditExp(false); setExpError(null); setExpValue(tc.expected_output ?? ""); }} disabled={expSubmitting} aria-label="Cancel expected output edit">
+                  <Button variant="outline" size="icon" onClick={() => { setEditExp(false); setExpError(null); setExpValue(JSON.stringify(tc.expected_output ?? [], null, 2)); }} disabled={expSubmitting} aria-label="Cancel expected output edit">
                     <X className="h-4 w-4" />
                   </Button>
                   <Button size="icon" onClick={async () => {
@@ -181,10 +181,11 @@ const TestCaseDetail = () => {
                     try {
                       setExpSubmitting(true);
                       setExpError(null);
-                      const res = await testCasesApi.patchTestCase(String(testCaseId), { expected_output: expValue || "" } as any);
+                      const expectedArray = JSON.parse(expValue || "[]");
+                      const res = await testCasesApi.patchTestCase(String(testCaseId), { expected_output: expectedArray } as any);
                       const updated = res.data as any;
                       setTc(updated);
-                      setExpValue(updated.expected_output ?? "");
+                      setExpValue(JSON.stringify(updated.expected_output ?? [], null, 2));
                       setEditExp(false);
                     } catch (e) {
                       setExpError(e instanceof Error ? e.message : "Failed to update expected output");
@@ -198,7 +199,7 @@ const TestCaseDetail = () => {
               )}
             </div>
             {!editExp ? (
-              <pre className="bg-muted p-3 rounded text-xs overflow-auto">{tc.expected_output ?? ""}</pre>
+              <pre className="bg-muted p-3 rounded text-xs overflow-auto">{JSON.stringify(tc.expected_output ?? [], null, 2)}</pre>
             ) : (
               <Textarea rows={6} className="font-mono text-xs" value={expValue} onChange={(e) => setExpValue(e.target.value)} />
             )}
