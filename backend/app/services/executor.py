@@ -384,8 +384,6 @@ class LLMExecutor:
                     if direct is not None:
                         reasoning_tokens = direct
 
-            print('result_text', result_text)
-            print('result_json', result_json)
             return ExecutionResultBase(
                 started_at=started_at,
                 completed_at=completed_at,

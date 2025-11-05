@@ -34,6 +34,7 @@ from app.schemas.evaluation import (
     EvaluationResultItem,
     ImplementationEvaluationStats,
 )
+from app.schemas.traces import OutputItem
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
 
@@ -69,17 +70,23 @@ class EvaluationService:
         task_id: int,
         description: str | None,
         arguments: dict[str, Any] | None,
-        expected_output: list[dict[str, Any]],
+        expected_output: list[OutputItem],
     ) -> TestCase:
         """Create a new test case for a task."""
         # Verify task exists
         task = await self._get_task(session, task_id)
 
+        # Serialize OutputItem objects to dicts for database storage
+        expected_output_serialized = [
+            item.model_dump(mode='json') if hasattr(item, "model_dump") else item
+            for item in expected_output
+        ]
+
         test_case = TestCase(
             task_id=task_id,
             description=description,
             arguments=arguments,
-            expected_output=expected_output,
+            expected_output=expected_output_serialized,
         )
 
         session.add(test_case)
@@ -127,6 +134,12 @@ class EvaluationService:
 
         for key, value in updates.items():
             if value is not None and hasattr(test_case, key):
+                # Serialize OutputItem objects to dicts for expected_output
+                if key == "expected_output" and isinstance(value, list):
+                    value = [
+                        item.model_dump(mode='json') if hasattr(item, "model_dump") else item
+                        for item in value
+                    ]
                 setattr(test_case, key, value)
 
         await session.commit()

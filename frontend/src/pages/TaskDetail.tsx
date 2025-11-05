@@ -128,12 +128,12 @@ const TaskDetail = () => {
         description: string;
         arguments: string;
         expected_output: string;
-    }>({ description: "", arguments: "{}", expected_output: "" });
+    }>({ description: "", arguments: "{}", expected_output: "[]" });
     const [createForm, setCreateForm] = useState<{
         description: string;
         arguments: string;
         expected_output: string;
-    }>({ description: "", arguments: "{}", expected_output: "" });
+    }>({ description: "", arguments: "{}", expected_output: "[]" });
     const [testsSubmitting, setTestsSubmitting] = useState(false);
     const [testsSortField, setTestsSortField] = useState<
         "description" | "createdAt"
@@ -1146,7 +1146,7 @@ const TaskDetail = () => {
             setEditForm({
                 description: tc.description ?? "",
                 arguments: JSON.stringify(tc.arguments ?? {}, null, 2),
-                expected_output: tc.expected_output ?? "",
+                expected_output: JSON.stringify(tc.expected_output ?? [], null, 2),
             });
         } catch (e) {
             setTestsError(
@@ -1161,18 +1161,18 @@ const TaskDetail = () => {
             setTestsSubmitting(true);
             setCreateError(null);
             const argsObj = JSON.parse(createForm.arguments || "{}");
-            const expectedStr = createForm.expected_output || "";
+            const expectedArray = JSON.parse(createForm.expected_output || "[]");
             await testCasesApi.createTestCase({
                 task_id: String(taskId),
                 description: createForm.description || undefined,
                 arguments: argsObj,
-                expected_output: expectedStr,
+                expected_output: expectedArray,
             } as any);
             setCreateOpen(false);
             setCreateForm({
                 description: "",
                 arguments: "{}",
-                expected_output: "",
+                expected_output: "[]",
             });
             await reloadTests();
         } catch (e) {
@@ -1190,11 +1190,11 @@ const TaskDetail = () => {
             setTestsSubmitting(true);
             setEditError(null);
             const argsObj = JSON.parse(editForm.arguments || "{}");
-            const expectedStr = editForm.expected_output || "";
+            const expectedArray = JSON.parse(editForm.expected_output || "[]");
             await testCasesApi.patchTestCase(String(editing), {
                 description: editForm.description || undefined,
                 arguments: argsObj,
-                expected_output: expectedStr,
+                expected_output: expectedArray,
             } as any);
             setEditing(null);
             await reloadTests();

@@ -87,7 +87,7 @@ const TestCaseViewDialog = ({ isOpen, onClose, testCase }: TestCaseViewDialogPro
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Input Data</label>
                 <pre className="mt-2 p-3 bg-muted rounded-md text-sm overflow-x-auto">
-                  {formatJson(testCase.input_data)}
+                  {formatJson(testCase.arguments)}
                 </pre>
               </div>
 

@@ -238,7 +238,7 @@ const TestCasesSection = ({ taskId, testCases, onTestCasesChange, refreshing }: 
                     </div>
                     <div className="text-sm text-muted-foreground">
                       <p>
-                        <span className="font-medium">Input:</span> {JSON.stringify(testCase.input_data)}
+                        <span className="font-medium">Input:</span> {JSON.stringify(testCase.arguments)}
                       </p>
                       {testCase.expected_output && (
                         <p>

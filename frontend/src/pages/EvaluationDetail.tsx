@@ -294,7 +294,7 @@ const EvaluationDetailPage = () => {
                           </CardHeader>
                           <CardContent>
                             <pre className="text-xs whitespace-pre-wrap bg-muted rounded-md p-3 border">
-                              {result.expected_output || 'No expected output'}
+                              {result.expected_output ? prettyJson(result.expected_output) : 'No expected output'}
                             </pre>
                           </CardContent>
                         </Card>
@@ -304,7 +304,7 @@ const EvaluationDetailPage = () => {
                           </CardHeader>
                           <CardContent>
                             <pre className="text-xs whitespace-pre-wrap bg-muted rounded-md p-3 border">
-                              {result.result_text || prettyJson(result.result_json) || 'No output'}
+                              {result.result_text || (result.result_json ? prettyJson(result.result_json) : 'No output')}
                             </pre>
                           </CardContent>
                         </Card>

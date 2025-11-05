@@ -13,7 +13,7 @@ const TestCaseCreate = () => {
   const returnTab = searchParams.get("tab") || "overview";
   const navigate = useNavigate();
 
-  const [form, setForm] = useState<{ description: string; arguments: string; expected_output: string }>({ description: "", arguments: "{}", expected_output: "" });
+  const [form, setForm] = useState<{ description: string; arguments: string; expected_output: string }>({ description: "", arguments: "{}", expected_output: "[]" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,11 +23,12 @@ const TestCaseCreate = () => {
       setSubmitting(true);
       setError(null);
       const argsObj = JSON.parse(form.arguments || "{}");
+      const expectedArray = JSON.parse(form.expected_output || "[]");
       await testCasesApi.createTestCase({
         task_id: String(taskId),
         description: form.description || undefined,
         arguments: argsObj,
-        expected_output: form.expected_output || "",
+        expected_output: expectedArray,
       } as any);
       navigate(`/tasks/${taskId}?tab=${returnTab}`);
     } catch (e) {
