@@ -1,6 +1,7 @@
 """LLM executor service for running task implementations using LiteLLM."""
 
 import json
+import re
 import logging
 import os
 from datetime import UTC, datetime
@@ -46,50 +47,55 @@ class LLMExecutor:
         if self.settings.together_api_key:
             os.environ["TOGETHER_API_KEY"] = self.settings.together_api_key
 
-    def _render_prompt(
+    def _render_template(
         self,
-        prompt: str,
+        value: Any,
         variables: dict[str, Any] | None = None,
-    ) -> str:
-        """Render a prompt template with variables using double curly braces {{ }}."""
-        if variables is None:
-            return prompt
-        # Only format when template markers are present
-        if "{{" not in prompt and "}}" not in prompt:
-            return prompt
-
-        try:
-            # Replace {{variable}} with {variable} for Python's format method
-            formatted_prompt = prompt.replace("{{", "{").replace("}}", "}")
-            return formatted_prompt.format(**variables)
-        except KeyError as e:
-            raise ValueError(f"Missing variable in prompt template: {e}")
-        except Exception as e:
-            raise ValueError(f"Error rendering prompt template: {e}")
-
-    def _render_value(self, value: Any, variables: dict[str, Any] | None) -> Any:
-        """Recursively render placeholders in strings within arbitrarily nested structures using double curly braces {{ }}."""
+    ) -> Any:
+        """Render template variables using double curly braces {{ }}.
+        
+        Recursively processes strings, lists, and dicts. Only {{ }} placeholders 
+        are substituted; single braces are left untouched.
+        
+        Args:
+            value: String, list, dict, or other value to render
+            variables: Variable substitutions (key -> value)
+            raise_on_missing: If True, raise ValueError on missing vars; 
+                            if False, log warning and return original
+        
+        Returns:
+            Rendered value with {{ var }} replaced by variables[var]
+        """
         if variables is None:
             return value
+            
         if isinstance(value, str):
-            # Only format when template markers are present
-            if "{{" in value or "}}" in value:
-                try:
-                    # Replace {{variable}} with {variable} for Python's format method
-                    formatted_value = value.replace("{{", "{").replace("}}", "}")
-                    return formatted_value.format(**variables)
-                except KeyError as e:
-                    logger.warning(f"Missing variable in input message template: {e}")
-                    return value
-                except Exception as e:
-                    logger.warning(f"Error rendering input message template: {e}")
-                    return value
+            # Early exit if no template markers
+            if "{{" not in value:
+                return value
+                
+            def replace_match(match: re.Match[str]) -> str:
+                key = match.group(1).strip()
+                if key not in variables:
+                    logger.warning(f"Missing variable in template: {key}")
+                    return match.group(0)
+                return str(variables[key])
+            
+            try:
+                return re.sub(r"\{\{\s*([^}]+?)\s*\}\}", replace_match, value)
+            except ValueError:
+                logger.warning(f"Missing variable in template: {value}")
+                return value
+            except Exception as e:
+                logger.warning(f"Error rendering template: {e}")
+                return value
+                
+        elif isinstance(value, list):
+            return [self._render_template(v, variables) for v in value]
+        elif isinstance(value, dict):
+            return {k: self._render_template(v, variables) for k, v in value.items()}
+        else:
             return value
-        if isinstance(value, list):
-            return [self._render_value(v, variables) for v in value]
-        if isinstance(value, dict):
-            return {k: self._render_value(v, variables) for k, v in value.items()}
-        return value
 
     def _convert_input_to_messages(
         self,
@@ -107,7 +113,7 @@ class LLMExecutor:
                 msg = {
                     "role": getattr(item, "role", None),
                     # Render variables inside content which can be str or structured content
-                    "content": self._render_value(
+                    "content": self._render_template(
                         getattr(item, "content", None),
                         variables,
                     ),
@@ -204,17 +210,8 @@ class LLMExecutor:
         """
         started_at = datetime.now(UTC)
 
-        # Always render prompt as system prompt
-        try:
-            prompt_rendered = self._render_prompt(implementation.prompt, variables)
-        except ValueError as e:
-            completed_at = datetime.now(UTC)
-            return ExecutionResultBase(
-                started_at=started_at,
-                completed_at=completed_at,
-                prompt_rendered=implementation.prompt,
-                error=str(e),
-            )
+        # Always render prompt as system prompt (warn on missing, do not fail)
+        prompt_rendered = self._render_template(implementation.prompt, variables)
 
         # Build messages starting with system prompt
         messages: list[dict[str, Any]] = [
