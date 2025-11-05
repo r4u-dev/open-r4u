@@ -119,6 +119,20 @@ export interface TaskListItem {
  * Converts backend task to frontend task list item
  */
 function mapBackendTaskToFrontend(task: BackendTaskRead): TaskListItem {
+    // Normalize response_schema: unwrap OpenAI json_schema response_format if present
+    const normalizeSchema = (schema: Record<string, unknown> | null) => {
+        if (
+            schema &&
+            typeof schema === "object" &&
+            (schema as any).type === "json_schema" &&
+            (schema as any).json_schema &&
+            (schema as any).json_schema.schema
+        ) {
+            return (schema as any).json_schema.schema as Record<string, unknown>;
+        }
+        return schema;
+    };
+
     return {
         id: task.id.toString(),
         name: task.name,
@@ -126,7 +140,7 @@ function mapBackendTaskToFrontend(task: BackendTaskRead): TaskListItem {
         production_version: task.production_version_id?.toString() || "0.1",
         contract: {
             input_schema: null,
-            output_schema: task.response_schema,
+            output_schema: normalizeSchema(task.response_schema),
         },
         score_weights: null,
         created_at: task.created_at,

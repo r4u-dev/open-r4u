@@ -444,12 +444,15 @@ class EvaluationListItem(BaseModel):
     implementation_id: int
     implementation_version: str
     task_id: int
+    task_name: str
     status: EvaluationStatus
     started_at: datetime | None
     completed_at: datetime | None
     test_case_count: int | None
     error: str | None
     quality_score: float | None
+    cost_efficiency_score: float | None
+    time_efficiency_score: float | None
     final_evaluation_score: float | None
     created_at: datetime
 
