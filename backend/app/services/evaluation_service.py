@@ -461,7 +461,9 @@ class EvaluationService:
         self, session: AsyncSession, implementation_id: int | None = None, task_id: int | None = None,
     ) -> list[EvaluationListItem]:
         """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
-        query = select(Evaluation).options(selectinload(Evaluation.implementation))
+        
+        query = select(Evaluation).options(selectinload(Evaluation.implementation), selectinload(Evaluation.task))
+
         if implementation_id is not None:
             query = query.where(Evaluation.implementation_id == implementation_id)
         if task_id is not None:
@@ -484,6 +486,7 @@ class EvaluationService:
                 implementation_id=evaluation.implementation_id,
                 implementation_version=evaluation.implementation.version,
                 task_id=evaluation.task_id,
+                task_name=evaluation.task.name,
                 status=evaluation.status,
                 started_at=evaluation.started_at,
                 completed_at=evaluation.completed_at,

@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, Trash2, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { EvaluationRead } from "@/lib/types/evaluation";
 import { evaluationsApi } from "@/services/evaluationsApi";
 import type { EvaluationResultItem, Grade } from "@/lib/types/evaluation";
 
 interface EvaluationDetailPanelProps {
     evaluation: EvaluationRead;
+    onDeleted?: (evaluationId: number) => void;
 }
 
 export function EvaluationDetailPanel({
     evaluation: evaluationData,
+    onDeleted,
 }: EvaluationDetailPanelProps) {
     const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState({
@@ -26,6 +30,8 @@ export function EvaluationDetailPanel({
     const [resultsError, setResultsError] = useState<string | null>(null);
     const [expandedResultIds, setExpandedResultIds] = useState<Set<number>>(new Set());
     const [expandedGradeIds, setExpandedGradeIds] = useState<Set<number>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     const fetchResults = useCallback(async () => {
         try {
@@ -129,6 +135,20 @@ export function EvaluationDetailPanel({
         }
     };
 
+    const confirmDelete = useCallback(async () => {
+        if (isDeleting) return;
+        try {
+            setIsDeleting(true);
+            await evaluationsApi.deleteEvaluation(evaluationData.id);
+            setConfirmOpen(false);
+            onDeleted?.(evaluationData.id);
+        } catch (e) {
+            console.error("Failed to delete evaluation:", e);
+        } finally {
+            setIsDeleting(false);
+        }
+    }, [evaluationData.id, isDeleting, onDeleted]);
+
     return (
         <div className="flex flex-col h-full bg-card">
             {/* Header */}
@@ -136,14 +156,28 @@ export function EvaluationDetailPanel({
                 <span className="text-xs font-medium text-foreground">
                     Evaluation Details
                 </span>
-                <button
-                    onClick={() => navigate(`/tasks/${evaluationData.task_id}`)}
-                    className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded px-2 py-1"
-                    title={`View task ${evaluationData.task_id}`}
-                >
-                    <span className="font-mono">Task {evaluationData.task_id}</span>
-                    <ExternalLink className="h-3 w-3" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => navigate(`/tasks/${evaluationData.task_id}?tab=overview&implementation_id=${evaluationData.implementation_id}`)}
+                        className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 rounded px-2 py-1"
+                        title={`View task ${evaluationData.task_id} implementation ${evaluationData.implementation_id}`}
+                    >
+                        <span className="font-mono">Task {evaluationData.task_id}</span>
+                        <ExternalLink className="h-3 w-3" />
+                    </button>
+                    <button
+                        onClick={() => setConfirmOpen(true)}
+                        disabled={isDeleting}
+                        className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-accent text-destructive disabled:opacity-50"
+                        title="Delete evaluation"
+                    >
+                        {isDeleting ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                            <Trash2 className="h-3 w-3" />
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* Metadata */}
@@ -437,7 +471,22 @@ export function EvaluationDetailPanel({
                             )}
                         </Section>
             </div>
-
+            <Dialog open={confirmOpen} onOpenChange={(open) => { if (!open) setConfirmOpen(false); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Evaluation</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this evaluation? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={isDeleting}>Cancel</Button>
+                        <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDelete} disabled={isDeleting}>
+                            {isDeleting ? "Deleting..." : "Delete"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
