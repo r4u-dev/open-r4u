@@ -50,7 +50,7 @@ async def test_create_grade_for_trace(client: AsyncClient, test_session):
         completed_at=datetime.now(UTC),
         prompt_rendered="Rate accuracy: Test response",
         result_text='{"score": 0.8, "reasoning": "Good response", "confidence": 0.9}',
-        result_json={"score": 0.8, "reasoning": "Good response", "confidence": 0.9},
+        result_json=None,  # result_json is now list[OutputItem], parsing handled from result_text
         prompt_tokens=50,
         completion_tokens=30,
         total_tokens=80,
@@ -138,7 +138,7 @@ async def test_create_grade_for_execution_result(client: AsyncClient, test_sessi
         completed_at=datetime.now(UTC),
         prompt_rendered="Check toxicity: Test execution result",
         result_text='{"score": false, "reasoning": "Not toxic", "confidence": 0.95}',
-        result_json={"score": False, "reasoning": "Not toxic", "confidence": 0.95},
+        result_json=None,  # result_json is now list[OutputItem], parsing handled from result_text
         prompt_tokens=40,
         completion_tokens=20,
         total_tokens=60,
@@ -733,7 +733,7 @@ async def test_grade_with_grader_response(client: AsyncClient, test_session):
         completed_at=datetime.now(UTC),
         prompt_rendered="Test prompt",
         result_text='{"score": 0.8, "reasoning": "Good response"}',
-        result_json={"score": 0.8, "reasoning": "Good response"},
+        result_json=None,  # result_json is now list[OutputItem], parsing handled from result_text
         provider_response=grader_response,
         prompt_tokens=50,
         completion_tokens=20,

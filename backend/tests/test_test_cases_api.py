@@ -7,6 +7,18 @@ from sqlalchemy import select
 from app.models.evaluation import TestCase
 from app.models.projects import Project
 from app.models.tasks import Task
+from app.schemas.traces import OutputMessageContent, OutputMessageItem
+
+
+def make_output_message(content: str) -> dict:
+    """Helper to create OutputMessageItem dict for test cases."""
+    return OutputMessageItem(
+        type="message",
+        id="msg_1",
+        role="assistant",
+        content=[OutputMessageContent(type="text", text=content)],
+        status="completed",
+    ).model_dump(mode="json")
 
 
 @pytest.mark.asyncio
@@ -24,7 +36,7 @@ async def test_create_test_case(client: AsyncClient, test_session):
     payload = {
         "description": "Test case for accuracy",
         "arguments": {"input": "What is 2+2?", "user_id": "123"},
-        "expected_output": [{"role": "assistant", "content": "4"}],
+        "expected_output": [make_output_message("4")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -33,7 +45,11 @@ async def test_create_test_case(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] == "Test case for accuracy"
     assert data["arguments"] == {"input": "What is 2+2?", "user_id": "123"}
-    assert data["expected_output"] == [{"role": "assistant", "content": "4"}]
+    # expected_output is now OutputItem format
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["type"] == "message"
+    assert data["expected_output"][0]["role"] == "assistant"
+    assert data["expected_output"][0]["content"][0]["text"] == "4"
     assert data["task_id"] == task.id
     assert "id" in data
     assert "created_at" in data
@@ -46,7 +62,9 @@ async def test_create_test_case(client: AsyncClient, test_session):
 
     assert test_case.description == "Test case for accuracy"
     assert test_case.arguments == {"input": "What is 2+2?", "user_id": "123"}
-    assert test_case.expected_output == [{"role": "assistant", "content": "4"}]
+    # Database stores serialized OutputItem format
+    assert len(test_case.expected_output) == 1
+    assert test_case.expected_output[0]["type"] == "message"
 
 
 @pytest.mark.asyncio
@@ -61,7 +79,7 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     await test_session.flush()
 
     payload = {
-        "expected_output": [{"role": "assistant", "content": "Expected result"}],
+        "expected_output": [make_output_message("Expected result")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -70,9 +88,10 @@ async def test_create_test_case_minimal(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None
-    assert data["expected_output"] == [
-        {"role": "assistant", "content": "Expected result"},
-    ]
+    # expected_output is now OutputItem format
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["type"] == "message"
+    assert data["expected_output"][0]["content"][0]["text"] == "Expected result"
     assert data["task_id"] == task.id
 
 
@@ -82,7 +101,7 @@ async def test_create_test_case_task_not_found(client: AsyncClient):
     payload = {
         "task_id": 999,
         "description": "Test case",
-        "expected_output": [{"role": "assistant", "content": "Expected result"}],
+        "expected_output": [make_output_message("Expected result")],
     }
 
     response = await client.post("/v1/test-cases", json=payload)
@@ -128,7 +147,7 @@ async def test_list_test_cases(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 1",
         arguments={"input": "test1"},
-        expected_output=[{"role": "assistant", "content": "expected1"}],
+        expected_output=[make_output_message("expected1")],
     )
     test_session.add(test_case1)
 
@@ -136,7 +155,7 @@ async def test_list_test_cases(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case 2",
         arguments={"input": "test2"},
-        expected_output=[{"role": "assistant", "content": "expected2"}],
+        expected_output=[make_output_message("expected2")],
     )
     test_session.add(test_case2)
 
@@ -204,7 +223,7 @@ async def test_get_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case for retrieval",
         arguments={"input": "test input"},
-        expected_output=[{"role": "assistant", "content": "expected output"}],
+        expected_output=[make_output_message("expected output")],
     )
     test_session.add(test_case)
     await test_session.commit()
@@ -216,9 +235,10 @@ async def test_get_test_case(client: AsyncClient, test_session):
     assert data["id"] == test_case.id
     assert data["description"] == "Test case for retrieval"
     assert data["arguments"] == {"input": "test input"}
-    assert data["expected_output"] == [
-        {"role": "assistant", "content": "expected output"},
-    ]
+    # expected_output is now OutputItem format
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["type"] == "message"
+    assert data["expected_output"][0]["content"][0]["text"] == "expected output"
     assert data["task_id"] == task.id
     assert "created_at" in data
     assert "updated_at" in data
@@ -249,16 +269,14 @@ async def test_update_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output=[{"role": "assistant", "content": "original expected"}],
+        expected_output=[make_output_message("original expected")],
     )
     test_session.add(test_case)
     await test_session.commit()
 
     payload = {
         "description": "Updated description",
-        "expected_output": [
-            {"role": "assistant", "content": "Updated expected output"},
-        ],
+        "expected_output": [make_output_message("Updated expected output")],
     }
 
     response = await client.patch(f"/v1/test-cases/{test_case.id}", json=payload)
@@ -266,9 +284,9 @@ async def test_update_test_case(client: AsyncClient, test_session):
 
     data = response.json()
     assert data["description"] == "Updated description"
-    assert data["expected_output"] == [
-        {"role": "assistant", "content": "Updated expected output"},
-    ]
+    # expected_output is now OutputItem format
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["content"][0]["text"] == "Updated expected output"
     assert data["arguments"] == {"input": "original input"}  # Should remain unchanged
     assert data["task_id"] == task.id
 
@@ -288,7 +306,7 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
         task_id=task.id,
         description="Original description",
         arguments={"input": "original input"},
-        expected_output=[{"role": "assistant", "content": "original expected"}],
+        expected_output=[make_output_message("original expected")],
     )
     test_session.add(test_case)
     await test_session.commit()
@@ -302,9 +320,9 @@ async def test_update_test_case_partial(client: AsyncClient, test_session):
 
     data = response.json()
     assert data["description"] == "Updated description only"
-    assert data["expected_output"] == [
-        {"role": "assistant", "content": "original expected"},
-    ]  # Should remain unchanged
+    # expected_output is now OutputItem format - should remain unchanged
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["content"][0]["text"] == "original expected"
     assert data["arguments"] == {"input": "original input"}  # Should remain unchanged
 
 
@@ -337,7 +355,7 @@ async def test_delete_test_case(client: AsyncClient, test_session):
         task_id=task.id,
         description="Test case to delete",
         arguments={"input": "test input"},
-        expected_output=[{"role": "assistant", "content": "expected output"}],
+        expected_output=[make_output_message("expected output")],
     )
     test_session.add(test_case)
     await test_session.commit()
@@ -393,7 +411,7 @@ async def test_test_case_with_complex_arguments(client: AsyncClient, test_sessio
     payload = {
         "description": "Complex test case with nested arguments",
         "arguments": complex_arguments,
-        "expected_output": [{"role": "assistant", "content": "4"}],
+        "expected_output": [make_output_message("4")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -422,7 +440,7 @@ async def test_test_case_with_long_description(client: AsyncClient, test_session
 
     payload = {
         "description": long_description,
-        "expected_output": [{"role": "assistant", "content": "Expected result"}],
+        "expected_output": [make_output_message("Expected result")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -447,7 +465,7 @@ async def test_test_case_with_empty_arguments(client: AsyncClient, test_session)
     payload = {
         "description": "Test case with empty arguments",
         "arguments": {},
-        "expected_output": [{"role": "assistant", "content": "Expected result"}],
+        "expected_output": [make_output_message("Expected result")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -471,7 +489,7 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     payload = {
         "description": None,
         "arguments": None,
-        "expected_output": [{"role": "assistant", "content": "Expected result"}],
+        "expected_output": [make_output_message("Expected result")],
     }
 
     response = await client.post("/v1/test-cases", json={**payload, "task_id": task.id})
@@ -480,6 +498,6 @@ async def test_test_case_with_null_values(client: AsyncClient, test_session):
     data = response.json()
     assert data["description"] is None
     assert data["arguments"] is None
-    assert data["expected_output"] == [
-        {"role": "assistant", "content": "Expected result"},
-    ]
+    # expected_output is now OutputItem format
+    assert len(data["expected_output"]) == 1
+    assert data["expected_output"][0]["content"][0]["text"] == "Expected result"

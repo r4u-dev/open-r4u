@@ -235,7 +235,24 @@ class TestExecutor:
             )
 
             assert result.finish_reason == FinishReason.TOOL_CALLS
-            assert result.result_json == [{"id": "call_123", "type": "function", "function": {"name": "get_weather", "arguments": '{"location": "New York"}'}}]
+            # result_json is now list[OutputItem] - includes FunctionToolCallItem and OutputMessageItem
+            assert result.result_json is not None
+            assert len(result.result_json) == 2  # Tool call + message
+            # Find the tool call item (items are Pydantic models or dicts after model_dump)
+            tool_call_item = None
+            for item in result.result_json:
+                # Handle both Pydantic models and dicts
+                item_type = item.type if hasattr(item, "type") else item.get("type") if isinstance(item, dict) else None
+                if item_type == "function_call":
+                    tool_call_item = item.model_dump() if hasattr(item, "model_dump") else item
+                    break
+            assert tool_call_item is not None
+            assert tool_call_item["type"] == "function_call"
+            assert tool_call_item["id"] == "call_123"
+            assert tool_call_item["call_id"] == "call_123"
+            assert tool_call_item["name"] == "get_weather"
+            assert tool_call_item["arguments"] == '{"location": "New York"}'
+            assert tool_call_item["status"] == "completed"
 
     @pytest.mark.asyncio
     async def test_execute_task_with_overrides_creates_temp_implementation(
