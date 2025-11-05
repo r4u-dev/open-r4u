@@ -451,6 +451,8 @@ class EvaluationListItem(BaseModel):
     test_case_count: int | None
     error: str | None
     quality_score: float | None
+    cost_efficiency_score: float | None
+    time_efficiency_score: float | None
     final_evaluation_score: float | None
     created_at: datetime
 
