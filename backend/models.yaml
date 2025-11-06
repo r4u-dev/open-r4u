@@ -168,7 +168,7 @@ providers:
         output_usd_per_million: 1.25
         artificial_analysis_intelligence_index: 10
 
-  grok:
+  xai:
     display_name: xAI (Grok)
     models:
       grok-code-fast-1:

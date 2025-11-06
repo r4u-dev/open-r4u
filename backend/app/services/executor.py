@@ -20,6 +20,7 @@ from app.schemas.traces import (
     OutputMessageItem,
     ToolCallItem,
 )
+from app.services.pricing_service import PricingService
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class LLMExecutor:
 
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._pricing = PricingService()
         self._setup_litellm()
 
     def _setup_litellm(self):
@@ -234,7 +236,9 @@ class LLMExecutor:
                 )
 
         # Prepare the request
-        model = implementation.model
+        # Ensure canonical 'provider/model' format for LiteLLM (returns model if not found)
+        model = self._pricing.canonicalize_model(implementation.model)
+
         temperature = implementation.temperature
         max_tokens = implementation.max_output_tokens
         tools = implementation.tools
