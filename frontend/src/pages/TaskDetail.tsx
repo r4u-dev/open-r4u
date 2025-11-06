@@ -165,6 +165,8 @@ const TaskDetail = () => {
     const [displayGraders, setDisplayGraders] = useState<GraderListItem[]>([]);
     const graderItemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
     const didInitialOrderRef = useRef(false);
+    const gradersListRef = useRef<HTMLDivElement>(null);
+    const [gradersListOverflowing, setGradersListOverflowing] = useState(false);
 
     // Evaluation run controls
     const [evalVersionId, setEvalVersionId] = useState<string>("");
@@ -1069,6 +1071,37 @@ const TaskDetail = () => {
         setDisplayGraders(ordered);
         didInitialOrderRef.current = true;
     }, [activeTab, graders, evalConfig, isEditingConfig]);
+
+    // Check if graders list is overflowing
+    useEffect(() => {
+        const checkOverflow = () => {
+            if (gradersListRef.current) {
+                const { scrollHeight, clientHeight } = gradersListRef.current;
+                setGradersListOverflowing(scrollHeight > clientHeight);
+            }
+        };
+        
+        checkOverflow();
+        // Also check after a short delay to account for any animations
+        const timeout = setTimeout(checkOverflow, 100);
+        
+        const container = gradersListRef.current;
+        if (container) {
+            // Check on scroll
+            container.addEventListener('scroll', checkOverflow);
+            // Check on resize
+            const resizeObserver = new ResizeObserver(checkOverflow);
+            resizeObserver.observe(container);
+            
+            return () => {
+                clearTimeout(timeout);
+                container.removeEventListener('scroll', checkOverflow);
+                resizeObserver.disconnect();
+            };
+        }
+        
+        return () => clearTimeout(timeout);
+    }, [displayGraders]);
 
     const saveEvalConfig = async () => {
         if (!taskId || !evalConfig) return;
@@ -2261,21 +2294,49 @@ const TaskDetail = () => {
                                                         setGraderIdsInput(
                                                             originalGraderIds,
                                                         );
+                                                        // Save current weights for animation before resetting
+                                                        const currentWeights = {
+                                                            q: Number(
+                                                                evalConfig.quality_weight ||
+                                                                    0,
+                                                            ),
+                                                            c: Number(
+                                                                evalConfig.cost_weight ||
+                                                                    0,
+                                                            ),
+                                                            t: Number(
+                                                                evalConfig.time_weight ||
+                                                                    0,
+                                                            ),
+                                                        };
+                                                        // Reset evalConfig to original values
+                                                        const originalGraderIdsArray = (originalConfig as any).grader_ids || [];
+                                                        setEvalConfig({
+                                                            ...(evalConfig as any),
+                                                            quality_weight: Number(
+                                                                (originalConfig as any).quality_weight || 0,
+                                                            ),
+                                                            cost_weight: Number(
+                                                                (originalConfig as any).cost_weight || 0,
+                                                            ),
+                                                            time_weight: Number(
+                                                                (originalConfig as any).time_weight || 0,
+                                                            ),
+                                                            grader_ids: originalGraderIdsArray,
+                                                        });
+                                                        // Restore original display order for graders (selected first)
+                                                        if (graders.length > 0) {
+                                                            const selectedIds = new Set(originalGraderIdsArray as number[]);
+                                                            const ordered = [...graders].sort((a, b) => {
+                                                                const aSel = selectedIds.has(a.id);
+                                                                const bSel = selectedIds.has(b.id);
+                                                                if (aSel !== bSel) return aSel ? -1 : 1;
+                                                                return a.name.localeCompare(b.name);
+                                                            });
+                                                            setDisplayGraders(ordered);
+                                                        }
                                                         animateWeights(
-                                                            {
-                                                                q: Number(
-                                                                    evalConfig.quality_weight ||
-                                                                        0,
-                                                                ),
-                                                                c: Number(
-                                                                    evalConfig.cost_weight ||
-                                                                        0,
-                                                                ),
-                                                                t: Number(
-                                                                    evalConfig.time_weight ||
-                                                                        0,
-                                                                ),
-                                                            },
+                                                            currentWeights,
                                                             {
                                                                 q: Number(
                                                                     (
@@ -2340,7 +2401,10 @@ const TaskDetail = () => {
                                                     timeEfficiency:
                                                         evalConfig.time_weight,
                                                 }}
-                                                onWeightsChange={(w) =>
+                                                onWeightsChange={(w) => {
+                                                    if (!isEditingConfig) {
+                                                        setIsEditingConfig(true);
+                                                    }
                                                     setEvalConfig({
                                                         ...(evalConfig as any),
                                                         quality_weight:
@@ -2350,8 +2414,7 @@ const TaskDetail = () => {
                                                         time_weight:
                                                             w.timeEfficiency,
                                                     })
-                                                }
-                                                disabled={!isEditingConfig}
+                                                }}
                                             />
                                         </div>
                                         <div>
@@ -2367,9 +2430,12 @@ const TaskDetail = () => {
                                                 </div>
                                             ) : (
                                                 <div
-                                                    className={`mt-2 relative ${isEditingConfig ? "" : "opacity-70 pointer-events-none"}`}
+                                                    className="mt-2 relative"
                                                 >
-                                                    <div className="grid gap-1.5 max-h-48 overflow-y-auto pr-1">
+                                                    <div 
+                                                        ref={gradersListRef}
+                                                        className="grid gap-1.5 max-h-48 overflow-y-auto pr-1"
+                                                    >
                                                         {displayGraders.length ===
                                                         0 ? (
                                                             <div className="text-sm text-muted-foreground">
@@ -2414,6 +2480,9 @@ const TaskDetail = () => {
                                                                                             !evalConfig
                                                                                         )
                                                                                             return;
+                                                                                        if (!isEditingConfig) {
+                                                                                            setIsEditingConfig(true);
+                                                                                        }
                                                                                         const set =
                                                                                             new Set(
                                                                                                 evalConfig.grader_ids ||
@@ -2470,7 +2539,9 @@ const TaskDetail = () => {
                                                             )
                                                         )}
                                                     </div>
-                                                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+                                                    {gradersListOverflowing && (
+                                                        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
