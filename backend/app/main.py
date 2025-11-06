@@ -1,4 +1,6 @@
 import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -6,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import api_router
 from app.config import get_settings
+from app.database import AsyncSessionMaker
+from app.services.provider_service import load_providers_from_yaml
 
 settings = get_settings()
 
@@ -13,7 +17,19 @@ logging.basicConfig(
     level=logging.DEBUG if settings.log_level == "DEBUG" else logging.INFO,
 )
 
-app = FastAPI(title="Open R4U Backend")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown events."""
+    # Startup: Load providers from YAML
+    yaml_path = Path(__file__).parent.parent / "models.yaml"
+    async with AsyncSessionMaker() as session:
+        await load_providers_from_yaml(session, yaml_path)
+    yield
+    # Shutdown: cleanup if needed
+
+
+app = FastAPI(title="Open R4U Backend", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(

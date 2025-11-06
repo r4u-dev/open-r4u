@@ -9,6 +9,7 @@ from app.api.v1 import (
     implementations,
     optimizations,
     projects,
+    providers,
     tasks,
     test_cases,
     traces,
@@ -26,3 +27,4 @@ api_router.include_router(grades.router)
 api_router.include_router(test_cases.router)
 api_router.include_router(evaluations.router)
 api_router.include_router(optimizations.router)
+api_router.include_router(providers.router)
