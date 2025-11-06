@@ -95,8 +95,8 @@ class TestTemplateFinder:
             (
                 "Send email to {{var_0}} about project {{var_1}}",
                 "Send email to Alice about project",
-                True,
-                {"var_0": "Alice", "var_1": ""},
+                False,
+                {},
             ),
             (
                 "{{var_0}} is a developer",
