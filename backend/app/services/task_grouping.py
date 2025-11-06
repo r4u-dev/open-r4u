@@ -1,275 +1,335 @@
-import re
+from functools import cache
 
 
 class TemplateFinder:
-    """Class to group similar strings into templates with variable segments."""
-
-    def __init__(self, min_segment_words: int = 2, min_matching_strings: int = 2):
+    def __init__(
+        self,
+        min_segment_words: int = 2,
+        min_matching_strings: int = 2,
+        max_segment_words: int | None = None,
+    ):
+        """max_segment_words: optional cap on segment length to reduce index size and boost speed.
+        If None, segments up to the full token length are indexed.
+        """
         self.min_segment_words = min_segment_words
         self.min_matching_strings = min_matching_strings
+        self.max_segment_words = max_segment_words
 
-    def _tokenize(self, s: str) -> list[str]:
-        """Tokenize a string into words."""
+    @staticmethod
+    def _tokenize(s: str) -> list[str]:
         return s.split()
 
-    def _find_matching_indexes(self, segment, indexes, strs) -> list[int]:
-        """Find indexes of strings that contain the segment."""
-        return [i for i in indexes if segment in strs[i]]
-
-    def _expand_segment(
+    def _build_ngram_index(
         self,
-        strs,
-        tokens,
-        start_idx,
-        end_idx,
-        indexes,
-    ) -> tuple[int | None, int | None, list[int]]:
-        """Expand a segment to include as many matching strings as possible."""
-        current_segment = " ".join(tokens[start_idx:end_idx])
-        matching = self._find_matching_indexes(current_segment, indexes, strs)
-
-        if len(matching) < self.min_matching_strings:
-            return None, None, []
-
-        best_start = start_idx
-        best_end = end_idx
-        best_matching = matching
-
-        # Expand left
-        temp_start = start_idx
-        while temp_start > 0:
-            temp_start -= 1
-            expanded = " ".join(tokens[temp_start:end_idx])
-            new_matching = self._find_matching_indexes(expanded, best_matching, strs)
-            if len(new_matching) >= self.min_matching_strings:
-                best_start = temp_start
-                best_matching = new_matching
-            else:
-                break
-
-        # Expand right
-        temp_end = best_end
-        while temp_end < len(tokens):
-            temp_end += 1
-            expanded = " ".join(tokens[best_start:temp_end])
-            new_matching = self._find_matching_indexes(expanded, best_matching, strs)
-            if len(new_matching) >= self.min_matching_strings:
-                best_end = temp_end
-                best_matching = new_matching
-            else:
-                break
-
-        return best_start, best_end, best_matching
-
-    def _find_all_segments_for_seed(
-        self,
-        seed_idx,
-        strs,
-        indexes,
-    ) -> list[tuple[int, int, list[int], str]]:
-        """Find all valid segments for a seed string."""
-        tokens = self._tokenize(strs[seed_idx])
-        segments = []
-
-        for i in range(len(tokens) - self.min_segment_words + 1):
-            start, end, matches = self._expand_segment(
-                strs,
-                tokens,
-                i,
-                i + self.min_segment_words,
-                indexes,
-            )
-            if start is not None and len(matches) >= self.min_matching_strings:
-                seg_text = " ".join(tokens[start:end])
-                segments.append((start, end, matches, seg_text))
-        return segments
-
-    def _build_template_from_segments(self, seed_idx, strs, segments) -> str:
-        """Build a template string from identified segments."""
-        tokens = self._tokenize(strs[seed_idx])
-        sorted_segments = sorted(segments, key=lambda x: x[0])
-
-        template_parts = []
-        last_pos = 0
-        var_counter = 0
-
-        for start, end, _, _ in sorted_segments:
-            if start > last_pos:
-                template_parts.append(f"{{{{var_{var_counter}}}}}")
-                var_counter += 1
-
-            template_parts.append(" ".join(tokens[start:end]))
-            last_pos = end
-
-        if last_pos < len(tokens):
-            template_parts.append(f"{{{{var_{var_counter}}}}}")
-
-        return " ".join(template_parts)
-
-    def _select_best_segments(
-        self,
-        all_segments,
-    ) -> list[tuple[int, int, list[int], str]]:
-        """Select the best non-overlapping segments."""
-        if not all_segments:
-            return []
-        sorted_segs = sorted(all_segments, key=lambda x: (x[0], -(x[1] - x[0])))
-        selected, used = [], set()
-        for seg in sorted_segs:
-            r = set(range(seg[0], seg[1]))
-            if not (r & used):
-                selected.append(seg)
-                used |= r
-        return selected
-
-    def _find_group(
-        self,
-        seed_idx,
-        strs,
-        indexes,
-    ) -> tuple[str | None, list[int] | None]:
-        """Find a group of similar strings for a given seed index."""
-        all_segs = self._find_all_segments_for_seed(
-            seed_idx,
-            strs,
-            indexes,
-        )
-        if not all_segs:
-            return None, None
-
-        best_segs = self._select_best_segments(all_segs)
-        if not best_segs:
-            return None, None
-
-        template = self._build_template_from_segments(seed_idx, strs, best_segs)
-
-        matching = indexes.copy()
-        for _, _, matches, _ in best_segs:
-            matching = [i for i in matching if i in matches]
-
-        if len(matching) >= self.min_matching_strings:
-            return template, matching
-        return None, None
-
-    def group_strings(
-        self,
-        strs: list[str],
-    ) -> dict[str, list[int]]:
-        """Group similar strings into templates with variable segments.
-
-        Args:
-            strs: List of input strings to be grouped.
-            min_segment_words: Minimum number of words in a segment to consider for grouping.
-            min_matching_strings: Minimum number of strings that must match a template for it to be valid.
-
-        Returns:
-            A dictionary mapping template strings to lists of indexes of matching strings.
-
+        all_tokens: list[list[str]],
+    ) -> dict[tuple[str, ...], set[int]]:
+        """Build inverted index mapping n-gram tuples to set of string indices that contain that n-gram.
+        Complexity: O(N * L^2) time and O(N * L^2) index entries in worst case.
         """
-        groups = {}
-        assigned = set()
+        idx = {}
+        N = len(all_tokens)
+        for i, tokens in enumerate(all_tokens):
+            T = len(tokens)
+            max_len = (
+                T if self.max_segment_words is None else min(self.max_segment_words, T)
+            )
+            for start in range(T):
+                # only consider lengths >= min_segment_words
+                for length in range(self.min_segment_words, max_len - start + 1):
+                    ng = tuple(tokens[start : start + length])
+                    if ng in idx:
+                        idx[ng].add(i)
+                    else:
+                        idx[ng] = {i}
+        return idx
 
-        for i, _ in enumerate(strs):
-            if i in assigned:
+    def group_strings(self, strs: list[str]) -> dict[str, list[int]]:
+        n = self.min_segment_words
+        m = self.min_matching_strings
+        all_tokens = [self._tokenize(s) for s in strs]
+        N = len(strs)
+
+        # Build n-gram index once
+        ngram_index = self._build_ngram_index(all_tokens)
+
+        candidates = []  # (template_str, matched_set, total_fixed_words)
+
+        for base_idx, base_tokens in enumerate(all_tokens):
+            L = len(base_tokens)
+            if n > L:
                 continue
 
-            available = [j for j in range(len(strs)) if j not in assigned]
-            if len(available) < self.min_matching_strings:
-                break
+            # For a base, we can look up any segment (start,length) by tuple lookup
+            seg_matches = {}
+            for start in range(L):
+                max_len = (
+                    L - start
+                    if self.max_segment_words is None
+                    else min(self.max_segment_words, L - start)
+                )
+                for length in range(n, max_len + 1):
+                    seg = tuple(base_tokens[start : start + length])
+                    matches = ngram_index.get(seg, set())
+                    seg_matches[(start, length)] = matches
 
-            template, matching = self._find_group(
-                i,
-                strs,
-                available,
-            )
-            if template and matching:
-                groups[template] = matching
-                assigned |= set(matching)
+            # dynamic programming search for best non-overlapping segments
+            @cache
+            def dfs(
+                pos: int,
+                current_matches_fs: frozenset,
+                chosen_count: int,
+            ) -> tuple[int, tuple[tuple[int, int], ...]]:
+                current_matches = set(current_matches_fs)
+                if len(current_matches) < m:
+                    return (-(10**9), ())
+                if pos >= L:
+                    if chosen_count > 0:
+                        return (0, ())
+                    return (-(10**9), ())
 
-        return groups
+                best_score = -(10**9)
+                best_segments: tuple[tuple[int, int], ...] = ()
+                # skip
+                skip_score, skip_segs = dfs(pos + 1, current_matches_fs, chosen_count)
+                if skip_score > best_score:
+                    best_score = skip_score
+                    best_segments = skip_segs
 
-    def match_template(
-        self,
-        template: str,
-        s: str,
-    ) -> tuple[bool, dict[str, str]]:
-        """Match a string against a template and extract variables.
+                # choose segment starting at pos
+                max_length_possible = (
+                    L - pos
+                    if self.max_segment_words is None
+                    else min(self.max_segment_words, L - pos)
+                )
+                for length in range(n, max_length_possible + 1):
+                    seg_key = (pos, length)
+                    seg_set = seg_matches.get(seg_key, set())
+                    if not seg_set:
+                        continue
+                    new_matches = current_matches.intersection(seg_set)
+                    if len(new_matches) < m:
+                        continue
+                    new_matches_fs = frozenset(new_matches)
+                    tail_score, tail_segs = dfs(
+                        pos + length,
+                        new_matches_fs,
+                        chosen_count + 1,
+                    )
+                    if tail_score < -(10**8):
+                        continue
+                    score = length + tail_score
+                    if score > best_score:
+                        best_score = score
+                        best_segments = ((pos, length),) + tail_segs
 
-        Args:
-            template: Template with placeholders like {{var_0}}
-            s: Input string to test
+                return (best_score, best_segments)
 
-        Returns:
-            (bool, dict)
-            bool = True if string matches template
-            dict = variable assignments, e.g. {"var_0": "Alice"}
+            initial_set = frozenset(range(N))
+            best_score, best_segments = dfs(0, initial_set, 0)
+            if best_score > 0 and len(best_segments) > 0:
+                # compute matched set intersection
+                matched = set(range(N))
+                for seg in best_segments:
+                    matched &= seg_matches[seg]
+                if len(matched) >= m:
+                    template_str = self._build_template_from_segments(
+                        base_tokens,
+                        sorted(best_segments, key=lambda x: x[0]),
+                    )
+                    candidates.append((template_str, matched, best_score))
 
-        """
-        # Tokenize template into segments: fixed parts and variables
-        # Example: "{{var_0}} likes pizza" -> ["{{var_0}}", "likes pizza"]
-
-        # Identify variable placeholders and fixed text outside them
-        var_pattern = re.compile(r"\{\{(var_\d+)\}\}")
-        tokens = template.split()  # template words
-        s_tokens = s.split()  # string words
-
-        t_i = 0  # index in template tokens
-        s_i = 0  # index in string tokens
-        variables = {}
-
-        while t_i < len(tokens) and s_i <= len(s_tokens):
-            t_word = tokens[t_i]
-            m = var_pattern.fullmatch(t_word)
-
-            # If this template token is a variable placeholder
-            if m:
-                var_name = m.group(1)
-
-                # If it's the last token, variable consumes the rest
-                if t_i == len(tokens) - 1:
-                    variables[var_name] = " ".join(s_tokens[s_i:])
-                    return True, variables
-
-                # Otherwise capture until next fixed word is found
-                next_fixed = tokens[t_i + 1]
-                next_is_var = var_pattern.fullmatch(next_fixed)
-
-                # If next is also a variable, we cannot determine split — return false
-                if next_is_var:
-                    return False, {}
-
-                # Find location of next fixed token in s_tokens
-                collected = []
-                found = False
-                for j in range(s_i, len(s_tokens)):
-                    collected.append(s_tokens[j])
-                    # match start of substring — make sure next fixed word matches exactly
-                    if s_tokens[j] == next_fixed:
-                        found = True
-                        break
-
-                if not found:
-                    return False, {}
-
-                # variable = everything before the fixed token
-                if len(collected) == 1:  # next token matched immediately => empty var
-                    variables[var_name] = ""
+        # Merge identical templates, pick best scores
+        merged = {}
+        for tpl, matched, score in candidates:
+            if tpl in merged:
+                prev_matched, prev_score = merged[tpl]
+                if score > prev_score:
+                    merged[tpl] = (set(matched), score)
                 else:
-                    variables[var_name] = " ".join(collected[:-1])
-
-                # Move string pointer to the fixed token
-                s_i = s_i + len(collected) - 1
-                t_i += 1
-
+                    merged[tpl] = (prev_matched.union(matched), prev_score)
             else:
-                # Fixed token, must match exactly
-                if s_i >= len(s_tokens) or tokens[t_i] != s_tokens[s_i]:
-                    return False, {}
-                t_i += 1
-                s_i += 1
+                merged[tpl] = (set(matched), score)
 
-        # After loop, if we used all template tokens AND string tokens
-        if t_i == len(tokens) and s_i == len(s_tokens):
-            return True, variables
+        template_items = [
+            (tpl, matched, score) for tpl, (matched, score) in merged.items()
+        ]
 
-        return False, {}
+        # Assign each string to best template by score
+        assignment = {tpl: set() for tpl, _, _ in template_items}
+        for idx in range(N):
+            best_tpl = None
+            best_score = -1
+            for tpl, matched, score in template_items:
+                if idx in matched and score > best_score:
+                    best_score = score
+                    best_tpl = tpl
+            if best_tpl is not None:
+                assignment[best_tpl].add(idx)
+
+        final = {}
+        for tpl, members in assignment.items():
+            if len(members) >= m:
+                final[tpl] = sorted(members)
+        return final
+
+    def _build_template_from_segments(
+        self,
+        tokens: list[str],
+        segments: list[tuple[int, int]],
+    ) -> str:
+        parts = []
+        var_idx = 0
+        pos = 0
+        for start, length in segments:
+            if start > pos:
+                parts.append(f"{{{{var_{var_idx}}}}}")
+                var_idx += 1
+            seg_text = " ".join(tokens[start : start + length])
+            parts.append(seg_text)
+            pos = start + length
+        if pos < len(tokens):
+            parts.append(f"{{{{var_{var_idx}}}}}")
+        return " ".join(parts)
+
+    def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
+        """Check if string s matches template (placeholders like {{var_0}}).
+        If it matches, return (True, mapping) where mapping maps placeholder names
+        to their extracted substring (joined by spaces). Otherwise return (False, {}).
+        """
+        t_tokens = template.split()
+        s_tokens = self._tokenize(s)
+
+        # Identify which template tokens are placeholders and extract their names
+        is_placeholder = []
+        placeholder_names = []
+        for tt in t_tokens:
+            if tt.startswith("{{") and tt.endswith("}}"):
+                is_placeholder.append(True)
+                placeholder_names.append(tt[2:-2].strip())
+            else:
+                is_placeholder.append(False)
+                placeholder_names.append(None)
+
+        # Precompute indices of remaining fixed tokens counts for pruning
+        fixed_remaining_from = [0] * (len(t_tokens) + 1)
+        cnt = 0
+        for i in range(len(t_tokens) - 1, -1, -1):
+            if not is_placeholder[i]:
+                cnt += 1
+            fixed_remaining_from[i] = cnt
+        fixed_remaining_from[len(t_tokens)] = 0
+
+        # recursive backtracking
+        @cache
+        def backtrack(
+            t_idx: int,
+            s_idx: int,
+            assignments_tuple: tuple[tuple[str, tuple[int, int]], ...],
+        ) -> tuple[tuple[tuple[str, tuple[int, int]], ...], int] | None:
+            """Try to match template from t_idx against s_tokens from s_idx.
+            assignments_tuple stores already assigned placeholder spans as ((name,(start,end)), ...)
+            Returns a tuple (assignments_tuple_updated, end_s_idx) on success or None on failure.
+            """
+            assignments = dict(assignments_tuple)
+            # prune: if not enough tokens left to match remaining fixed tokens, fail
+            # Need at least fixed_remaining_from[t_idx] tokens remaining
+            if len(s_tokens) - s_idx < fixed_remaining_from[t_idx]:
+                return None
+
+            if t_idx == len(t_tokens) and s_idx == len(s_tokens):
+                return (tuple(sorted(assignments.items())), s_idx)
+            if t_idx == len(t_tokens) or s_idx > len(s_tokens):
+                return None
+
+            if not is_placeholder[t_idx]:
+                # fixed token must match the current s token
+                if s_idx < len(s_tokens) and s_tokens[s_idx] == t_tokens[t_idx]:
+                    return backtrack(
+                        t_idx + 1,
+                        s_idx + 1,
+                        tuple(sorted(assignments.items())),
+                    )
+                return None
+            name = placeholder_names[t_idx]
+            # find next fixed token index after this placeholder (if any)
+            next_fixed_idx = None
+            for j in range(t_idx + 1, len(t_tokens)):
+                if not is_placeholder[j]:
+                    next_fixed_idx = j
+                    break
+
+            # If same placeholder appears again later, we must ensure consistency.
+            already_assigned_span = assignments.get(name)
+
+            # If there's no next fixed token, placeholder consumes the rest of s_tokens
+            if next_fixed_idx is None:
+                # assign remaining tokens (could be empty? require at least one token)
+                if s_idx >= len(s_tokens):
+                    return None  # require at least one token for placeholder
+                span = (s_idx, len(s_tokens))
+                # check consistency with previous assignment if any
+                if already_assigned_span is not None:
+                    # previous assigned text must equal current span text
+                    prev_start, prev_end = already_assigned_span
+                    prev_text = " ".join(s_tokens[prev_start:prev_end])
+                    curr_text = " ".join(s_tokens[span[0] : span[1]])
+                    if prev_text != curr_text:
+                        return None
+                    # else keep assignments
+                    assignments[name] = span
+                    return backtrack(
+                        t_idx + 1,
+                        len(s_tokens),
+                        tuple(sorted(assignments.items())),
+                    )
+                assignments[name] = span
+                return backtrack(
+                    t_idx + 1,
+                    len(s_tokens),
+                    tuple(sorted(assignments.items())),
+                )
+
+            # there's a next fixed token; find occurrences of that fixed token in s_tokens after s_idx
+            next_fixed_token = t_tokens[next_fixed_idx]
+            # search positions where next_fixed_token occurs
+            possible_positions = [
+                p
+                for p in range(s_idx, len(s_tokens))
+                if s_tokens[p] == next_fixed_token
+            ]
+            if not possible_positions:
+                return None
+
+            for pos in possible_positions:
+                # placeholder would take s_tokens[s_idx:pos]
+                if pos == s_idx:
+                    # allow empty? We require at least one token for placeholder
+                    continue
+                span = (s_idx, pos)
+                if already_assigned_span is not None:
+                    prev_start, prev_end = already_assigned_span
+                    prev_text = " ".join(s_tokens[prev_start:prev_end])
+                    curr_text = " ".join(s_tokens[span[0] : span[1]])
+                    if prev_text != curr_text:
+                        continue  # inconsistent, try next pos
+                # tentatively assign and try to match remaining (including the next fixed token at pos)
+                new_assignments = dict(assignments)
+                new_assignments[name] = span
+                res = backtrack(
+                    next_fixed_idx,
+                    pos,
+                    tuple(sorted(new_assignments.items())),
+                )
+                if res is not None:
+                    return res
+            return None
+
+        result = backtrack(0, 0, tuple())
+        if result is None:
+            return (False, {})
+        assignments_tuple, _ = result
+        # convert spans to strings
+        mapping: dict[str, str] = {}
+        for name, (start, end) in assignments_tuple:
+            mapping[name] = " ".join(s_tokens[start:end])
+        return (True, mapping)

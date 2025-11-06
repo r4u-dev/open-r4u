@@ -22,15 +22,8 @@ logger = logging.getLogger(__name__)
 class TracesService:
     """Service for trace operations."""
 
-    def __init__(self, min_cluster_size: int = 3):
-        """Initialize traces service.
-
-        Args:
-            min_cluster_size: Minimum number of similar traces needed to auto-create
-                            a task/implementation group (default: 3)
-
-        """
-        self.min_cluster_size = min_cluster_size
+    def __init__(self):
+        """Initialize traces service."""
 
     async def create_trace(
         self,
@@ -373,21 +366,22 @@ class TracesService:
                 )
                 return
 
-            # Get all unmatched traces with same model
+            settings = get_settings()
+
             traces_query = (
                 select(Trace)
                 .where(Trace.project_id == project_id)
-                .where(Trace.model == trace.model)
+                .where(Trace.path == trace.path)
                 .where(Trace.implementation_id.is_(None))
                 .options(joinedload(Trace.input_items))
             )
             result = await session.execute(traces_query)
             unmatched_traces = result.unique().scalars().all()
 
-            if len(unmatched_traces) < self.min_cluster_size:
+            if len(unmatched_traces) < settings.min_cluster_size:
                 logger.debug(
-                    f"Only {len(unmatched_traces)} unmatched traces for model '{trace.model}', "
-                    f"need {self.min_cluster_size} to auto-create implementation",
+                    f"Only {len(unmatched_traces)} unmatched traces with path '{trace.path}', "
+                    f"need {settings.min_cluster_size} to auto-create implementation",
                 )
                 return
 
@@ -403,10 +397,10 @@ class TracesService:
                     prompts.append(t_prompt)
                     trace_map[len(prompts) - 1] = t
 
-            if len(prompts) < self.min_cluster_size:
+            if len(prompts) < settings.min_matching_traces:
                 logger.debug(
                     f"Only {len(prompts)} traces with valid prompts, "
-                    f"need {self.min_cluster_size} to auto-create implementation",
+                    f"need {settings.min_matching_traces} to auto-create implementation",
                 )
                 return
 
@@ -416,7 +410,6 @@ class TracesService:
             )
 
             # Use TemplateFinder to group similar prompts
-            settings = get_settings()
             template_finder = TemplateFinder(
                 settings.min_segment_words,
                 settings.min_matching_traces,
