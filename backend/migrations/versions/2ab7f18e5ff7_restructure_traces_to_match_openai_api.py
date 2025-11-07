@@ -1,7 +1,7 @@
-"""restructure_traces_to_match_openai_api
+"""Restructure traces to match OpenAI API.
 
 Revision ID: 2ab7f18e5ff7
-Revises: 
+Revises:
 Create Date: 2025-10-17 15:28:15.330107
 
 """
@@ -19,27 +19,27 @@ depends_on: str | Sequence[str] | None = None
 
 
 finish_reason_enum = postgresql.ENUM(
-    "STOP",
-    "LENGTH",
-    "TOOL_CALLS",
-    "CONTENT_FILTER",
-    "FUNCTION_CALL",
-    "ERROR",
+    "stop",
+    "length",
+    "tool_calls",
+    "content_filter",
+    "function_call",
+    "error",
     name="finish_reason",
     create_type=False,
 )
 
 item_type_enum = postgresql.ENUM(
-    "MESSAGE",
-    "FUNCTION_CALL",
-    "FUNCTION_RESULT",
-    "TOOL_CALL",
-    "TOOL_RESULT",
-    "IMAGE",
-    "VIDEO",
-    "AUDIO",
-    "MCP_TOOL_CALL",
-    "MCP_TOOL_RESULT",
+    "message",
+    "function_call",
+    "function_result",
+    "tool_call",
+    "tool_result",
+    "image",
+    "video",
+    "audio",
+    "mcp_tool_call",
+    "mcp_tool_result",
     name="item_type",
     create_type=False,
 )

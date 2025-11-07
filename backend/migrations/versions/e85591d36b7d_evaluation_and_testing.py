@@ -19,10 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 evaluation_status_enum = postgresql.ENUM(
-    "PENDING",
-    "RUNNING",
-    "COMPLETED",
-    "FAILED",
+    "pending",
+    "running",
+    "completed",
+    "failed",
     name="evaluation_status",
     create_type=False,
 )

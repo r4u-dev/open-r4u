@@ -17,12 +17,12 @@ down_revision: str | Sequence[str] | None = "105bd027cb07"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 finish_reason_enum = postgresql.ENUM(
-    "STOP",
-    "LENGTH",
-    "TOOL_CALLS",
-    "CONTENT_FILTER",
-    "FUNCTION_CALL",
-    "ERROR",
+    "stop",
+    "length",
+    "tool_calls",
+    "content_filter",
+    "function_call",
+    "error",
     name="finish_reason",
     create_type=False,
 )

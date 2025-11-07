@@ -19,8 +19,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 score_type_enum = postgresql.ENUM(
-    "FLOAT",
-    "BOOLEAN",
+    "float",
+    "boolean",
     name="score_type",
     create_type=False,
 )
