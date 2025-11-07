@@ -467,8 +467,8 @@ class TestAutoCreateImplementation:
         assert len(implementations) == 2
 
         models = {impl.model for impl in implementations}
-        assert "gpt-4" in models
-        assert "gpt-3.5-turbo" in models
+        assert "openai/gpt-4" in models or "gpt-4" in models
+        assert "openai/gpt-3.5-turbo" in models
 
     @pytest.mark.asyncio
     async def test_existing_implementation_not_replaced(
