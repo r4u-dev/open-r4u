@@ -78,7 +78,7 @@ class TestTraceEndpoints:
         assert response.status_code == 201
 
         data = response.json()
-        assert data["model"] == "gpt-3.5-turbo"
+        assert data["model"] == "openai/gpt-3.5-turbo"
 
         # Verify project was auto-created
         result = await test_session.execute(

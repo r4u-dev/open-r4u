@@ -100,7 +100,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         # Test exact match
-        provider, model = service._resolve_model_name("gpt-5")
+        provider, model = service._resolve_model_name_from_yaml("gpt-5")
         assert provider == "openai"
         assert model == "gpt-5"
 
@@ -109,7 +109,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         # Test provider prefixed
-        provider, model = service._resolve_model_name("openai/gpt-5")
+        provider, model = service._resolve_model_name_from_yaml("openai/gpt-5")
         assert provider == "openai"
         assert model == "gpt-5"
 
@@ -117,16 +117,16 @@ class TestPricingService:
         """Test model name resolution for versioned models."""
         service = pricing_service_with_data
 
-        # Test versioned model
-        provider, model = service._resolve_model_name("gpt-5-2024-10-01")
+        # Test versioned model - should match base model
+        provider, model = service._resolve_model_name_from_yaml("gpt-5-2024-10-01")
         assert provider == "openai"
-        assert model == "gpt-5-2024-10-01"
+        assert model == "gpt-5"  # Version stripped to base model
 
     def test_resolve_model_name_anthropic(self, pricing_service_with_data):
         """Test model name resolution for Anthropic models."""
         service = pricing_service_with_data
 
-        provider, model = service._resolve_model_name("claude-sonnet-4")
+        provider, model = service._resolve_model_name_from_yaml("claude-sonnet-4")
         assert provider == "anthropic"
         assert model == "claude-sonnet-4"
 
@@ -134,7 +134,7 @@ class TestPricingService:
         """Test model name resolution for Google models."""
         service = pricing_service_with_data
 
-        provider, model = service._resolve_model_name("gemini-2.5-pro")
+        provider, model = service._resolve_model_name_from_yaml("gemini-2.5-pro")
         assert provider == "google"
         assert model == "gemini-2.5-pro"
 
@@ -142,11 +142,9 @@ class TestPricingService:
         """Test model name resolution for unknown models."""
         service = pricing_service_with_data
 
-        with patch("app.services.pricing_service.logger") as mock_logger:
-            provider, model = service._resolve_model_name("unknown-model")
-            assert provider == "openai"  # Default fallback
-            assert model == "unknown-model"
-            mock_logger.warning.assert_called_once()
+        # Should raise ValueError for unknown models
+        with pytest.raises(ValueError, match="not found in models.yaml"):
+            service._resolve_model_name_from_yaml("unknown-model")
 
     def test_strip_version_suffix(self, pricing_service_with_data):
         """Test version suffix stripping."""
@@ -187,7 +185,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=500,
             cached_tokens=0)
@@ -201,7 +199,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=500,
             cached_tokens=200)
@@ -215,7 +213,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         cost = service.calculate_cost(
-            model="gemini-2.5-pro",
+            model="google/gemini-2.5-pro",
             prompt_tokens=100000,  # Below threshold
             completion_tokens=5000,
             cached_tokens=0)
@@ -229,7 +227,7 @@ class TestPricingService:
         service = pricing_service_with_data
 
         cost = service.calculate_cost(
-            model="gemini-2.5-pro",
+            model="google/gemini-2.5-pro",
             prompt_tokens=250000,  # Above threshold
             completion_tokens=10000,
             cached_tokens=0)
@@ -257,14 +255,14 @@ class TestPricingService:
 
         # Missing prompt_tokens
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=None,
             completion_tokens=500)
         assert cost is None
 
         # Missing completion_tokens
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=None)
         assert cost is None
@@ -275,14 +273,14 @@ class TestPricingService:
 
         # Negative prompt_tokens
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=-100,
             completion_tokens=500)
         assert cost is None
 
         # Negative completion_tokens
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=-50)
         assert cost is None
@@ -305,7 +303,7 @@ class TestPricingService:
         service._pricing_data = {}  # Clear pricing data
 
         cost = service.calculate_cost(
-            model="gpt-5",
+            model="openai/gpt-5",
             prompt_tokens=1000,
             completion_tokens=500)
         assert cost is None
@@ -317,14 +315,14 @@ class TestPricingService:
         models = service.get_available_models()
 
         assert "openai" in models
-        assert "gpt-5" in models["openai"]
-        assert "gpt-5-mini" in models["openai"]
+        assert "openai/gpt-5" in models["openai"]
+        assert "openai/gpt-5-mini" in models["openai"]
 
         assert "anthropic" in models
-        assert "claude-sonnet-4" in models["anthropic"]
+        assert "anthropic/claude-sonnet-4" in models["anthropic"]
 
         assert "google" in models
-        assert "gemini-2.5-pro" in models["google"]
+        assert "google/gemini-2.5-pro" in models["google"]
 
     def test_get_available_models_empty_data(self):
         """Test getting available models with empty pricing data."""
