@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.models.evaluation import EvaluationConfig
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 
@@ -352,3 +353,37 @@ async def test_create_task_with_response_schema(client: AsyncClient, test_sessio
     task_result = await test_session.execute(task_query)
     task = task_result.scalar_one()
     assert task.response_schema == payload["response_schema"]
+
+
+@pytest.mark.asyncio
+async def test_create_task_creates_evaluation_config(client: AsyncClient, test_session):
+    """Test that creating a task automatically creates an evaluation config."""
+    payload = {
+        "project": "Test Project",
+        "path": "/api/eval-test",
+        "name": "Evaluation Config Test",
+        "description": "A test task to verify evaluation config creation",
+        "implementation": {
+            "version": "0.1",
+            "prompt": "Test prompt",
+            "model": "gpt-4",
+            "max_output_tokens": 1000,
+        },
+    }
+
+    response = await client.post("/v1/tasks", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    task_id = data["id"]
+
+    # Verify evaluation config was created
+    config_query = select(EvaluationConfig).where(EvaluationConfig.task_id == task_id)
+    config_result = await test_session.execute(config_query)
+    config = config_result.scalar_one_or_none()
+
+    assert config is not None
+    assert config.task_id == task_id
+    assert config.quality_weight == 0.5
+    assert config.cost_weight == 0.3
+    assert config.time_weight == 0.2
+    assert isinstance(config.grader_ids, list)
