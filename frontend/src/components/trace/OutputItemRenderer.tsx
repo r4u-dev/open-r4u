@@ -55,15 +55,12 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
     // Render message item (assistant response)
     if (item.type === "message") {
         const msg = item as OutputMessageItem;
-        const roleColor = "text-green-600 dark:text-green-400";
 
         return (
             <div key={index} className="border-l-2 border-primary pl-3 py-2">
                 <div className="flex items-center gap-2 mb-1">
                     <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                    <span
-                        className={`font-medium text-xs uppercase ${roleColor}`}
-                    >
+                    <span className="font-medium text-xs uppercase text-success">
                         ASSISTANT
                     </span>
                 </div>
@@ -81,11 +78,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-yellow-500 pl-3 py-2 bg-yellow-50 dark:bg-yellow-950/20"
+                className="border-l-2 border-warning pl-3 py-2 bg-warning/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Wrench className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    <span className="font-medium text-xs text-yellow-700 dark:text-yellow-300">
+                    <Wrench className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-xs text-warning">
                         FUNCTION CALL
                     </span>
                 </div>
@@ -126,11 +123,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-purple-500 pl-3 py-2 bg-purple-50 dark:bg-purple-950/20"
+                className="border-l-2 border-accent pl-3 py-2 bg-accent/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Search className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                    <span className="font-medium text-xs text-purple-700 dark:text-purple-300">
+                    <Search className="h-4 w-4 text-accent" />
+                    <span className="font-medium text-xs text-accent">
                         FILE SEARCH
                     </span>
                 </div>
@@ -168,11 +165,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-cyan-500 pl-3 py-2 bg-cyan-50 dark:bg-cyan-950/20"
+                className="border-l-2 border-accent pl-3 py-2 bg-accent/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Search className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                    <span className="font-medium text-xs text-cyan-700 dark:text-cyan-300">
+                    <Search className="h-4 w-4 text-accent" />
+                    <span className="font-medium text-xs text-accent">
                         WEB SEARCH
                     </span>
                 </div>
@@ -192,11 +189,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-indigo-500 pl-3 py-2 bg-indigo-50 dark:bg-indigo-950/20"
+                className="border-l-2 border-primary pl-3 py-2 bg-primary/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Monitor className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="font-medium text-xs text-indigo-700 dark:text-indigo-300">
+                    <Monitor className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-xs text-primary">
                         COMPUTER USE
                     </span>
                 </div>
@@ -231,11 +228,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-pink-500 pl-3 py-2 bg-pink-50 dark:bg-pink-950/20"
+                className="border-l-2 border-secondary pl-3 py-2 bg-secondary/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Brain className="h-4 w-4 text-pink-600 dark:text-pink-400" />
-                    <span className="font-medium text-xs text-pink-700 dark:text-pink-300">
+                    <Brain className="h-4 w-4 text-secondary" />
+                    <span className="font-medium text-xs text-secondary">
                         REASONING
                     </span>
                 </div>
@@ -281,11 +278,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-violet-500 pl-3 py-2 bg-violet-50 dark:bg-violet-950/20"
+                className="border-l-2 border-accent pl-3 py-2 bg-accent/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <ImageIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                    <span className="font-medium text-xs text-violet-700 dark:text-violet-300">
+                    <ImageIcon className="h-4 w-4 text-accent" />
+                    <span className="font-medium text-xs text-accent">
                         IMAGE GENERATION
                     </span>
                 </div>
@@ -307,11 +304,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-orange-500 pl-3 py-2 bg-orange-50 dark:bg-orange-950/20"
+                className="border-l-2 border-warning pl-3 py-2 bg-warning/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Code className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                    <span className="font-medium text-xs text-orange-700 dark:text-orange-300">
+                    <Code className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-xs text-warning">
                         CODE INTERPRETER
                     </span>
                 </div>
@@ -346,11 +343,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-red-500 pl-3 py-2 bg-red-50 dark:bg-red-950/20"
+                className="border-l-2 border-destructive pl-3 py-2 bg-destructive/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Terminal className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    <span className="font-medium text-xs text-red-700 dark:text-red-300">
+                    <Terminal className="h-4 w-4 text-destructive" />
+                    <span className="font-medium text-xs text-destructive">
                         SHELL COMMAND
                     </span>
                 </div>
@@ -380,23 +377,19 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
                 key={index}
                 className={`border-l-2 pl-3 py-2 ${
                     hasError
-                        ? "border-red-500 bg-red-50 dark:bg-red-950/20"
-                        : "border-teal-500 bg-teal-50 dark:bg-teal-950/20"
+                        ? "border-destructive bg-destructive/10"
+                        : "border-success bg-success/10"
                 }`}
             >
                 <div className="flex items-center gap-2 mb-1">
                     <Server
                         className={`h-4 w-4 ${
-                            hasError
-                                ? "text-red-600 dark:text-red-400"
-                                : "text-teal-600 dark:text-teal-400"
+                            hasError ? "text-destructive" : "text-success"
                         }`}
                     />
                     <span
                         className={`font-medium text-xs ${
-                            hasError
-                                ? "text-red-700 dark:text-red-300"
-                                : "text-teal-700 dark:text-teal-300"
+                            hasError ? "text-destructive" : "text-success"
                         }`}
                     >
                         MCP TOOL CALL
@@ -440,12 +433,12 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
                     {mcpCall.error && (
                         <div className="mt-2">
                             <div className="flex items-center gap-2 mb-1">
-                                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                <AlertCircle className="h-4 w-4 text-destructive" />
                                 <span className="text-muted-foreground font-medium">
                                     Error:
                                 </span>
                             </div>
-                            <pre className="mt-1 font-mono text-red-600 dark:text-red-400 whitespace-pre-wrap break-words bg-muted/50 p-2 rounded">
+                            <pre className="mt-1 font-mono text-destructive whitespace-pre-wrap break-words bg-muted/50 p-2 rounded">
                                 {mcpCall.error}
                             </pre>
                         </div>
@@ -462,11 +455,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-teal-500 pl-3 py-2 bg-teal-50 dark:bg-teal-950/20"
+                className="border-l-2 border-accent pl-3 py-2 bg-accent/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Server className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="font-medium text-xs text-teal-700 dark:text-teal-300">
+                    <Server className="h-4 w-4 text-accent" />
+                    <span className="font-medium text-xs text-accent">
                         MCP LIST TOOLS
                     </span>
                 </div>
@@ -487,7 +480,7 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
                         </div>
                     )}
                     {mcpListTools.error && (
-                        <div className="mt-2 text-red-600 dark:text-red-400">
+                        <div className="mt-2 text-destructive">
                             Error: {mcpListTools.error}
                         </div>
                     )}
@@ -503,11 +496,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-amber-500 pl-3 py-2 bg-amber-50 dark:bg-amber-950/20"
+                className="border-l-2 border-warning pl-3 py-2 bg-warning/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <CheckCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <span className="font-medium text-xs text-amber-700 dark:text-amber-300">
+                    <CheckCircle className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-xs text-warning">
                         MCP APPROVAL REQUEST
                     </span>
                 </div>
@@ -548,11 +541,11 @@ export function OutputItemRenderer({ item, index }: OutputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-gray-500 pl-3 py-2 bg-gray-50 dark:bg-gray-950/20"
+                className="border-l-2 border-muted pl-3 py-2 bg-muted/30"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Wrench className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                    <span className="font-medium text-xs text-gray-700 dark:text-gray-300">
+                    <Wrench className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-xs text-muted-foreground">
                         CUSTOM TOOL CALL
                     </span>
                 </div>
