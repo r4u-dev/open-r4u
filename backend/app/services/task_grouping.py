@@ -566,11 +566,27 @@ class TaskGrouper:
 
         """
         tokens = self._tokenize_preserve_case(text)
-        grams = self._generate_ngrams(tokens, n=3)
+        base_grams = self._generate_ngrams(tokens, n=3)
+        grams = set(base_grams)
 
         # Filter to allowed ngrams if provided (corpus-wide filtering)
         if allowed_ngrams is not None:
             grams = grams & allowed_ngrams
+
+            # If nothing survives the corpus-wide filter, fall back to the
+            # unfiltered ngrams so we still get a meaningful signature.
+            if not grams:
+                grams = base_grams
+
+        # If we still have no shingles (e.g. short strings), fall back to
+        # individual tokens to avoid producing an empty MinHash.
+        if not grams:
+            grams = set(tokens)
+
+        # As an ultimate fallback for empty text, add a sentinel so that the
+        # MinHash always receives at least one update.
+        if not grams:
+            grams = {"__empty__"}
 
         m = MinHash(num_perm=num_perm)
         for g in grams:
