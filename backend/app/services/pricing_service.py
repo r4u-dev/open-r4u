@@ -37,47 +37,54 @@ class PricingService:
             logger.error(f"Error parsing pricing file: {e}")
             self._pricing_data = {}
 
-    def _resolve_model_name(self, model: str) -> tuple[str, str]:
-        """Resolve model name to provider and model name.
+    def _resolve_model_name_from_yaml(self, model: str) -> tuple[str, str]:
+        """Resolve provider and base model name strictly from models.yaml.
 
-        Handles:
-        - Exact match: "gpt-5" -> ("openai", "gpt-5")
-        - Versioned models: "gpt-5-2024-10-01" -> ("openai", "gpt-5")
-        - Provider prefixed: "openai/gpt-5" -> ("openai", "gpt-5")
+        - Accepts provider-prefixed input (provider/model) and returns as-is if present.
+        - For plain names (possibly versioned), searches all providers' model catalogs.
+        - Uses version stripping to match base names defined in YAML.
 
-        Returns:
-            Tuple of (provider, model_name)
-
+        Raises ValueError if no provider/model match is found in YAML.
         """
-        # Handle provider prefixed models (e.g., "openai/gpt-5")
+        if not self._pricing_data or "providers" not in self._pricing_data:
+            raise ValueError("Models data is not loaded; models.yaml missing or invalid")
+
+        # If already provider-prefixed, try to validate and return base match
         if "/" in model:
             provider, model_name = model.split("/", 1)
-            return provider, model_name
+            base = self._strip_version_suffix(model_name)
+            provider_data = self._pricing_data.get("providers", {}).get(provider)
+            if provider_data and "models" in provider_data:
+                models = provider_data["models"]
+                if model_name in models or base in models:
+                    return provider, (model_name if model_name in models else base)
+            raise ValueError(f"Model '{model}' not found in models.yaml for provider '{provider}'")
 
-        # Try to infer provider from model name patterns
-        model_lower = model.lower()
+        # Plain model input: search all providers for a matching model (with version fallback)
+        search_name = model
+        base = self._strip_version_suffix(search_name)
+        for provider, provider_data in self._pricing_data["providers"].items():
+            models = provider_data.get("models", {})
+            if search_name in models:
+                return provider, search_name
+            if base in models:
+                return provider, base
 
-        # OpenAI models
-        if model_lower.startswith(("gpt-", "o1", "o3")):
-            return "openai", model
+        raise ValueError(f"Model '{model}' not found in models.yaml across providers")
 
-        # Anthropic models
-        if model_lower.startswith(("claude-", "claude")):
-            return "anthropic", model
+    def canonicalize_model(self, model: str) -> str:
+        """Return canonical identifier in the form 'provider/model' using models.yaml.
 
-        # Google models
-        if model_lower.startswith(("gemini-", "gemini")):
-            return "google", model
-
-        # xAI/Grok models
-        if model_lower.startswith(("grok-", "grok")):
-            return "grok", model
-
-        # Default to openai if no pattern matches
-        logger.warning(
-            f"Could not infer provider for model '{model}', defaulting to 'openai'",
-        )
-        return "openai", model
+        Accepts provider-prefixed or plain model names (including versioned). Ensures the
+        returned model exists in the YAML catalog and normalizes versioned names to their
+        base entry when only the base is listed in YAML.
+        """
+        try:
+            provider, base_name = self._resolve_model_name_from_yaml(model)
+            return f"{provider}/{base_name}"
+        except Exception as e:
+            logger.warning(f"Could not canonicalize model '{model}': {e}")
+            return model
 
     def _strip_version_suffix(self, model_name: str) -> str:
         """Remove version suffix from model name (e.g., 'gpt-5-2024-10-01' -> 'gpt-5')."""
@@ -185,8 +192,12 @@ class PricingService:
             logger.warning("Invalid cached token count (negative value)")
             return None
 
-        # Resolve model name to provider and model
-        provider, model_name = self._resolve_model_name(model)
+        # Resolve model name to provider and model strictly from YAML
+        try:
+            provider, model_name = self._resolve_model_name_from_yaml(model)
+        except ValueError as e:
+            logger.warning(str(e))
+            return None
 
         # Get pricing information
         pricing = self._get_model_pricing(provider, model_name)
@@ -229,25 +240,30 @@ class PricingService:
             return None
 
     def get_available_models(self) -> dict[str, list[str]]:
-        """Get list of available models by provider."""
+        """Get list of available models by provider, in canonical 'provider/model' format."""
         if not self._pricing_data or "providers" not in self._pricing_data:
             return {}
 
         result = {}
         for provider, provider_data in self._pricing_data["providers"].items():
             if "models" in provider_data:
-                result[provider] = list(provider_data["models"].keys())
+                # Canonicalize names by prefixing provider
+                result[provider] = [f"{provider}/{name}" for name in provider_data["models"].keys()]
 
         return result
 
     def get_models_with_pricing(self) -> list[dict[str, Any]]:
-        """Get list of models with their provider and per-1M token pricing."""
+        """Get list of models with their provider and per-1M token pricing.
+
+        The 'name' field is returned in canonical 'provider/model' format.
+        """
         results = []
         if not self._pricing_data or "providers" not in self._pricing_data:
             return results
         for provider, provider_data in self._pricing_data["providers"].items():
             if "models" in provider_data:
                 for name, model in provider_data["models"].items():
+                    canonical_name = f"{provider}/{name}"
                     input_cost = model.get("input_usd_per_million")
                     output_cost = model.get("output_usd_per_million")
                     # Combined cost is a simple proxy: input + output per 1M tokens (floats only)
@@ -258,7 +274,7 @@ class PricingService:
                     quality_index = model.get("artificial_analysis_intelligence_index")
 
                     results.append({
-                        "name": name,
+                        "name": canonical_name,
                         "provider": provider,
                         "input_cost_per_1m": input_cost,
                         "output_cost_per_1m": output_cost,

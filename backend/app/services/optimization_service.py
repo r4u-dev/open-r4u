@@ -37,7 +37,7 @@ class OptimizationService:
     DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
     DEFAULT_OPTIMIZER_MAX_TOKENS = 8000
     MAX_VARIANT_ATTEMPTS_MULTIPLIER = 2
-    DEFAULT_OPTIMIZER_MODEL = "gpt-5"
+    DEFAULT_OPTIMIZER_MODEL = "openai/gpt-4.1"
     OPTIMIZER_META_VERSION = "optimizer-meta"
 
     def __init__(self, settings: Settings | None = None) -> None:
