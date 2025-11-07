@@ -35,9 +35,9 @@ class OptimizationService:
 
     # Constants
     DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
-    DEFAULT_OPTIMIZER_MAX_TOKENS = 1024
+    DEFAULT_OPTIMIZER_MAX_TOKENS = 8000
     MAX_VARIANT_ATTEMPTS_MULTIPLIER = 2
-    DEFAULT_OPTIMIZER_MODEL = "gpt-4.1"
+    DEFAULT_OPTIMIZER_MODEL = "gpt-5"
     OPTIMIZER_META_VERSION = "optimizer-meta"
 
     def __init__(self, settings: Settings | None = None) -> None:
@@ -448,7 +448,7 @@ class OptimizationService:
             prompt=self._build_variant_meta_prompt_json(changeable_fields),
             model=self.DEFAULT_OPTIMIZER_MODEL,
             temperature=self.DEFAULT_OPTIMIZER_TEMPERATURE,
-            reasoning=None,
+            reasoning={"effort": "medium", "summary": "auto"},
             tools=None,
             tool_choice=None,
             max_output_tokens=self.DEFAULT_OPTIMIZER_MAX_TOKENS,

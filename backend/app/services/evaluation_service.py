@@ -1059,10 +1059,14 @@ class EvaluationService:
 
         if not graders:
             # No graders exist, create default grader
-            default_grader = await self.grading_service.create_default_accuracy_grader(
+            default_accuracy_grader = await self.grading_service.create_default_accuracy_grader(
                 session,
                 project_id,
             )
-            return [default_grader.id]
-
+            default_pairwise_grader = await self.grading_service.create_default_pairwise_grader(
+                session,
+                project_id,
+            )
+            return [default_accuracy_grader.id, default_pairwise_grader.id]
+        
         return [grader.id for grader in graders]
