@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     min_segment_words: int = 5
     min_matching_traces: int = 3
-    min_cluster_size: int = 20
+    min_cluster_size: int = 10
 
 
 @lru_cache

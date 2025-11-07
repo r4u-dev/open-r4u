@@ -1,4 +1,363 @@
+import bisect
+import hashlib
+import random
+from collections import defaultdict
 from functools import cache
+
+
+# ---------- Helper: greedy LCS implementation (adapted to run on a subset) ----------
+def greedy_lcs_grouping_on_subset(strs_subset, n, m, original_indices):
+    """strs_subset: list[str] (subset in original order)
+    original_indices: list[int] mapping subset index -> original index
+
+    returns: dict { template_str -> sorted list of original indices }
+    """
+    # Tokenize & int-encode
+    tokenized = [s.split() for s in strs_subset]
+    N = len(tokenized)
+    vocab = {}
+    next_id = 1
+    token_ids = []
+    for sent in tokenized:
+        row = []
+        for tok in sent:
+            if tok not in vocab:
+                vocab[tok] = next_id
+                next_id += 1
+            row.append(vocab[tok])
+        token_ids.append(row)
+
+    max_len = max((len(t) for t in token_ids), default=0)
+    if max_len < n:
+        return {}
+
+    # rolling hash params
+    MASK = (1 << 64) - 1
+    BASE = 1000003
+    pow_cache = [1] * (max_len + 1)
+    for i in range(1, max_len + 1):
+        pow_cache[i] = (pow_cache[i - 1] * BASE) & MASK
+
+    prefixes = []
+    for tok_ids in token_ids:
+        h = [0] * (len(tok_ids) + 1)
+        for i, v in enumerate(tok_ids):
+            h[i + 1] = ((h[i] * BASE) + v) & MASK
+        prefixes.append(h)
+
+    def sub_hash(prefix, l, r):
+        return (prefix[r] - (prefix[l] * pow_cache[r - l])) & MASK
+
+    # Global index for all substrings length >= n inside this subset
+    global_len_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for sidx, toks in enumerate(token_ids):
+        Ls = len(toks)
+        pref = prefixes[sidx]
+        for L in range(n, Ls + 1):
+            gm = global_len_map[L]
+            for start in range(Ls - L + 1):
+                h = sub_hash(pref, start, start + L)
+                gm[h][sidx].append(start)
+
+    def find_best_sub_in_range(base_idx, start, end):
+        base_pref = prefixes[base_idx]
+        max_possible = end - start
+        if max_possible < n:
+            return None
+        low, high = n, max_possible
+        bestL = 0
+        while low <= high:
+            mid = (low + high) // 2
+            found = False
+            gm = global_len_map.get(mid)
+            if gm is None:
+                high = mid - 1
+                continue
+            for i in range(start, end - mid + 1):
+                h = sub_hash(base_pref, i, i + mid)
+                occ = gm.get(h)
+                if occ and len(occ) >= m:
+                    found = True
+                    break
+            if found:
+                bestL = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        if bestL == 0:
+            return None
+
+        gm = global_len_map[bestL]
+        best_choice = None
+        best_count = 0
+        best_pos = None
+        for i in range(start, end - bestL + 1):
+            h = sub_hash(base_pref, i, i + bestL)
+            occ = gm.get(h)
+            if not occ:
+                continue
+            cnt = len(occ)
+            if cnt > best_count:
+                best_count = cnt
+                best_choice = h
+                best_pos = (i, i + bestL)
+        if not best_pos:
+            return None
+        return best_pos
+
+    def extract_segments_for_base(base_idx, start, end):
+        choice = find_best_sub_in_range(base_idx, start, end)
+        if not choice:
+            return []
+        i, j = choice
+        left = extract_segments_for_base(base_idx, start, i)
+        right = extract_segments_for_base(base_idx, j, end)
+        return left + [(i, j)] + right
+
+    results = {}
+    for base_idx in range(N):
+        base_tokens = tokenized[base_idx]
+        if len(base_tokens) < n:
+            continue
+        segs = extract_segments_for_base(base_idx, 0, len(base_tokens))
+        if not segs:
+            continue
+
+        parts = []
+        last = 0
+        var_idx = 0
+        for a, b in segs:
+            if a > last:
+                parts.append(f"{{{{var_{var_idx}}}}}")
+                var_idx += 1
+            parts.extend(base_tokens[a:b])
+            last = b
+        if last < len(base_tokens):
+            parts.append(f"{{{{var_{var_idx}}}}}")
+        template = " ".join(parts)
+
+        matched = []
+        base_pref = prefixes[base_idx]
+        for sidx in range(N):
+            pos = 0
+            ok = True
+            for a, b in segs:
+                seg_len = b - a
+                h = sub_hash(base_pref, a, b)
+                starts = global_len_map[seg_len].get(h, {}).get(sidx)
+                if not starts:
+                    ok = False
+                    break
+                k = bisect.bisect_left(starts, pos)
+                if k == len(starts):
+                    ok = False
+                    break
+                pos = starts[k] + seg_len
+            if ok:
+                matched.append(original_indices[sidx])  # map back to original index
+
+        if len(matched) >= m:
+            results.setdefault(template, set()).update(matched)
+
+    # conflict resolution
+    tpl_lengths = {
+        tpl: sum(1 for w in tpl.split() if not w.startswith("{{var_"))
+        for tpl in results
+    }
+    owner = {}
+    for tpl, idxs in results.items():
+        for idx in idxs:
+            if idx not in owner or tpl_lengths[tpl] > tpl_lengths[owner[idx]]:
+                owner[idx] = tpl
+
+    grouped = defaultdict(list)
+    for idx, tpl in owner.items():
+        grouped[tpl].append(idx)
+
+    out = {}
+    for tpl, idxs in grouped.items():
+        if len(idxs) >= m:
+            out[tpl] = sorted(idxs)
+    return out
+
+
+# ---------- MinHash + LSH utilities ----------
+def deterministic_shingle_hash(shingle_str):
+    # deterministic hash -> integer using sha1
+    return int(hashlib.sha1(shingle_str.encode("utf8")).hexdigest(), 16)
+
+
+def compute_shingles_for_token_list(tokens, k):
+    """Return set of integer shingle hashes for token list (k-shingles)."""
+    L = len(tokens)
+    if k > L:
+        return set()
+    s = set()
+    for i in range(L - k + 1):
+        sh = " ".join(tokens[i : i + k])
+        s.add(deterministic_shingle_hash(sh))
+    return s
+
+
+def make_minhash_signature(shingle_set, num_perm, a_coeffs, b_coeffs, prime):
+    """Compute MinHash signature (list of ints) for a set of shingle ints."""
+    if not shingle_set:
+        # return large values for empty sets
+        return [prime] * num_perm
+    sig = []
+    for a, b in zip(a_coeffs, b_coeffs):
+        mn = prime + 1
+        for sh in shingle_set:
+            hv = (a * (sh % prime) + b) % prime
+            mn = min(mn, hv)
+        sig.append(mn)
+    return sig
+
+
+def lsh_buckets_from_signatures(signatures, num_bands):
+    """signatures: list of lists (num_perm length)
+    returns buckets: dict (band_id, band_hash) -> list of indices
+    """
+    if not signatures:
+        return {}
+    num_perm = len(signatures[0])
+    rows = num_perm // num_bands
+    buckets = defaultdict(list)
+    for idx, sig in enumerate(signatures):
+        for b in range(num_bands):
+            start = b * rows
+            band_slice = tuple(sig[start : start + rows])
+            # hash the band tuple deterministically
+            band_hash = hashlib.sha1(
+                ",".join(map(str, band_slice)).encode(),
+            ).hexdigest()
+            buckets[(b, band_hash)].append(idx)
+    return buckets
+
+
+# union-find for creating clusters
+def union_find_make(n):
+    parent = list(range(n))
+    rank = [0] * n
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return
+        if rank[ra] < rank[rb]:
+            parent[ra] = rb
+        else:
+            parent[rb] = ra
+            if rank[ra] == rank[rb]:
+                rank[ra] += 1
+
+    return parent, find, union
+
+
+# ---------- Top-level wrapper: MinHash + LSH + greedy LCS ----------
+def minhash_lsh_greedy_grouping(
+    strs,
+    n,
+    m,
+    shingle_size=2,
+    num_perm=128,
+    num_bands=32,
+    min_cluster_size=None,
+    seed=42,
+):
+    """Main function.
+    - strs: list[str]
+    - n: minimum words per fixed segment
+    - m: min matching strings needed for a template
+    - shingle_size: k for k-shingles (default 2 or 3 recommended)
+    - num_perm: MinHash permutations (higher -> better accuracy, slower)
+    - num_bands: LSH bands (num_perm must be divisible by num_bands)
+    - min_cluster_size: minimum cluster size to process (default = m)
+    Returns: dict {template -> sorted list of original indices}
+    """
+    if min_cluster_size is None:
+        min_cluster_size = m
+    assert num_perm % num_bands == 0, "num_perm must be divisible by num_bands"
+
+    # Tokenize once
+    tokenized = [s.split() for s in strs]
+    N = len(tokenized)
+
+    # --- prepare MinHash hash functions ---
+    random.seed(seed)
+    prime = (1 << 61) - 1  # large prime for hashing mod
+    a_coeffs = [random.randrange(1, prime - 1) for _ in range(num_perm)]
+    b_coeffs = [random.randrange(0, prime - 1) for _ in range(num_perm)]
+
+    # --- compute shingle sets and signatures ---
+    shingle_sets = [
+        compute_shingles_for_token_list(tokens, shingle_size) for tokens in tokenized
+    ]
+    signatures = [
+        make_minhash_signature(s, num_perm, a_coeffs, b_coeffs, prime)
+        for s in shingle_sets
+    ]
+
+    # --- LSH banding into buckets ---
+    buckets = lsh_buckets_from_signatures(signatures, num_bands)
+
+    # --- union-find to cluster sentences that share any bucket ---
+    parent, find, union = union_find_make(N)
+    for bucket_key, members in buckets.items():
+        if len(members) <= 1:
+            continue
+        first = members[0]
+        for other in members[1:]:
+            union(first, other)
+
+    # build clusters
+    clusters = defaultdict(list)
+    for i in range(N):
+        clusters[find(i)].append(i)
+    cluster_lists = [sorted(v) for v in clusters.values()]
+
+    # --- process each cluster with greedy LCS (only clusters >= min_cluster_size) ---
+    all_groupings = {}
+    for cluster in cluster_lists:
+        if len(cluster) < min_cluster_size:
+            continue
+        strs_subset = [strs[i] for i in cluster]
+        orig_indices = list(cluster)
+        g = greedy_lcs_grouping_on_subset(strs_subset, n, m, orig_indices)
+        # merge g into all_groupings (templates are text -> set of indices)
+        for tpl, idxs in g.items():
+            all_groupings.setdefault(tpl, set()).update(idxs)
+
+    # Optionally: run greedy on leftover (ungrouped) sentences or large singletons if desired
+    # (Left out here for brevity.)
+
+    # Final conflict resolution (if a sentence in multiple templates assign to longest template)
+    tpl_lengths = {
+        tpl: sum(1 for w in tpl.split() if not w.startswith("{{var_"))
+        for tpl in all_groupings
+    }
+    owner = {}
+    for tpl, idxs in all_groupings.items():
+        for idx in idxs:
+            if idx not in owner or tpl_lengths[tpl] > tpl_lengths[owner[idx]]:
+                owner[idx] = tpl
+
+    grouped = defaultdict(list)
+    for idx, tpl in owner.items():
+        grouped[tpl].append(idx)
+
+    out = {}
+    for tpl, idxs in grouped.items():
+        if len(idxs) >= m:
+            out[tpl] = sorted(idxs)
+    return out
 
 
 class TemplateFinder:
@@ -6,190 +365,34 @@ class TemplateFinder:
         self,
         min_segment_words: int = 2,
         min_matching_strings: int = 2,
-        max_segment_words: int | None = None,
     ):
         """max_segment_words: optional cap on segment length to reduce index size and boost speed.
         If None, segments up to the full token length are indexed.
         """
         self.min_segment_words = min_segment_words
         self.min_matching_strings = min_matching_strings
-        self.max_segment_words = max_segment_words
 
     @staticmethod
     def _tokenize(s: str) -> list[str]:
         return s.split()
 
-    def _build_ngram_index(
-        self,
-        all_tokens: list[list[str]],
-    ) -> dict[tuple[str, ...], set[int]]:
-        """Build inverted index mapping n-gram tuples to set of string indices that contain that n-gram.
-        Complexity: O(N * L^2) time and O(N * L^2) index entries in worst case.
-        """
-        idx = {}
-        N = len(all_tokens)
-        for i, tokens in enumerate(all_tokens):
-            T = len(tokens)
-            max_len = (
-                T if self.max_segment_words is None else min(self.max_segment_words, T)
-            )
-            for start in range(T):
-                # only consider lengths >= min_segment_words
-                for length in range(self.min_segment_words, max_len - start + 1):
-                    ng = tuple(tokens[start : start + length])
-                    if ng in idx:
-                        idx[ng].add(i)
-                    else:
-                        idx[ng] = {i}
-        return idx
-
     def group_strings(self, strs: list[str]) -> dict[str, list[int]]:
-        n = self.min_segment_words
-        m = self.min_matching_strings
-        all_tokens = [self._tokenize(s) for s in strs]
-        N = len(strs)
+        """Greedy LCS template grouping.
 
-        # Build n-gram index once
-        ngram_index = self._build_ngram_index(all_tokens)
+        Args:
+            strs: list of sentences (strings)
+            n: minimum number of words in a fixed segment
+            m: minimum number of sentences that must match a template
 
-        candidates = []  # (template_str, matched_set, total_fixed_words)
+        Returns:
+            dict { template_string -> sorted list of sentence indices }
 
-        for base_idx, base_tokens in enumerate(all_tokens):
-            L = len(base_tokens)
-            if n > L:
-                continue
-
-            # For a base, we can look up any segment (start,length) by tuple lookup
-            seg_matches = {}
-            for start in range(L):
-                max_len = (
-                    L - start
-                    if self.max_segment_words is None
-                    else min(self.max_segment_words, L - start)
-                )
-                for length in range(n, max_len + 1):
-                    seg = tuple(base_tokens[start : start + length])
-                    matches = ngram_index.get(seg, set())
-                    seg_matches[(start, length)] = matches
-
-            # dynamic programming search for best non-overlapping segments
-            @cache
-            def dfs(
-                pos: int,
-                current_matches_fs: frozenset,
-                chosen_count: int,
-            ) -> tuple[int, tuple[tuple[int, int], ...]]:
-                current_matches = set(current_matches_fs)
-                if len(current_matches) < m:
-                    return (-(10**9), ())
-                if pos >= L:
-                    if chosen_count > 0:
-                        return (0, ())
-                    return (-(10**9), ())
-
-                best_score = -(10**9)
-                best_segments: tuple[tuple[int, int], ...] = ()
-                # skip
-                skip_score, skip_segs = dfs(pos + 1, current_matches_fs, chosen_count)
-                if skip_score > best_score:
-                    best_score = skip_score
-                    best_segments = skip_segs
-
-                # choose segment starting at pos
-                max_length_possible = (
-                    L - pos
-                    if self.max_segment_words is None
-                    else min(self.max_segment_words, L - pos)
-                )
-                for length in range(n, max_length_possible + 1):
-                    seg_key = (pos, length)
-                    seg_set = seg_matches.get(seg_key, set())
-                    if not seg_set:
-                        continue
-                    new_matches = current_matches.intersection(seg_set)
-                    if len(new_matches) < m:
-                        continue
-                    new_matches_fs = frozenset(new_matches)
-                    tail_score, tail_segs = dfs(
-                        pos + length,
-                        new_matches_fs,
-                        chosen_count + 1,
-                    )
-                    if tail_score < -(10**8):
-                        continue
-                    score = length + tail_score
-                    if score > best_score:
-                        best_score = score
-                        best_segments = ((pos, length),) + tail_segs
-
-                return (best_score, best_segments)
-
-            initial_set = frozenset(range(N))
-            best_score, best_segments = dfs(0, initial_set, 0)
-            if best_score > 0 and len(best_segments) > 0:
-                # compute matched set intersection
-                matched = set(range(N))
-                for seg in best_segments:
-                    matched &= seg_matches[seg]
-                if len(matched) >= m:
-                    template_str = self._build_template_from_segments(
-                        base_tokens,
-                        sorted(best_segments, key=lambda x: x[0]),
-                    )
-                    candidates.append((template_str, matched, best_score))
-
-        # Merge identical templates, pick best scores
-        merged = {}
-        for tpl, matched, score in candidates:
-            if tpl in merged:
-                prev_matched, prev_score = merged[tpl]
-                if score > prev_score:
-                    merged[tpl] = (set(matched), score)
-                else:
-                    merged[tpl] = (prev_matched.union(matched), prev_score)
-            else:
-                merged[tpl] = (set(matched), score)
-
-        template_items = [
-            (tpl, matched, score) for tpl, (matched, score) in merged.items()
-        ]
-
-        # Assign each string to best template by score
-        assignment = {tpl: set() for tpl, _, _ in template_items}
-        for idx in range(N):
-            best_tpl = None
-            best_score = -1
-            for tpl, matched, score in template_items:
-                if idx in matched and score > best_score:
-                    best_score = score
-                    best_tpl = tpl
-            if best_tpl is not None:
-                assignment[best_tpl].add(idx)
-
-        final = {}
-        for tpl, members in assignment.items():
-            if len(members) >= m:
-                final[tpl] = sorted(members)
-        return final
-
-    def _build_template_from_segments(
-        self,
-        tokens: list[str],
-        segments: list[tuple[int, int]],
-    ) -> str:
-        parts = []
-        var_idx = 0
-        pos = 0
-        for start, length in segments:
-            if start > pos:
-                parts.append(f"{{{{var_{var_idx}}}}}")
-                var_idx += 1
-            seg_text = " ".join(tokens[start : start + length])
-            parts.append(seg_text)
-            pos = start + length
-        if pos < len(tokens):
-            parts.append(f"{{{{var_{var_idx}}}}}")
-        return " ".join(parts)
+        """
+        return minhash_lsh_greedy_grouping(
+            strs,
+            self.min_segment_words,
+            self.min_matching_strings,
+        )
 
     def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
         """Check if string s matches template (placeholders like {{var_0}}).
