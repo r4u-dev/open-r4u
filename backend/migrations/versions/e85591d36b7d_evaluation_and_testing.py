@@ -93,7 +93,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint(
             "task_id IS NOT NULL",
-            name=op.f("ck_evaluation_config_`ck_evaluation_config_task_id_not_null`"),
+            name=op.f("ck_evaluation_config_task_id_not_null"),
         ),
         sa.ForeignKeyConstraint(
             ["task_id"],

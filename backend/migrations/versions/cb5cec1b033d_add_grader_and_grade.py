@@ -95,7 +95,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint(
             "(trace_id IS NULL) != (execution_result_id IS NULL)",
-            name=op.f("ck_grade_`ck_grade_exactly_one_target`"),
+            name=op.f("ck_grade_exactly_one_target"),
         ),
         sa.ForeignKeyConstraint(
             ["execution_result_id"],

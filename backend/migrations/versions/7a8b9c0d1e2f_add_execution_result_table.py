@@ -117,5 +117,7 @@ def downgrade() -> None:
     op.drop_index("ix_execution_result_created_at", table_name="execution_result")
     op.drop_table("execution_result")
     op.drop_column("implementation", "temp")
+    bind = op.get_bind()
+    finish_reason_enum.drop(bind, checkfirst=True)
     # ### end Alembic commands ###
 
