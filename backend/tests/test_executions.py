@@ -85,7 +85,7 @@ class TestExecutor:
 
         executor = LLMExecutor(mock_settings)
         prompt = "Hello, world!"
-        result = executor._render_prompt(prompt)
+        result = executor._render_template(prompt)
         assert result == "Hello, world!"
 
     def test_render_prompt_with_variables(self):
@@ -105,11 +105,11 @@ class TestExecutor:
         executor = LLMExecutor(mock_settings)
         prompt = "Hello, {{name}}! You are {{age}} years old."
         variables = {"name": "Alice", "age": 30}
-        result = executor._render_prompt(prompt, variables)
+        result = executor._render_template(prompt, variables)
         assert result == "Hello, Alice! You are 30 years old."
 
     def test_render_prompt_missing_variable(self):
-        """Test prompt rendering with missing variable raises error."""
+        """Test prompt rendering with missing variable only warns and preserves token."""
         from unittest.mock import MagicMock
 
         from app.services.executor import LLMExecutor
@@ -126,8 +126,58 @@ class TestExecutor:
         prompt = "Hello, {{name}}!"
         variables = {"age": 30}
 
-        with pytest.raises(ValueError, match="Missing variable"):
-            executor._render_prompt(prompt, variables)
+        result = executor._render_template(prompt, variables)
+        assert result == prompt
+
+    def test_render_template_preserves_single_braces(self):
+        """Test that single braces are left untouched during rendering."""
+        from unittest.mock import MagicMock
+
+        from app.services.executor import LLMExecutor
+
+        mock_settings = MagicMock()
+        mock_settings.openai_api_key = None
+        mock_settings.anthropic_api_key = None
+        mock_settings.google_api_key = None
+        mock_settings.cohere_api_key = None
+        mock_settings.mistral_api_key = None
+        mock_settings.together_api_key = None
+
+        executor = LLMExecutor(mock_settings)
+        # Test with JSON-like content that has single braces
+        prompt = 'Return JSON: {"name": "{{name}}", "status": "active"}'
+        variables = {"name": "Alice"}
+        result = executor._render_template(prompt, variables)
+        assert result == 'Return JSON: {"name": "Alice", "status": "active"}'
+
+    def test_render_template_nested_structures(self):
+        """Test recursive rendering in lists and dicts."""
+        from unittest.mock import MagicMock
+
+        from app.services.executor import LLMExecutor
+
+        mock_settings = MagicMock()
+        mock_settings.openai_api_key = None
+        mock_settings.anthropic_api_key = None
+        mock_settings.google_api_key = None
+        mock_settings.cohere_api_key = None
+        mock_settings.mistral_api_key = None
+        mock_settings.together_api_key = None
+
+        executor = LLMExecutor(mock_settings)
+        variables = {"user": "Bob", "age": 25}
+        
+        # Test nested dict and list
+        nested = {
+            "greeting": "Hello {{user}}",
+            "details": ["Age: {{age}}", "Status: active"],
+            "raw_json": {"key": "value"}
+        }
+        result = executor._render_template(nested, variables)
+        
+        assert result["greeting"] == "Hello Bob"
+        assert result["details"] == ["Age: 25", "Status: active"]
+        assert result["raw_json"] == {"key": "value"}
 
     @pytest.mark.asyncio
     async def test_llm_executor_success(self, test_implementation):
@@ -345,7 +395,7 @@ class TestExecutor:
     async def test_llm_executor_template_error(
         self, test_implementation,
     ):
-        """Test LLM execution with template rendering error."""
+        """Test LLM execution with missing template variable (should warn, not fail)."""
         # The fixture is already awaited by pytest
         implementation = test_implementation
 
@@ -359,11 +409,15 @@ class TestExecutor:
         mock_settings.together_api_key = None
 
         executor = LLMExecutor(mock_settings)
-        # Missing required variable - this should trigger template rendering error
+        # Missing required variable - should warn but not fail, preserve template
         result = await executor.execute(implementation, variables={})
 
+        # Template should be preserved with {{text}} intact
+        assert "{{text}}" in result.prompt_rendered
+        # Execution should proceed (may fail on API auth, but not template error)
         assert result.error is not None
-        assert "Missing variable" in result.error
+        # Error should be from API, not template
+        assert "Missing variable" not in result.error
 
 
 
