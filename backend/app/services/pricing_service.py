@@ -250,10 +250,19 @@ class PricingService:
                 for name, model in provider_data["models"].items():
                     input_cost = model.get("input_usd_per_million")
                     output_cost = model.get("output_usd_per_million")
+                    # Combined cost is a simple proxy: input + output per 1M tokens (floats only)
+                    combined_cost = None
+                    if isinstance(input_cost, (int, float)) and isinstance(output_cost, (int, float)):
+                        combined_cost = float(input_cost) + float(output_cost)
+
+                    quality_index = model.get("artificial_analysis_intelligence_index")
+
                     results.append({
                         "name": name,
                         "provider": provider,
                         "input_cost_per_1m": input_cost,
                         "output_cost_per_1m": output_cost,
+                        "combined_cost_per_1m": combined_cost,
+                        "quality_index": quality_index,
                     })
         return results

@@ -1,5 +1,8 @@
 # Model pricing catalog
 # Prices are per-million tokens in USD unless specified.
+# Quality benchmarks: artificial_analysis_intelligence_index (v3.0)
+#   Composite index incorporating: MMLU-Pro, GPQA Diamond, Humanity's Last Exam,
+#   LiveCodeBench, SciCode, AIME 2025, IFBench, AA-LCR, Terminal-Bench Hard, τ²-Bench Telecom
 # Note: Verify provider pricing pages for the latest updates.
 
 providers:
@@ -10,94 +13,116 @@ providers:
         input_usd_per_million: 1.25
         cached_input_usd_per_million: 0.125
         output_usd_per_million: 10.00
+        artificial_analysis_intelligence_index: 66
       gpt-5-mini:
         input_usd_per_million: 0.25
         cached_input_usd_per_million: 0.025
         output_usd_per_million: 2.00
+        artificial_analysis_intelligence_index: 61
       gpt-5-nano:
         input_usd_per_million: 0.05
         cached_input_usd_per_million: 0.005
         output_usd_per_million: 0.40
+        artificial_analysis_intelligence_index: 49
       gpt-5-chat-latest:
         input_usd_per_million: 1.25
         cached_input_usd_per_million: 0.125
         output_usd_per_million: 10.00
+        artificial_analysis_intelligence_index: 42
       gpt-5-codex:
         input_usd_per_million: 1.25
         cached_input_usd_per_million: 0.125
         output_usd_per_million: 10.00
+        artificial_analysis_intelligence_index: 68
       gpt-5-pro:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: null
         output_usd_per_million: 120.00
+        artificial_analysis_intelligence_index: 68
       gpt-5-search-api:
         input_usd_per_million: 1.25
         cached_input_usd_per_million: 0.125
         output_usd_per_million: 10.00
+        artificial_analysis_intelligence_index: 0
       # GPT-3.5 series models
       "gpt-3.5-turbo":
         input_usd_per_million: 0.50
         cached_input_usd_per_million: null
         output_usd_per_million: 1.50
+        artificial_analysis_intelligence_index: 8
       "gpt-4.1":
         input_usd_per_million: 2.00
         cached_input_usd_per_million: 0.50
         output_usd_per_million: 8.00
+        artificial_analysis_intelligence_index: 43
       "gpt-4.1-mini":
         input_usd_per_million: 0.40
         cached_input_usd_per_million: 0.10
         output_usd_per_million: 1.60
+        artificial_analysis_intelligence_index: 42
       "gpt-4.1-nano":
         input_usd_per_million: 0.10
         cached_input_usd_per_million: 0.025
         output_usd_per_million: 0.40
+        artificial_analysis_intelligence_index: 27
       # GPT-4o series models
       gpt-4o:
         input_usd_per_million: 2.50
         cached_input_usd_per_million: 1.25
         output_usd_per_million: 10.00
+        artificial_analysis_intelligence_index: 36
       gpt-4o-2024-05-13:
         input_usd_per_million: 5.00
         cached_input_usd_per_million: null
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 26
       gpt-4o-mini:
         input_usd_per_million: 0.15
         cached_input_usd_per_million: 0.075
         output_usd_per_million: 0.60
+        artificial_analysis_intelligence_index: 21
       # o1/o3/o4 series models
       o1:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: 7.50
         output_usd_per_million: 60.00
+        artificial_analysis_intelligence_index: 47
       o1-pro:
         input_usd_per_million: 150.00
         cached_input_usd_per_million: null
         output_usd_per_million: 600.00
+        artificial_analysis_intelligence_index: 48
       o1-mini:
         input_usd_per_million: 1.10
         cached_input_usd_per_million: 0.55
         output_usd_per_million: 4.40
+        artificial_analysis_intelligence_index: 39
       o3:
         input_usd_per_million: 2.00
         cached_input_usd_per_million: 0.50
         output_usd_per_million: 8.00
+        artificial_analysis_intelligence_index: 65
       o3-pro:
         input_usd_per_million: 20.00
         cached_input_usd_per_million: null
         output_usd_per_million: 80.00
+        artificial_analysis_intelligence_index: 65
       o4-mini:
         input_usd_per_million: 1.10
         cached_input_usd_per_million: 0.275
         output_usd_per_million: 4.40
+        artificial_analysis_intelligence_index: 60
       # Realtime API models
       gpt-realtime:
         input_usd_per_million: 4.00
         cached_input_usd_per_million: 0.40
         output_usd_per_million: 16.00
+        artificial_analysis_intelligence_index: 0
       gpt-realtime-mini:
         input_usd_per_million: 0.60
         cached_input_usd_per_million: 0.06
         output_usd_per_million: 2.40
+        artificial_analysis_intelligence_index: 0
 
   anthropic:
     display_name: Anthropic (Claude)
@@ -106,34 +131,42 @@ providers:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: 1.50
         output_usd_per_million: 75.00
+        artificial_analysis_intelligence_index: 59
       claude-opus-4:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: 1.50
         output_usd_per_million: 75.00
+        artificial_analysis_intelligence_index: 54
       "claude-sonnet-4.5":
         input_usd_per_million: 3.00
         cached_input_usd_per_million: 0.30
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 63
       claude-sonnet-4:
         input_usd_per_million: 3.00
         cached_input_usd_per_million: 0.30
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 57
       "claude-sonnet-3.7":
         input_usd_per_million: 3.00
         cached_input_usd_per_million: 0.30
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 50
       "claude-haiku-3.5":
         input_usd_per_million: 0.80
         cached_input_usd_per_million: 0.08
         output_usd_per_million: 4.00
+        artificial_analysis_intelligence_index: 20
       claude-opus-3:
         input_usd_per_million: 15.00
         cached_input_usd_per_million: 1.50
         output_usd_per_million: 75.00
+        artificial_analysis_intelligence_index: 21
       claude-haiku-3:
         input_usd_per_million: 0.25
         cached_input_usd_per_million: 0.03
         output_usd_per_million: 1.25
+        artificial_analysis_intelligence_index: 10
 
   grok:
     display_name: xAI (Grok)
@@ -142,26 +175,32 @@ providers:
         input_usd_per_million: 0.20
         cached_input_usd_per_million: 0.02
         output_usd_per_million: 1.50
+        artificial_analysis_intelligence_index: 49
       grok-4-fast-reasoning:
         input_usd_per_million: 0.20
         cached_input_usd_per_million: 0.05
         output_usd_per_million: 0.50
+        artificial_analysis_intelligence_index: 60
       grok-4-fast-non-reasoning:
         input_usd_per_million: 0.20
         cached_input_usd_per_million: 0.05
         output_usd_per_million: 0.50
+        artificial_analysis_intelligence_index: 39
       grok-4-0709:
         input_usd_per_million: 3.00
         cached_input_usd_per_million: 0.75
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 65
       grok-3-mini:
         input_usd_per_million: 0.30
         cached_input_usd_per_million: 0.075
         output_usd_per_million: 0.50
+        artificial_analysis_intelligence_index: 41
       grok-3:
         input_usd_per_million: 3.00
         cached_input_usd_per_million: 0.75
         output_usd_per_million: 15.00
+        artificial_analysis_intelligence_index: 45
   
   google:
     display_name: Google (Gemini)
@@ -179,19 +218,24 @@ providers:
         output_usd_per_million:
           default: 10.00        # <= 200k input context
           long_context: 15.00   # > 200k input context
+        artificial_analysis_intelligence_index: 60
       gemini-2.5-flash:
         input_usd_per_million: 0.30
         cached_input_usd_per_million: 0.030
         output_usd_per_million: 2.50
+        artificial_analysis_intelligence_index: 40
       gemini-2.5-flash-lite:
         input_usd_per_million: 0.1
         cached_input_usd_per_million: 0.010
         output_usd_per_million: 0.4
+        artificial_analysis_intelligence_index: 30
       gemini-2.0-flash:
         input_usd_per_million: 0.15
         cached_input_usd_per_million: null
         output_usd_per_million: 0.60
+        artificial_analysis_intelligence_index: 34
       gemini-2.0-flash-lite:
         input_usd_per_million: 0.075
         cached_input_usd_per_million: null
         output_usd_per_million: 0.30
+        artificial_analysis_intelligence_index: 27
