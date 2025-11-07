@@ -15,7 +15,7 @@ from app.services.implementation_matcher import (
     find_matching_implementation,
 )
 from app.services.task_grouping import TaskGrouper
-from app.services.pricing_service import PricingService
+from app.services.provider_service import ProviderService
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,8 @@ class TracesService:
         )
 
         # Create trace model (canonicalize model for downstream consumers/tests)
-        pricing_service = PricingService()
-        model_canonical = pricing_service.canonicalize_model(trace_data.model)
+        provider_service = ProviderService(session)
+        model_canonical = await provider_service.canonicalize_model(trace_data.model)
         trace = Trace(
             project_id=project.id,
             http_trace_id=http_trace_id,

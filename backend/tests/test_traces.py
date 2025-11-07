@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
+from app.models.providers import Model, Provider
 from app.models.traces import Trace
 
 
@@ -59,6 +60,15 @@ class TestTraceEndpoints:
         self, client: AsyncClient, test_session: AsyncSession,
     ):
         """Test creating a trace with a custom project."""
+        # Set up provider and model for canonicalization
+        provider = Provider(name="openai", display_name="OpenAI")
+        test_session.add(provider)
+        await test_session.flush()
+        
+        model = Model(provider_id=provider.id, name="gpt-3.5-turbo", display_name="GPT-3.5 Turbo")
+        test_session.add(model)
+        await test_session.commit()
+        
         payload = {
             "model": "gpt-3.5-turbo",
             "input": [{"type": "message", "role": "user", "content": "Test"}],

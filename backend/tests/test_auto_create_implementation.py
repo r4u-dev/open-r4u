@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.projects import Project
+from app.models.providers import Model, Provider
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
 
@@ -420,6 +421,16 @@ class TestAutoCreateImplementation:
         mock_openai_client,
     ):
         """Test that different models create separate implementations."""
+        # Set up providers and models for canonicalization
+        provider = Provider(name="openai", display_name="OpenAI")
+        test_session.add(provider)
+        await test_session.flush()
+        
+        model1 = Model(provider_id=provider.id, name="gpt-4", display_name="GPT-4")
+        model2 = Model(provider_id=provider.id, name="gpt-3.5-turbo", display_name="GPT-3.5 Turbo")
+        test_session.add_all([model1, model2])
+        await test_session.commit()
+        
         # Create 3 traces with gpt-4
         for i in range(3):
             payload = {
@@ -467,7 +478,7 @@ class TestAutoCreateImplementation:
         assert len(implementations) == 2
 
         models = {impl.model for impl in implementations}
-        assert "openai/gpt-4" in models or "gpt-4" in models
+        assert "openai/gpt-4" in models
         assert "openai/gpt-3.5-turbo" in models
 
     @pytest.mark.asyncio

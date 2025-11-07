@@ -58,7 +58,7 @@ class TestPricingEdgeCases:
 
         try:
             service = PricingService(temp_path)
-            cost = service.calculate_cost("gpt-5", 1000, 500)
+            cost = service.calculate_cost("openai/gpt-5", 1000, 500)
             assert cost is None
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -80,7 +80,7 @@ class TestPricingEdgeCases:
 
         try:
             service = PricingService(temp_path)
-            cost = service.calculate_cost("gpt-5", 1000, 500)
+            cost = service.calculate_cost("openai/gpt-5", 1000, 500)
             assert cost is None
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -107,7 +107,7 @@ class TestPricingEdgeCases:
         try:
             with patch("app.services.pricing_service.logger") as mock_logger:
                 service = PricingService(temp_path)
-                cost = service.calculate_cost("gpt-5", 1000, 500)
+                cost = service.calculate_cost("openai/gpt-5", 1000, 500)
                 assert cost is None
                 mock_logger.error.assert_called_once()
         finally:
@@ -146,7 +146,7 @@ class TestPricingEdgeCases:
         try:
             with patch("app.services.pricing_service.logger") as mock_logger:
                 service = PricingService(temp_path)
-                cost = service.calculate_cost("gemini-2.5-pro", 250000, 10000)
+                cost = service.calculate_cost("google/gemini-2.5-pro", 250000, 10000)
                 assert cost is None
                 mock_logger.error.assert_called_once()
         finally:
@@ -176,11 +176,11 @@ class TestPricingEdgeCases:
             service = PricingService(temp_path)
 
             # Zero tokens should return zero cost
-            cost = service.calculate_cost("gpt-5", 0, 0, 0)
+            cost = service.calculate_cost("openai/gpt-5", 0, 0, 0)
             assert cost == 0.0
 
             # Zero prompt tokens, non-zero completion
-            cost = service.calculate_cost("gpt-5", 0, 100, 0)
+            cost = service.calculate_cost("openai/gpt-5", 0, 100, 0)
             assert cost == 0.001  # 100 * 10.00 / 1_000_000
 
         finally:
@@ -210,7 +210,7 @@ class TestPricingEdgeCases:
             service = PricingService(temp_path)
 
             # Very large token counts
-            cost = service.calculate_cost("gpt-5", 1000000, 500000, 100000)
+            cost = service.calculate_cost("openai/gpt-5", 1000000, 500000, 100000)
             expected = (900000 * 1.25 + 100000 * 0.125 + 500000 * 10.00) / 1_000_000
             assert cost == pytest.approx(expected, rel=1e-6)
 
@@ -241,7 +241,7 @@ class TestPricingEdgeCases:
             service = PricingService(temp_path)
 
             # Cached tokens exceed prompt tokens (edge case)
-            cost = service.calculate_cost("gpt-5", 100, 50, 150)
+            cost = service.calculate_cost("openai/gpt-5", 100, 50, 150)
             # Should handle gracefully: input_tokens = 100 - 150 = -50, but we don't allow negative
             # The service should handle this by treating it as 0 input tokens
             expected = (0 * 1.25 + 150 * 0.125 + 50 * 10.00) / 1_000_000
@@ -284,12 +284,12 @@ class TestPricingEdgeCases:
             service = PricingService(temp_path)
 
             # Exactly at threshold should use default pricing
-            cost = service.calculate_cost("gemini-2.5-pro", 200000, 1000, 0)
+            cost = service.calculate_cost("google/gemini-2.5-pro", 200000, 1000, 0)
             expected = (200000 * 1.25 + 1000 * 10.00) / 1_000_000
             assert cost == pytest.approx(expected, rel=1e-6)
 
             # Just above threshold should use long context pricing
-            cost = service.calculate_cost("gemini-2.5-pro", 200001, 1000, 0)
+            cost = service.calculate_cost("google/gemini-2.5-pro", 200001, 1000, 0)
             expected = (200001 * 2.50 + 1000 * 15.00) / 1_000_000
             assert cost == pytest.approx(expected, rel=1e-6)
 
@@ -328,10 +328,9 @@ class TestPricingEdgeCases:
             ]
 
             for model_name in test_cases:
-                cost = service.calculate_cost(model_name, 1000, 500)
-                # Should match base model "gpt-5"
-                expected = (1000 * 1.25 + 500 * 10.00) / 1_000_000
-                assert cost == pytest.approx(expected, rel=1e-6)
+                cost = service.calculate_cost(f"openai/{model_name}", 1000, 500)
+                # Versioned models not in YAML should return None (no version stripping)
+                assert cost is None
 
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -360,7 +359,7 @@ class TestPricingEdgeCases:
             service = PricingService(temp_path)
 
             # Initial cost calculation
-            cost = service.calculate_cost("gpt-5", 1000, 500)
+            cost = service.calculate_cost("openai/gpt-5", 1000, 500)
             expected = (1000 * 1.25 + 500 * 10.00) / 1_000_000
             assert cost == pytest.approx(expected, rel=1e-6)
 
@@ -386,7 +385,7 @@ class TestPricingEdgeCases:
             service._load_pricing_data()
 
             # New cost calculation should reflect updated pricing
-            cost = service.calculate_cost("gpt-5", 1000, 500)
+            cost = service.calculate_cost("openai/gpt-5", 1000, 500)
             expected = (1000 * 2.50 + 500 * 20.00) / 1_000_000
             assert cost == pytest.approx(expected, rel=1e-6)
 

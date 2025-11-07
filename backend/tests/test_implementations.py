@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.models.projects import Project
+from app.models.providers import Model, Provider
 from app.models.tasks import Implementation, Task
 
 
@@ -27,7 +28,7 @@ async def test_create_implementation_for_task(client: AsyncClient, test_session)
     payload = {
         "version": "1.0",
         "prompt": "You are a helpful assistant",
-        "model": "gpt-4",
+        "model": "openai/gpt-4",
         "max_output_tokens": 2000,
         "temperature": 0.7,
     }
@@ -39,7 +40,7 @@ async def test_create_implementation_for_task(client: AsyncClient, test_session)
     assert data["task_id"] == task.id
     assert data["version"] == "1.0"
     assert data["prompt"] == "You are a helpful assistant"
-    assert data["model"] == "gpt-4"
+    assert data["model"] == "openai/gpt-4"
     assert data["max_output_tokens"] == 2000
     assert data["temperature"] == 0.7
     assert "id" in data
@@ -50,7 +51,7 @@ async def test_create_implementation_for_nonexistent_task(client: AsyncClient):
     """Test creating an implementation for a task that doesn't exist."""
     payload = {
         "prompt": "Test",
-        "model": "gpt-4",
+        "model": "openai/gpt-4",
         "max_output_tokens": 1000,
     }
 
@@ -78,13 +79,13 @@ async def test_list_implementations_by_task(client: AsyncClient, test_session):
         task_id=task.id,
         version="1.0",
         prompt="Version 1",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000)
     impl2 = Implementation(
         task_id=task.id,
         version="1.1",
         prompt="Version 1.1",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1500)
     test_session.add_all([impl1, impl2])
     await test_session.commit()
@@ -122,12 +123,12 @@ async def test_list_all_implementations(client: AsyncClient, test_session):
     impl1 = Implementation(
         task_id=task1.id,
         prompt="Task 1 impl",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000)
     impl2 = Implementation(
         task_id=task2.id,
         prompt="Task 2 impl",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=500)
     test_session.add_all([impl1, impl2])
     await test_session.commit()
@@ -161,7 +162,7 @@ async def test_get_implementation(client: AsyncClient, test_session):
         task_id=task.id,
         version="2.0",
         prompt="Test prompt",
-        model="gpt-4-turbo",
+        model="openai/gpt-4-turbo",
         max_output_tokens=3000,
         temperature=0.5)
     test_session.add(implementation)
@@ -175,7 +176,7 @@ async def test_get_implementation(client: AsyncClient, test_session):
     assert data["task_id"] == task.id
     assert data["version"] == "2.0"
     assert data["prompt"] == "Test prompt"
-    assert data["model"] == "gpt-4-turbo"
+    assert data["model"] == "openai/gpt-4-turbo"
     assert data["max_output_tokens"] == 3000
     assert data["temperature"] == 0.5
     # response_schema is no longer part of implementation
@@ -191,6 +192,16 @@ async def test_get_implementation_not_found(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_implementation(client: AsyncClient, test_session):
     """Test updating an implementation."""
+    # Set up providers and models for canonicalization
+    provider = Provider(name="openai", display_name="OpenAI")
+    test_session.add(provider)
+    await test_session.flush()
+    
+    model1 = Model(provider_id=provider.id, name="gpt-4", display_name="GPT-4")
+    model2 = Model(provider_id=provider.id, name="gpt-4-turbo", display_name="GPT-4 Turbo")
+    test_session.add_all([model1, model2])
+    await test_session.flush()
+    
     # Create a project, task, and implementation
     project = Project(name="Test Project")
     test_session.add(project)
@@ -207,7 +218,7 @@ async def test_update_implementation(client: AsyncClient, test_session):
         task_id=task.id,
         version="1.0",
         prompt="Original prompt",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.commit()
@@ -216,7 +227,7 @@ async def test_update_implementation(client: AsyncClient, test_session):
     update_payload = {
         "version": "1.0.1",
         "prompt": "Updated prompt",
-        "model": "gpt-4-turbo",
+        "model": "openai/gpt-4-turbo",
         "max_output_tokens": 2000,
         "temperature": 0.8,
     }
@@ -227,7 +238,7 @@ async def test_update_implementation(client: AsyncClient, test_session):
 
     assert data["version"] == "1.0.1"
     assert data["prompt"] == "Updated prompt"
-    assert data["model"] == "gpt-4-turbo"
+    assert data["model"] == "openai/gpt-4-turbo"
     assert data["max_output_tokens"] == 2000
     assert data["temperature"] == 0.8
     assert data["id"] == implementation.id
@@ -252,7 +263,7 @@ async def test_delete_implementation(client: AsyncClient, test_session):
     implementation = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000)
     test_session.add(implementation)
     await test_session.commit()
@@ -296,13 +307,13 @@ async def test_set_production_version(client: AsyncClient, test_session):
         task_id=task.id,
         version="1.0",
         prompt="Version 1",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000)
     impl2 = Implementation(
         task_id=task.id,
         version="2.0",
         prompt="Version 2",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=2000)
     test_session.add_all([impl1, impl2])
     await test_session.flush()
@@ -389,7 +400,7 @@ async def test_create_implementation_with_reasoning(client: AsyncClient, test_se
 
     payload = {
         "prompt": "Solve this problem step by step",
-        "model": "o1-preview",
+        "model": "openai/o1-preview",
         "max_output_tokens": 5000,
         "reasoning": {"effort": "high", "summary": "detailed"},
     }
