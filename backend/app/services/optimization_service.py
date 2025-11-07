@@ -35,9 +35,9 @@ class OptimizationService:
 
     # Constants
     DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
-    DEFAULT_OPTIMIZER_MAX_TOKENS = 1024
+    DEFAULT_OPTIMIZER_MAX_TOKENS = 8000
     MAX_VARIANT_ATTEMPTS_MULTIPLIER = 2
-    DEFAULT_OPTIMIZER_MODEL = "gpt-4.1"
+    DEFAULT_OPTIMIZER_MODEL = "openai/gpt-4.1"
     OPTIMIZER_META_VERSION = "optimizer-meta"
 
     def __init__(self, settings: Settings | None = None) -> None:
@@ -229,9 +229,10 @@ class OptimizationService:
                 eval_detail = self._convert_eval_summary_to_model(eval_summary_list[0])
 
             # Record iteration detail
+            display_changes = self._format_variant_for_display(candidate_spec)
             iteration_detail = OptimizationIterationDetail(
                 iteration=iteration_index + 1,
-                proposed_changes=candidate_spec or {},
+                proposed_changes=display_changes or {},
                 candidate_implementation_id=candidate_impl_id,
                 evaluation=eval_detail,
             )
@@ -398,11 +399,41 @@ class OptimizationService:
         available_models: list[dict[str, Any]],
         evaluation_weights: dict[str, float] | None,
     ) -> dict[str, Any]:
-        """Build variables dict for optimizer agent execution."""
+        """Build variables for the optimizer agent (compact models + weights)."""
+        # Keep lookup for translating agent's model index back to a model string
+        self._model_index_lookup = self._build_model_index_lookup(available_models)
+        available_models_compact = self._build_compact_models_string(available_models)
         return {
-            "available_models": available_models,
+            "available_models_compact": available_models_compact,
             "evaluation_weights": evaluation_weights,
         }
+
+    def _build_model_index_lookup(self, available_models: list[dict[str, Any]]) -> dict[int, str]:
+        """Create index→model-name mapping for available models."""
+        index_to_name: dict[int, str] = {}
+        for idx, model_info in enumerate(available_models):
+            name = model_info.get("name")
+            if isinstance(name, str) and name:
+                index_to_name[idx] = name
+        return index_to_name
+
+    def _build_compact_models_string(self, available_models: list[dict[str, Any]]) -> str:
+        """Return compact catalog string: "index:<n>/quality:<q>/cost:<c>; ..."""
+        def format_value(value: Any) -> str:
+            if value is None:
+                return "na"
+            if isinstance(value, float):
+                return "{:.6g}".format(value)
+            return str(value)
+
+        items: list[str] = []
+        for idx, model_info in enumerate(available_models):
+            quality = model_info.get("quality_index")
+            cost = model_info.get("combined_cost_per_1m")
+            items.append(
+                f"index:{idx}/quality:{format_value(quality)}/cost:{format_value(cost)}"
+            )
+        return "; ".join(items)
 
     async def _generate_single_variant_candidate(
         self,
@@ -448,7 +479,7 @@ class OptimizationService:
             prompt=self._build_variant_meta_prompt_json(changeable_fields),
             model=self.DEFAULT_OPTIMIZER_MODEL,
             temperature=self.DEFAULT_OPTIMIZER_TEMPERATURE,
-            reasoning=None,
+            reasoning={"effort": "medium", "summary": "auto"},
             tools=None,
             tool_choice=None,
             max_output_tokens=self.DEFAULT_OPTIMIZER_MAX_TOKENS,
@@ -572,13 +603,13 @@ class OptimizationService:
         fields_csv = ", ".join(changeable_fields)
         return (
             "You are an expert prompt and configuration optimizer. Given a baseline implementation and evaluation feedback, "
-            "Your goal is to increase quality score and decrease cost and time to execute by dividing focus depending on evaluation weights."
+            "Your goal is to optimize task metrics. Pay attention to the evaluation weights: {{evaluation_weights}}\n"
             "After each iteration, you will be given the evaluation feedback."
             "Produce a JSON object with ONLY the fields to change, chosen from: "
             f"{fields_csv}. Do not include unchanged fields.\n\n"
             "Return ONLY a JSON object. No extra text.\n\n"
-            "Available models with pricing:\n{{available_models}}\n\n"
-            "Evaluation weights:\n{{evaluation_weights}}\n"
+            "Available models (choose 'model' as the integer index) in the format: index:<n>/quality:<q>/cost:<c>\n"
+            "{{available_models_compact}}\n\n"
         )
 
     async def _append_baseline_to_conversation(
@@ -594,11 +625,29 @@ class OptimizationService:
         if not impl:
             return
         try:
+            # Resolve model index if available; fallback to model name
+            model_value = getattr(impl, "model", None)
+            try:
+                model_index = None
+                if isinstance(model_value, str) and model_value:
+                    name_lookup = getattr(self, "_model_index_lookup", None)
+                    if isinstance(name_lookup, dict) and name_lookup:
+                        for idx, name in name_lookup.items():
+                            if name == model_value:
+                                model_index = idx
+                                break
+                # If we found an index, prefer returning the index; else keep the name
+                if model_index is not None:
+                    model_value = model_index
+            except Exception:
+                # On any resolution error, preserve original model value
+                pass
+
             baseline_payload = {
                 "implementation_id": implementation_id,
                 "version": getattr(impl, "version", None),
                 "prompt": getattr(impl, "prompt", None),
-                "model": getattr(impl, "model", None),
+                "model": model_value,
                 "temperature": getattr(impl, "temperature", None),
                 "max_output_tokens": getattr(impl, "max_output_tokens", None),
             }
@@ -622,10 +671,8 @@ class OptimizationService:
             required.append("prompt")
 
         if "model" in changeable_fields:
-            properties["model"] = (
-                {"type": "string", "enum": [m["name"] for m in available_models]}
-                if available_models is not None else {"type": "string"}
-            )
+            # Accept integer model index chosen from the agent-exposed catalog
+            properties["model"] = {"type": "integer", "minimum": 0}
             required.append("model")
 
         if "temperature" in changeable_fields:
@@ -746,6 +793,14 @@ class OptimizationService:
         # Inherit or extract required fields
         prompt = spec.get("prompt") or (current_impl.prompt if current_impl else None)
         model = spec.get("model") or (current_impl.model if current_impl else None)
+
+        # If the agent returned a model index (int), map it to the corresponding model name
+        if isinstance(model, int):
+            mapped = getattr(self, "_model_index_lookup", {}).get(model)
+            if mapped is None:
+                logger.warning(f"Unknown model index: {model}")
+                return None
+            model = mapped
         max_output_tokens = spec.get("max_output_tokens") or (
             current_impl.max_output_tokens if current_impl else None
         )
@@ -1129,3 +1184,21 @@ class OptimizationService:
             "avg_cost": stats.avg_cost,
             "avg_execution_time_ms": stats.avg_execution_time_ms,
         }
+
+    def _format_variant_for_display(self, variant: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Return a copy of proposed changes with model index mapped to name for UI display.
+        If variant['model'] is an int and found in _model_index_lookup, replace with model name and retain index as 'model_index'.
+        """
+        if not variant:
+            return variant
+        try:
+            copy = dict(variant)
+            model_value = copy.get("model")
+            if isinstance(model_value, int):
+                name_lookup = getattr(self, "_model_index_lookup", None)
+                if isinstance(name_lookup, dict) and model_value in name_lookup:
+                    copy["model_index"] = model_value
+                    copy["model"] = name_lookup[model_value]
+            return copy
+        except Exception:
+            return variant

@@ -11,12 +11,12 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.enums import ScoreType
-from app.models.evaluation import Grade, Grader
+from app.models.evaluation import Grade, Grader, Evaluation
 from app.models.executions import ExecutionResult
 from app.models.traces import Trace
 from app.schemas.traces import OutputItem, OutputMessageItem
@@ -45,6 +45,22 @@ class GradingService:
     def __init__(self, settings: Settings):
         """Initialize the grading service with settings."""
         self.settings = settings
+
+    def _normalize_pairwise_score(self, raw_score: float | None, baseline_good: float) -> float | None:
+        """Map a pairwise score in [0,1] to a quality-like score with 0.5 anchored at baseline_good.
+
+        Mapping is piecewise-linear:
+        - 0   -> 0.0
+        - 0.5 -> baseline_good
+        - 1.0 -> 1.0
+        """
+        if raw_score is None:
+            return None
+        s = 0.0 if raw_score < 0.0 else 1.0 if raw_score > 1.0 else raw_score
+        b = baseline_good
+        if s <= 0.5:
+            return (s / 0.5) * b
+        return b + ((s - 0.5) / 0.5) * (1.0 - b)
 
     def _extract_text_from_output_items(self, output_items: list) -> str:
         """Extract text content from trace output items.
@@ -77,6 +93,36 @@ class GradingService:
             )
         except Exception:
             return ""
+
+    def _get_target_implementation_id(self, trace: Trace | None, execution_result: ExecutionResult | None) -> int | None:
+        """Resolve implementation ID from either a trace or an execution result target."""
+        try:
+            if execution_result and execution_result.implementation:
+                return execution_result.implementation.id
+            if trace and trace.implementation:
+                return trace.implementation.id
+        except Exception:
+            return None
+        return None
+
+    async def _get_baseline_quality(self, session: AsyncSession, implementation_id: int | None, default: float = 0.7) -> float:
+        """Get average historical quality_score for an implementation using EvaluationService, or default."""
+        if implementation_id is None:
+            return default
+        try:
+            # Local import to avoid circular dependency at module import time
+            from app.services.evaluation_service import EvaluationService  # type: ignore
+
+            eval_service = EvaluationService(self.settings)
+            stats = await eval_service.get_implementation_evaluation_stats(
+                session=session,
+                implementation_id=implementation_id,
+            )
+            if stats and stats.avg_quality_score is not None:
+                return float(stats.avg_quality_score)
+        except Exception:
+            pass
+        return default
 
     async def create_grader(
         self,
@@ -440,6 +486,13 @@ class GradingService:
                 )
             )
 
+        # Normalize Pairwise score before storing, so it's persisted as quality-like
+        if grader.score_type == ScoreType.FLOAT and score_float is not None:
+            if "pairwise" in (grader.name or "").lower():
+                impl_id = self._get_target_implementation_id(trace, execution_result)
+                baseline_quality = await self._get_baseline_quality(session, impl_id, default=0.7)
+                score_float = self._normalize_pairwise_score(score_float, baseline_quality)
+
         # Create grade record
         grade = Grade(
             grader_id=grader_id,
@@ -549,13 +602,73 @@ Actual Output: {{actual_output}}
 Expected Output: {{expected_output}}
 """,
             score_type=ScoreType.FLOAT,
-            model="gpt-4o-mini",
+            model="gpt-5",
             temperature=0.0,
-            max_output_tokens=500,
+            max_output_tokens=2000,
             response_schema={
                 "type": "object",
                 "properties": {
                     "score": {"type": "number", "description": "Score from 0.0 to 1.0"},
+                    "reasoning": {"type": "string"},
+                },
+                "additionalProperties": False,
+                "required": ["score", "reasoning"],
+            },
+        )
+
+    async def create_default_pairwise_grader(
+        self,
+        session: AsyncSession,
+        project_id: int,
+    ) -> Grader:
+        """Create a default pairwise preference grader for a project.
+
+        Scoring contract:
+        - A continuous score in [0.0, 1.0]
+        - 1.0 if Actual/New is clearly better than Expected/Baseline
+        - 0.5 for parity/indifference (tie)
+        - 0.0 if Actual/New is clearly worse
+        - Intermediate values like 0.1, 0.2, 0.8 reflect graded preference strength
+        """
+        # Check if project already has the pairwise grader
+        query = (
+            select(Grader)
+            .where(Grader.project_id == project_id)
+            .where(Grader.name.in_(["Pairwise", "Preference (Pairwise)"]))
+        )
+        result = await session.execute(query)
+        existing_grader = result.scalar_one_or_none()
+
+        if existing_grader:
+            return existing_grader
+
+        # Create default pairwise grader
+        return await self.create_grader(
+            session=session,
+            project_id=project_id,
+            name="Pairwise",
+            description="Pairwise comparison: 0.0 worse … 0.5 tie … 1.0 better",
+            prompt="""You are comparing two outputs for the same task.
+Task Arguments: {{task_arguments}}
+Output from the baseline implementation: {{expected_output}}
+Output from the current implementation: {{actual_output}}
+
+Assign a numeric score in the continuous range [0.0, 1.0] representing how much the current implementation is better than the baseline implementation:
+- 1.0 if the current implementation is clearly better than the baseline implementation
+- 0.5 if the current implementation and the baseline implementation are equally good (tie / indifference)
+- 0.0 if the current implementation is clearly worse than the baseline implementation
+- Use intermediate values (e.g., 0.1, 0.2, ..., 0.8...) to reflect graded preference strength
+
+Return only the structured response.
+""",
+            score_type=ScoreType.FLOAT,
+            model="gpt-5",
+            temperature=0.0,
+            max_output_tokens=2000,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "score": {"type": "number", "description": "Continuous preference score in [0.0, 1.0]"},
                     "reasoning": {"type": "string"},
                 },
                 "additionalProperties": False,
