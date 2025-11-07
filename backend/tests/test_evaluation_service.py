@@ -830,29 +830,45 @@ async def test_get_all_project_graders_with_existing(evaluation_service, test_se
 
 @pytest.mark.asyncio
 async def test_get_all_project_graders_create_default(evaluation_service, test_session):
-    """Test creating default grader when none exist."""
+    """Test creating default graders when none exist (accuracy + pairwise)."""
     project = Project(name="Test Project")
     test_session.add(project)
     await test_session.flush()
 
-    with patch.object(
-        evaluation_service.grading_service, "create_default_accuracy_grader",
-    ) as mock_create:
-        mock_grader = Grader(
+    with (
+        patch.object(
+            evaluation_service.grading_service, "create_default_accuracy_grader",
+        ) as mock_create_accuracy,
+        patch.object(
+            evaluation_service.grading_service, "create_default_pairwise_grader",
+        ) as mock_create_pairwise,
+    ):
+        mock_accuracy = Grader(
             id=1,
             project_id=project.id,
-            name="Accuracy",
-            prompt="Default prompt",
-            score_type=ScoreType.BOOLEAN,
+            name="accuracy",
+            prompt="Default accuracy",
+            score_type=ScoreType.FLOAT,
             model="gpt-4o-mini",
             max_output_tokens=500,
         )
-        mock_create.return_value = mock_grader
+        mock_pairwise = Grader(
+            id=2,
+            project_id=project.id,
+            name="pairwise",
+            prompt="Default pairwise",
+            score_type=ScoreType.FLOAT,
+            model="gpt-4o-mini",
+            max_output_tokens=500,
+        )
+        mock_create_accuracy.return_value = mock_accuracy
+        mock_create_pairwise.return_value = mock_pairwise
 
         grader_ids = await evaluation_service._get_all_project_graders(
             test_session, project.id,
         )
 
-        assert len(grader_ids) == 1
-        assert grader_ids[0] == 1
-        mock_create.assert_called_once_with(test_session, project.id)
+        assert len(grader_ids) == 2
+        assert set(grader_ids) == {1, 2}
+        mock_create_accuracy.assert_called_once_with(test_session, project.id)
+        mock_create_pairwise.assert_called_once_with(test_session, project.id)
