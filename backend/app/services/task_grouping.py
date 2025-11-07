@@ -6,15 +6,19 @@ This module implements intelligent grouping of traces based on:
 3. Template inference to handle parameterized instructions
 """
 
+import re
 from collections import defaultdict
 
+from datasketch import MinHash, MinHashLSH
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
 from app.schemas.tasks import ImplementationCreate, TaskCreate
+from app.services.implementation_matcher import ImplementationMatcher
 from app.services.task_service import TaskService
 from app.services.template_inference import infer_template_from_strings
 
@@ -78,7 +82,7 @@ class TaskGrouper:
             return None
 
         # Extract instructions from the trace
-        instructions = self._extract_instructions(trace)
+        instructions = self.extract_instructions(trace)
 
         if not instructions:
             return None
@@ -143,7 +147,7 @@ class TaskGrouper:
 
         return created_tasks
 
-    def _extract_instructions(self, trace: Trace) -> str:
+    def extract_instructions(self, trace: Trace) -> str:
         """Extract instructions from a trace.
 
         Priority:
@@ -198,8 +202,6 @@ class TaskGrouper:
         implementations = result.scalars().all()
 
         # Try to match instructions against each implementation's prompt
-        from app.services.implementation_matcher import ImplementationMatcher
-
         matcher = ImplementationMatcher()
 
         for impl in implementations:
@@ -279,7 +281,7 @@ class TaskGrouper:
             if trace.id == seed_trace.id:
                 continue
 
-            trace_instructions = self._extract_instructions(trace)
+            trace_instructions = self.extract_instructions(trace)
             if not trace_instructions:
                 continue
 
@@ -294,51 +296,182 @@ class TaskGrouper:
         return similar
 
     def _group_by_instructions(self, traces: list[Trace]) -> list[list[Trace]]:
-        """Group traces by instruction similarity.
+        """Group traces by instruction similarity using MinHash-based clusterization.
+
+        Uses ngram-based MinHash with LSH for efficient similarity search, filtering
+        to shared ngrams across the corpus to improve clustering quality.
 
         Args:
             traces: List of traces to group
 
         Returns:
-            List of trace groups
+            List of trace groups (clusters)
 
         """
-        groups = []
-        remaining = list(traces)
+        # Extract instructions from all traces
+        texts, trace_indices = self._extract_instruction_texts(traces)
 
-        while remaining:
-            # Pick first remaining trace as seed
-            seed = remaining.pop(0)
-            seed_instructions = self._extract_instructions(seed)
+        if not texts:
+            return []
 
-            if not seed_instructions:
+        # If only one text, return single group
+        if len(texts) == 1:
+            return [[traces[trace_indices[0]]]]
+
+        # Compute shared ngrams across corpus
+        shared_ngrams = self._compute_shared_ngrams(texts)
+
+        # If no shared ngrams found, cannot produce meaningful clusters
+        # Empty shared_ngrams would cause empty MinHashes with similarity 1.0
+        if not shared_ngrams:
+            return []
+
+        # Calculate MinHashes using only shared ngrams
+        minhashes = [
+            self._get_minhash(text, allowed_ngrams=shared_ngrams) for text in texts
+        ]
+
+        # Build clusters using LSH
+        return self._build_clusters_with_lsh(
+            minhashes,
+            traces,
+            trace_indices,
+        )
+
+    def _extract_instruction_texts(
+        self,
+        traces: list[Trace],
+    ) -> tuple[list[str], list[int]]:
+        """Extract instruction texts from traces.
+
+        Args:
+            traces: List of traces
+
+        Returns:
+            Tuple of (texts list, trace_indices list)
+
+        """
+        texts = []
+        trace_indices = []
+
+        for i, trace in enumerate(traces):
+            instructions = self.extract_instructions(trace)
+            if instructions:
+                texts.append(instructions)
+                trace_indices.append(i)
+
+        return texts, trace_indices
+
+    def _compute_shared_ngrams(self, texts: list[str]) -> set[str]:
+        """Compute shared ngrams across corpus.
+
+        Args:
+            texts: List of instruction texts
+
+        Returns:
+            Set of shared ngrams
+
+        """
+        # Compute corpus-wide ngram frequencies
+        ngram_text_count = defaultdict(int)
+
+        for text in texts:
+            tokens = self._tokenize_preserve_case(text)
+            text_ngrams = self._generate_ngrams(tokens, n=3)
+
+            # Count that this ngram appears in this text
+            for gram in text_ngrams:
+                ngram_text_count[gram] += 1
+
+        min_ngram_count = 2
+        return {
+            gram for gram, count in ngram_text_count.items() if count >= min_ngram_count
+        }
+
+    def _build_clusters_with_lsh(
+        self,
+        minhashes: list[MinHash],
+        traces: list[Trace],
+        trace_indices: list[int],
+    ) -> list[list[Trace]]:
+        """Build clusters using MinHashLSH.
+
+        Args:
+            minhashes: List of MinHash objects
+            traces: Original list of traces
+            trace_indices: Indices mapping minhashes to traces
+
+        Returns:
+            List of trace clusters
+
+        """
+        # Use LSH for efficient similarity search
+        lsh = MinHashLSH(
+            threshold=self.similarity_threshold,
+            num_perm=128,
+        )
+
+        for i, mh in enumerate(minhashes):
+            lsh.insert(f"t{i}", mh)
+
+        # Build clusters
+        clusters = []
+        visited = set()
+
+        for i, mh in enumerate(minhashes):
+            if i in visited:
                 continue
 
-            # Find similar traces
-            group = [seed]
-            to_remove = []
+            # Find near-duplicates using LSH
+            similar = lsh.query(mh)
+            indices = [int(s[1:]) for s in similar]
 
-            for trace in remaining:
-                trace_instructions = self._extract_instructions(trace)
-                if not trace_instructions:
-                    continue
+            # Filter by actual Jaccard similarity to remove false positives
+            filtered_indices = self._filter_similar_indices(
+                i,
+                indices,
+                mh,
+                minhashes,
+                visited,
+            )
 
-                similarity = self._compute_instruction_similarity(
-                    seed_instructions,
-                    trace_instructions,
-                )
+            # Create trace group from filtered indices
+            trace_group = [traces[trace_indices[idx]] for idx in filtered_indices]
+            clusters.append(trace_group)
+            visited.update(filtered_indices)
 
-                if similarity >= self.similarity_threshold:
-                    group.append(trace)
-                    to_remove.append(trace)
+        return clusters
 
-            # Remove grouped traces from remaining
-            for trace in to_remove:
-                remaining.remove(trace)
+    def _filter_similar_indices(
+        self,
+        seed_idx: int,
+        candidate_indices: list[int],
+        seed_minhash: MinHash,
+        minhashes: list[MinHash],
+        visited: set[int],
+    ) -> list[int]:
+        """Filter candidate indices by actual Jaccard similarity.
 
-            groups.append(group)
+        Args:
+            seed_idx: Index of seed item
+            candidate_indices: Candidate indices from LSH query
+            seed_minhash: MinHash of seed item
+            minhashes: List of all MinHash objects
+            visited: Set of already visited indices
 
-        return groups
+        Returns:
+            List of filtered indices including seed
+
+        """
+        filtered_indices = [seed_idx]  # Always include self
+
+        for idx in candidate_indices:
+            if idx != seed_idx and idx not in visited:
+                actual_sim = seed_minhash.jaccard(minhashes[idx])
+                if actual_sim >= self.similarity_threshold:
+                    filtered_indices.append(idx)
+
+        return filtered_indices
 
     def _compute_instruction_similarity(
         self,
@@ -369,7 +502,7 @@ class TaskGrouper:
         return intersection / union if union > 0 else 0.0
 
     def _tokenize(self, text: str) -> list[str]:
-        """Tokenize text into words.
+        """Tokenize text into words (lowercase).
 
         Args:
             text: Text to tokenize
@@ -378,10 +511,71 @@ class TaskGrouper:
             List of lowercase tokens
 
         """
-        import re
-
-        # Simple word tokenization
+        # Simple word tokenization (lowercase for backward compatibility)
         return [token.lower() for token in re.findall(r"\w+", text)]
+
+    def _tokenize_preserve_case(self, text: str) -> list[str]:
+        """Tokenize text, preserving casing.
+
+        Args:
+            text: Text to tokenize
+
+        Returns:
+            List of tokens (words and punctuation)
+
+        """
+        # Tokenize preserving casing, including punctuation
+        return re.findall(r"\w+|[^\w\s]", text)
+
+    def _generate_ngrams(
+        self,
+        tokens: list[str],
+        n: int = 3,
+    ) -> set[str]:
+        """Generate ngrams from tokens.
+
+        Args:
+            tokens: List of tokens
+            n: Ngram size (default 3)
+
+        Returns:
+            Set of ngram strings
+
+        """
+        # Generate all ngrams
+        all_grams = [
+            " ".join(tokens[i : i + n]) for i in range(len(tokens) - n + 1)
+        ]
+        return set(all_grams)
+
+    def _get_minhash(
+        self,
+        text: str,
+        num_perm: int = 128,
+        allowed_ngrams: set[str] | None = None,
+    ) -> MinHash:
+        """Create MinHash from text, optionally filtering to allowed ngrams.
+
+        Args:
+            text: Text to create MinHash for
+            num_perm: Number of permutations for MinHash
+            allowed_ngrams: Optional set of ngrams to filter to (corpus-wide filtering)
+
+        Returns:
+            MinHash object
+
+        """
+        tokens = self._tokenize_preserve_case(text)
+        grams = self._generate_ngrams(tokens, n=3)
+
+        # Filter to allowed ngrams if provided (corpus-wide filtering)
+        if allowed_ngrams is not None:
+            grams = grams & allowed_ngrams
+
+        m = MinHash(num_perm=num_perm)
+        for g in grams:
+            m.update(g.encode("utf8"))
+        return m
 
     async def _create_task_for_group(
         self,
@@ -405,7 +599,7 @@ class TaskGrouper:
         # Collect instruction strings for template inference
         instruction_strings = []
         for trace in traces:
-            instructions = self._extract_instructions(trace)
+            instructions = self.extract_instructions(trace)
             if instructions:
                 instruction_strings.append(instructions)
 
@@ -416,8 +610,6 @@ class TaskGrouper:
         template = infer_template_from_strings(instruction_strings)
 
         # Get project name
-        from app.models.projects import Project
-
         project_query = select(Project).where(Project.id == first_trace.project_id)
         project_result = await self.session.execute(project_query)
         project = project_result.scalar_one()
@@ -452,12 +644,10 @@ class TaskGrouper:
         )
 
         # Match traces to this implementation
-        from app.services.implementation_matcher import ImplementationMatcher
-
         matcher = ImplementationMatcher()
 
         for trace in traces:
-            instructions = self._extract_instructions(trace)
+            instructions = self.extract_instructions(trace)
             if not instructions:
                 continue
 
@@ -478,7 +668,7 @@ async def find_or_create_task_for_trace(
     min_cluster_size: int = 3,
     similarity_threshold: float = 0.6,
 ) -> Task | None:
-    """Convenience function to find or create task for a trace.
+    """Find or create task for a trace.
 
     Args:
         trace_id: Trace ID
@@ -501,7 +691,7 @@ async def group_all_traces(
     min_cluster_size: int = 3,
     similarity_threshold: float = 0.6,
 ) -> list[Task]:
-    """Convenience function to group all traces in a project.
+    """Group all traces in a project.
 
     Args:
         project_id: Project ID
@@ -548,7 +738,7 @@ async def try_match_existing_task(
 
     # Extract instructions
     grouper = TaskGrouper(session, similarity_threshold=similarity_threshold)
-    instructions = grouper._extract_instructions(trace)
+    instructions = grouper.extract_instructions(trace)
 
     if not instructions:
         return None

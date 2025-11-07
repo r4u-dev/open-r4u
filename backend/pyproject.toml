@@ -19,6 +19,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "litellm>=1.78.6",
     "greenlet>=3.2.4",
+    "datasketch>=1.7.0",
 ]
 
 [tool.ruff]
