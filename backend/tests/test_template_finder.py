@@ -126,14 +126,14 @@ class TestTemplateFinder:
     )
     def test_match_template(self, template, s, expected_match, expected_vars):
         """Test matching strings to templates and extracting variables."""
-        finder = TemplateFinder()
+        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         match, variables = finder.match_template(template, s)
         print(template, s)
         assert match == expected_match
         assert variables == expected_vars
 
     def test_match_template_variable_at_end(self):
-        finder = TemplateFinder()
+        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         template = "Hello {{var_0}}"
         s = "Hello Alice"
         match, variables = finder.match_template(template, s)
@@ -141,7 +141,7 @@ class TestTemplateFinder:
         assert variables == {"var_0": "Alice"}
 
     def test_match_template_variable_at_start(self):
-        finder = TemplateFinder()
+        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         template = "{{var_0}} likes pizza"
         s = "Bob likes pizza"
         match, variables = finder.match_template(template, s)
@@ -149,7 +149,7 @@ class TestTemplateFinder:
         assert variables == {"var_0": "Bob"}
 
     def test_match_template_multiple_variables(self):
-        finder = TemplateFinder()
+        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         template = "{{var_0}} ordered {{var_1}}"
         s = "Alice ordered sushi"
         match, variables = finder.match_template(template, s)
@@ -157,7 +157,7 @@ class TestTemplateFinder:
         assert variables == {"var_0": "Alice", "var_1": "sushi"}
 
     def test_match_template_adjacent_variables_not_supported(self):
-        finder = TemplateFinder()
+        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         template = "{{var_0}} {{var_1}}"
         s = "Alice sushi"
         match, variables = finder.match_template(template, s)
