@@ -13,7 +13,6 @@ from sqlalchemy.orm import joinedload
 from app.models.providers import Model, Provider
 from app.services.encryption import get_encryption_service
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -299,7 +298,6 @@ class ProviderService:
             Canonical provider/model string or original input if unresolved
 
         """
-
         identifier = (model_identifier or "").strip()
         if not identifier:
             return model_identifier
@@ -345,7 +343,6 @@ class ProviderService:
 
     async def list_canonical_model_names(self) -> list[str]:
         """Return all known models as canonical ``provider/model`` strings."""
-
         providers = await self.list_providers()
         names: list[str] = []
         for provider in providers:
@@ -355,7 +352,6 @@ class ProviderService:
 
     async def list_canonical_model_names_with_api_keys(self) -> list[str]:
         """Return models from providers with API keys configured as canonical ``provider/model`` strings."""
-
         providers = await self.list_providers_with_api_keys()
         names: list[str] = []
         for provider in providers:
@@ -365,7 +361,6 @@ class ProviderService:
 
     async def list_models_grouped(self) -> dict[str, list[str]]:
         """Return models grouped by provider in canonical form."""
-
         providers = await self.list_providers()
         grouped: dict[str, list[str]] = {}
         for provider in providers:

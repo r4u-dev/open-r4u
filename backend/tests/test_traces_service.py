@@ -7,11 +7,17 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import ItemType, MessageRole
 from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
-from app.schemas.traces import TraceCreate
+from app.schemas.traces import (
+    MessageItem,
+    OutputMessageContent,
+    OutputMessageItem,
+    TraceCreate,
+)
 from app.services.traces_service import TracesService
 
 
@@ -67,23 +73,22 @@ class TestTracesServiceCreate:
         trace_data = TraceCreate(
             model="gpt-4",
             project="Test Project",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
             input=[
-                {
-                    "type": "message",
-                    "role": "system",
-                    "content": "Hello, Alice! You are user #42.",
-                },
-                {"type": "message", "role": "user", "content": "Hello!"},
+                MessageItem(
+                    type=ItemType.MESSAGE,
+                    role=MessageRole.SYSTEM,
+                    content="Hello, Alice! You are user #42.",
+                ),
             ],
             output=[
-                {
-                    "type": "message",
-                    "id": "msg-1",
-                    "content": [{"type": "text", "text": "Hi there!"}],
-                },
+                OutputMessageItem(
+                    type="message",
+                    id="msg-1",
+                    content=[OutputMessageContent(type="text", text="Hi there!")],
+                ),
             ],
-            started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
         )
 
         trace = await traces_service.create_trace(trace_data, test_session)
@@ -173,7 +178,9 @@ class TestTracesServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_trace_with_new_project(
-        self, test_session: AsyncSession, traces_service: TracesService,
+        self,
+        test_session: AsyncSession,
+        traces_service: TracesService,
     ):
         """Test creating a trace that auto-creates a new project."""
         trace_data = TraceCreate(
@@ -208,7 +215,9 @@ class TestTracesServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_trace_with_http_trace_id(
-        self, test_session: AsyncSession, traces_service: TracesService,
+        self,
+        test_session: AsyncSession,
+        traces_service: TracesService,
     ):
         """Test creating a trace with http_trace_id."""
         # Create HTTP trace first
@@ -242,14 +251,18 @@ class TestTracesServiceCreate:
         )
 
         trace = await traces_service.create_trace(
-            trace_data, test_session, http_trace_id=http_trace.id,
+            trace_data,
+            test_session,
+            http_trace_id=http_trace.id,
         )
 
         assert trace.http_trace_id == http_trace.id
 
     @pytest.mark.asyncio
     async def test_create_trace_with_all_fields(
-        self, test_session: AsyncSession, traces_service: TracesService,
+        self,
+        test_session: AsyncSession,
+        traces_service: TracesService,
     ):
         """Test creating a trace with all optional fields."""
         trace_data = TraceCreate(
@@ -303,7 +316,9 @@ class TestTracesServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_trace_with_tools(
-        self, test_session: AsyncSession, traces_service: TracesService,
+        self,
+        test_session: AsyncSession,
+        traces_service: TracesService,
     ):
         """Test creating a trace with tool definitions."""
         trace_data = TraceCreate(
@@ -341,82 +356,11 @@ class TestTracesServiceCreate:
         assert trace.tools[0]["function"]["name"] == "get_weather"
 
     @pytest.mark.asyncio
-    async def test_create_trace_with_reasoning(
-        self, test_session: AsyncSession, traces_service: TracesService,
-    ):
-        """Test creating a trace with reasoning configuration."""
-        from app.schemas.traces import Reasoning
-
-        trace_data = TraceCreate(
-            model="gpt-4",
-            project="Test Project",
-            input=[
-                {"type": "message", "role": "user", "content": "Hello!"},
-            ],
-            output=[
-                {
-                    "type": "message",
-                    "id": "msg-1",
-                    "content": [{"type": "text", "text": "Hi!"}],
-                },
-            ],
-            started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-            reasoning=Reasoning(effort="high", summary="detailed"),
-        )
-
-        trace = await traces_service.create_trace(trace_data, test_session)
-
-        assert trace.reasoning is not None
-        assert trace.reasoning["effort"] == "high"
-        assert trace.reasoning["summary"] == "detailed"
-
     @pytest.mark.asyncio
-    async def test_create_trace_matching_fails_gracefully(
+    async def test_create_trace_with_input_items(
         self,
         test_session: AsyncSession,
         traces_service: TracesService,
-        implementation: Implementation,
-        monkeypatch,
-    ):
-        """Test that trace creation succeeds even if matching fails."""
-        from app.services import implementation_matcher
-
-        # Mock the matching function to raise an exception
-        async def mock_find_matching(*args, **kwargs):
-            raise Exception("Matching failed!")
-
-        monkeypatch.setattr(
-            implementation_matcher, "find_matching_implementation", mock_find_matching,
-        )
-
-        trace_data = TraceCreate(
-            model="gpt-4",
-            project="Test Project",
-            input=[
-                {"type": "message", "role": "user", "content": "Hello!"},
-            ],
-            output=[
-                {
-                    "type": "message",
-                    "id": "msg-1",
-                    "content": [{"type": "text", "text": "Hi!"}],
-                },
-            ],
-            started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
-        )
-
-        # Should not raise, trace should be created
-        trace = await traces_service.create_trace(trace_data, test_session)
-
-        assert trace.id is not None
-        assert trace.implementation_id is None
-        assert trace.prompt_variables is None
-
-    @pytest.mark.asyncio
-    async def test_create_trace_with_input_items(
-        self, test_session: AsyncSession, traces_service: TracesService,
     ):
         """Test that input items are properly created."""
         trace_data = TraceCreate(

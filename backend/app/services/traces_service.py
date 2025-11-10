@@ -7,15 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.config import get_settings
 from app.models.projects import Project
+from app.models.tasks import Implementation, Task
 from app.models.traces import Trace, TraceInputItem, TraceOutputItem
 from app.schemas.traces import TraceCreate
-from app.services.implementation_matcher import (
-    extract_system_prompt_from_trace,
-    find_matching_implementation,
-)
-from app.services.task_grouping import TaskGrouper
 from app.services.provider_service import ProviderService
+from app.services.task_grouping import TemplateFinder
+from app.services.task_grouping_queue import get_task_grouping_queue
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +22,8 @@ logger = logging.getLogger(__name__)
 class TracesService:
     """Service for trace operations."""
 
-    def __init__(self, min_cluster_size: int = 3):
-        """Initialize traces service.
-
-        Args:
-            min_cluster_size: Minimum number of similar traces needed to auto-create
-                            a task/implementation group (default: 3)
-
-        """
-        self.min_cluster_size = min_cluster_size
+    def __init__(self):
+        """Initialize traces service."""
 
     async def create_trace(
         self,
@@ -115,6 +107,7 @@ class TracesService:
 
         # Auto-match to implementation if not explicitly set
         if not trace.implementation_id:
+            logger.debug("Attempting to auto-match trace to implementation")
             await self._auto_match_implementation(
                 trace=trace,
                 trace_data=trace_data,
@@ -171,7 +164,7 @@ class TracesService:
             # Convert input items to list of dicts for matching
             input_items = [item.model_dump(mode="json") for item in trace_data.input]
 
-            matching = await find_matching_implementation(
+            matching = await self._find_matching_implementation(
                 input_items=input_items,
                 model=trace_data.model,
                 project_id=project_id,
@@ -190,12 +183,12 @@ class TracesService:
             else:
                 logger.debug(f"No implementation match found for trace {trace.id}")
 
-                # Try to create a new implementation from similar traces
-                await self._try_create_implementation_from_similar_traces(
-                    trace=trace,
-                    trace_data=trace_data,
+                # Queue task grouping in background instead of processing synchronously
+                queue_manager = get_task_grouping_queue()
+                queue_manager.enqueue_grouping(
                     project_id=project_id,
-                    session=session,
+                    path=trace.path,
+                    trace_id=trace.id,
                 )
 
         except Exception as e:
@@ -288,103 +281,80 @@ class TracesService:
 
         return reasoning.model_dump(mode="json", exclude_unset=True)
 
-    async def _try_create_implementation_from_similar_traces(
+    async def _find_matching_implementation(
         self,
-        trace: Trace,
-        trace_data: TraceCreate,
+        input_items: list[dict[str, Any]],
+        model: str,
         project_id: int,
         session: AsyncSession,
-    ) -> None:
-        """Try to create a new task/implementation by grouping similar traces.
-
-        This is called when no existing implementation matches. It:
-        1. Finds all traces with the same path
-        2. If enough similar traces exist, creates groups
-        3. For each group, creates a task and implementation with inferred template
+    ) -> dict[str, Any] | None:
+        """Find a matching implementation based on input items and model.
 
         Args:
-            trace: The unmatched trace
-            trace_data: Original trace creation data
-            project_id: Project ID
+            input_items: List of input item dicts
+            model: Model name
+            project_id: Project ID for scoping
             session: Database session
+        Returns:
+            Matching implementation info or None
 
         """
-        try:
-            # Only proceed if trace has a first message
-            # Note: traces with path=null will be grouped with other path=null traces
-            # Extract first message (instructions)
-            input_items = [item.model_dump(mode="json") for item in trace_data.input]
-            system_prompt = extract_system_prompt_from_trace(input_items)
+        # Extract the first message as the prompt
+        system_prompt = await self._extract_system_prompt_from_trace(input_items)
+        if not system_prompt:
+            return None
 
-            if not system_prompt:
-                logger.debug(
-                    f"Trace {trace.id} has no first message, skipping auto-grouping",
-                )
-                return
+        # Get all implementations for this project and model
+        query = (
+            select(Implementation)
+            .join(Task, Implementation.task_id == Task.id)
+            .where(Task.project_id == project_id)
+            .where(Implementation.model == model)
+        )
+        result = await session.execute(query)
+        implementations = result.scalars().all()
 
-            # Count traces with same path that don't have implementation
-            from sqlalchemy import func
+        if not implementations:
+            return None
 
-            count_query = (
-                select(func.count(Trace.id))
-                .where(Trace.project_id == project_id)
-                .where(Trace.model == trace.model)
-                .where(Trace.implementation_id.is_(None))
+        # Try to match the system prompt against each implementation's prompt template
+        settings = get_settings()
+        template_finder = TemplateFinder(
+            settings.min_segment_words,
+            settings.min_matching_traces,
+        )
+
+        for impl in implementations:
+            match, variables = template_finder.match_template(
+                impl.prompt,
+                system_prompt,
             )
-            # Handle path comparison (including null paths)
-            if trace.path is not None:
-                count_query = count_query.where(Trace.path == trace.path)
-            else:
-                count_query = count_query.where(Trace.path.is_(None))
-            result = await session.execute(count_query)
-            unmatched_count = result.scalar()
+            if match:
+                return {
+                    "implementation_id": impl.id,
+                    "variables": variables,
+                }
 
-            if unmatched_count < self.min_cluster_size:
-                logger.debug(
-                    f"Only {unmatched_count} unmatched traces for path '{trace.path}', "
-                    f"need {self.min_cluster_size} to auto-create implementation",
-                )
-                return
+        return None
 
-            logger.info(
-                f"Found {unmatched_count} unmatched traces for path '{trace.path}', "
-                f"attempting to create task/implementation groups",
-            )
+    async def _extract_system_prompt_from_trace(
+        self,
+        input_items: list[dict[str, Any]],
+    ) -> str | None:
+        """Extract the system prompt from the trace's input items.
 
-            # Use TaskGrouper to create task and implementations
-            grouper = TaskGrouper(session, min_cluster_size=self.min_cluster_size)
+        Args:
+            input_items: List of input item dicts
 
-            # Reload trace with input items for grouper
-            reload_query = (
-                select(Trace)
-                .where(Trace.id == trace.id)
-                .options(joinedload(Trace.input_items))
-            )
-            reload_result = await session.execute(reload_query)
-            trace_with_items = reload_result.unique().scalar_one()
+        Returns:
+            System prompt string or None
 
-            # Try to find or create task
-            task = await grouper.find_or_create_task_for_trace(
-                trace_with_items.id,
-            )
+        """
+        if not input_items:
+            return None
 
-            if task:
-                # Commit the changes (task creation and trace assignments)
-                await session.commit()
+        first_item = input_items[0]
+        if first_item.get("type") == "message":
+            return first_item.get("content", "")
 
-                logger.info(
-                    f"Created task {task.id} with implementation for trace {trace.id}",
-                )
-                # Refresh trace to get the new implementation_id
-                await session.refresh(trace)
-            else:
-                logger.debug(
-                    f"Could not create task/implementation group for trace {trace.id}",
-                )
-
-        except Exception as e:
-            logger.warning(
-                f"Failed to auto-create implementation from similar traces "
-                f"for trace {trace.id}: {e}",
-                exc_info=True,
-            )
+        return None

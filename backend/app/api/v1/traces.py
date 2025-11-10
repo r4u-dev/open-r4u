@@ -23,7 +23,8 @@ async def list_traces(
     offset: int = Query(0, ge=0, description="Number of traces to skip"),
     task_id: int | None = Query(None, description="Filter by task ID"),
     implementation_id: int | None = Query(
-        None, description="Filter by implementation ID",
+        None,
+        description="Filter by implementation ID",
     ),
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:

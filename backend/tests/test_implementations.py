@@ -196,12 +196,12 @@ async def test_update_implementation(client: AsyncClient, test_session):
     provider = Provider(name="openai", display_name="OpenAI")
     test_session.add(provider)
     await test_session.flush()
-    
+
     model1 = Model(provider_id=provider.id, name="gpt-4", display_name="GPT-4")
     model2 = Model(provider_id=provider.id, name="gpt-4-turbo", display_name="GPT-4 Turbo")
     test_session.add_all([model1, model2])
     await test_session.flush()
-    
+
     # Create a project, task, and implementation
     project = Project(name="Test Project")
     test_session.add(project)

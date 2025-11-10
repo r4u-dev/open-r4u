@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
@@ -19,6 +20,7 @@ from app.models.optimizations import Optimization  # noqa: F401
 from app.models.projects import Project  # noqa: F401
 from app.models.tasks import Implementation, Task  # noqa: F401
 from app.models.traces import Trace, TraceInputItem  # noqa: F401
+from app.services.task_grouping_queue import get_task_grouping_queue
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -73,3 +75,14 @@ async def client(test_session: AsyncSession) -> AsyncGenerator[AsyncClient, None
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_background_workers():
+    """Ensure background workers are stopped after all tests complete."""
+    yield
+
+    # Stop the task grouping worker after all tests
+    queue_manager = get_task_grouping_queue()
+    if queue_manager.is_worker_alive():
+        queue_manager.stop_worker(timeout=5.0)

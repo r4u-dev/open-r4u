@@ -47,7 +47,7 @@ class BadRequestError(Exception):
 def _serialize_for_json(value: Any) -> Any:
     """Recursively serialize Pydantic models and other objects to JSON-serializable types."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode='json')
+        return value.model_dump(mode="json")
     if isinstance(value, list):
         return [_serialize_for_json(item) for item in value]
     if isinstance(value, dict):

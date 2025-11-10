@@ -10,7 +10,7 @@ from app.config import Settings, get_settings
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
-from app.schemas.tasks import ImplementationCreate, TaskCreate
+from app.schemas.tasks import TaskCreate
 from app.services.evaluation_service import EvaluationService
 from app.services.implementation_service import ImplementationService
 from app.services.openai_client import get_async_openai_client

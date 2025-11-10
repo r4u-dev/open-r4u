@@ -383,13 +383,13 @@ class OptimizationService:
         # Get model names from providers with API keys
         provider_service = ProviderService(session)
         model_names = await provider_service.list_canonical_model_names_with_api_keys()
-        
+
         # Get pricing data for all models
         all_pricing = self.pricing_service.get_models_with_pricing()
-        
+
         # Create a lookup by canonical name
         pricing_lookup = {model["name"]: model for model in all_pricing}
-        
+
         # Filter to only models with API keys and return with pricing
         available_models = []
         for model_name in model_names:
@@ -406,7 +406,7 @@ class OptimizationService:
                     "combined_cost_per_1m": None,
                     "quality_index": None,
                 })
-        
+
         return available_models
 
     async def _get_evaluation_weights(
@@ -451,7 +451,7 @@ class OptimizationService:
             if value is None:
                 return "na"
             if isinstance(value, float):
-                return "{:.6g}".format(value)
+                return f"{value:.6g}"
             return str(value)
 
         items: list[str] = []
@@ -459,7 +459,7 @@ class OptimizationService:
             quality = model_info.get("quality_index")
             cost = model_info.get("combined_cost_per_1m")
             items.append(
-                f"index:{idx}/quality:{format_value(quality)}/cost:{format_value(cost)}"
+                f"index:{idx}/quality:{format_value(quality)}/cost:{format_value(cost)}",
             )
         return "; ".join(items)
 

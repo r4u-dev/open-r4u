@@ -10,12 +10,14 @@ from app.api.v1 import api_router
 from app.config import get_settings
 from app.database import AsyncSessionMaker
 from app.services.provider_service import load_providers_from_yaml
+from app.services.task_grouping_queue import get_task_grouping_queue
 
 settings = get_settings()
 
 logging.basicConfig(
     level=logging.DEBUG if settings.log_level == "DEBUG" else logging.INFO,
 )
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -25,8 +27,18 @@ async def lifespan(app: FastAPI):
     yaml_path = Path(__file__).parent.parent / "models.yaml"
     async with AsyncSessionMaker() as session:
         await load_providers_from_yaml(session, yaml_path)
+
+    logger.info("Starting background workers...")
+    queue_manager = get_task_grouping_queue()
+    queue_manager.start_worker()
+    logger.info("Background workers started")
+
     yield
-    # Shutdown: cleanup if needed
+
+    logger.info("Stopping background workers...")
+    queue_manager = get_task_grouping_queue()
+    queue_manager.stop_worker(timeout=10.0)
+    logger.info("Background workers stopped")
 
 
 app = FastAPI(title="Open R4U Backend", lifespan=lifespan)

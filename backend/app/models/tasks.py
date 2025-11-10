@@ -1,6 +1,6 @@
 """Task model for grouping similar traces."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -11,6 +11,10 @@ from app.models.executions import ExecutionResult
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
+
+if TYPE_CHECKING:
+    from app.models.evaluation import Evaluation, TargetTaskMetrics
+    from app.models.optimizations import Optimization
 
 
 class Implementation(Base):

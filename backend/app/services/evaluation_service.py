@@ -34,7 +34,7 @@ from app.schemas.evaluation import (
     EvaluationResultItem,
     ImplementationEvaluationStats,
 )
-from app.schemas.traces import OutputItem, OutputMessageItem, OutputMessageContent
+from app.schemas.traces import OutputItem, OutputMessageContent, OutputMessageItem
 from app.services.executions_service import execute as execute_task
 from app.services.grading_service import GradingService
 
@@ -79,7 +79,7 @@ class EvaluationService:
         # Normalize expected_output: allow raw string and convert to OutputMessageItem list
         if isinstance(expected_output, str):
             msg = OutputMessageItem(
-                id=f"msg-id-hex",
+                id="msg-id-hex",
                 content=[OutputMessageContent(type="text", text=expected_output)],
                 status="completed",
             )
@@ -149,7 +149,7 @@ class EvaluationService:
                 if key == "expected_output":
                     if isinstance(value, str):
                         msg = OutputMessageItem(
-                            id=f"msg-id-hex",
+                            id="msg-id-hex",
                             content=[OutputMessageContent(type="text", text=value)],
                             status="completed",
                         )
@@ -617,7 +617,6 @@ class EvaluationService:
         task_id: int | None = None,
     ) -> list[EvaluationListItem]:
         """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
-        
         query = select(Evaluation).options(selectinload(Evaluation.implementation), selectinload(Evaluation.task))
 
         if implementation_id is not None:
@@ -1068,5 +1067,5 @@ class EvaluationService:
                 project_id,
             )
             return [default_accuracy_grader.id, default_pairwise_grader.id]
-        
+
         return [grader.id for grader in graders]
