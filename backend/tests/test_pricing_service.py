@@ -95,67 +95,6 @@ class TestPricingService:
             assert service.models_yaml_path == Path(custom_path)
             mock_load.assert_called_once()
 
-    def test_resolve_model_name_exact_match(self, pricing_service_with_data):
-        """Test model name resolution for exact matches."""
-        service = pricing_service_with_data
-
-        # Test exact match
-        provider, model = service._resolve_model_name_from_yaml("gpt-5")
-        assert provider == "openai"
-        assert model == "gpt-5"
-
-    def test_resolve_model_name_provider_prefixed(self, pricing_service_with_data):
-        """Test model name resolution for provider-prefixed models."""
-        service = pricing_service_with_data
-
-        # Test provider prefixed
-        provider, model = service._resolve_model_name_from_yaml("openai/gpt-5")
-        assert provider == "openai"
-        assert model == "gpt-5"
-
-    def test_resolve_model_name_versioned(self, pricing_service_with_data):
-        """Test model name resolution for versioned models."""
-        service = pricing_service_with_data
-
-        # Test versioned model - should match base model
-        provider, model = service._resolve_model_name_from_yaml("gpt-5-2024-10-01")
-        assert provider == "openai"
-        assert model == "gpt-5"  # Version stripped to base model
-
-    def test_resolve_model_name_anthropic(self, pricing_service_with_data):
-        """Test model name resolution for Anthropic models."""
-        service = pricing_service_with_data
-
-        provider, model = service._resolve_model_name_from_yaml("claude-sonnet-4")
-        assert provider == "anthropic"
-        assert model == "claude-sonnet-4"
-
-    def test_resolve_model_name_google(self, pricing_service_with_data):
-        """Test model name resolution for Google models."""
-        service = pricing_service_with_data
-
-        provider, model = service._resolve_model_name_from_yaml("gemini-2.5-pro")
-        assert provider == "google"
-        assert model == "gemini-2.5-pro"
-
-    def test_resolve_model_name_unknown(self, pricing_service_with_data):
-        """Test model name resolution for unknown models."""
-        service = pricing_service_with_data
-
-        # Should raise ValueError for unknown models
-        with pytest.raises(ValueError, match="not found in models.yaml"):
-            service._resolve_model_name_from_yaml("unknown-model")
-
-    def test_strip_version_suffix(self, pricing_service_with_data):
-        """Test version suffix stripping."""
-        service = pricing_service_with_data
-
-        # Test various version patterns
-        assert service._strip_version_suffix("gpt-5-2024-10-01") == "gpt-5"
-        assert service._strip_version_suffix("gpt-5-v1") == "gpt-5"
-        assert service._strip_version_suffix("gpt-5-beta") == "gpt-5"
-        assert service._strip_version_suffix("gpt-5") == "gpt-5"  # No suffix
-
     def test_get_model_pricing_exact_match(self, pricing_service_with_data):
         """Test getting pricing for exact model match."""
         service = pricing_service_with_data
@@ -165,13 +104,12 @@ class TestPricingService:
         assert pricing["input_usd_per_million"] == 1.25
 
     def test_get_model_pricing_versioned(self, pricing_service_with_data):
-        """Test getting pricing for versioned model."""
+        """Test getting pricing for versioned model (exact match only, no stripping)."""
         service = pricing_service_with_data
 
-        # Should match base model after stripping version
+        # Versioned model not in YAML, so should return None
         pricing = service._get_model_pricing("openai", "gpt-5-2024-10-01")
-        assert pricing is not None
-        assert pricing["input_usd_per_million"] == 1.25
+        assert pricing is None
 
     def test_get_model_pricing_not_found(self, pricing_service_with_data):
         """Test getting pricing for non-existent model."""
@@ -207,6 +145,18 @@ class TestPricingService:
         # Expected: (800 * 1.25 + 200 * 0.125 + 500 * 10.00) / 1_000_000
         expected = (800 * 1.25 + 200 * 0.125 + 500 * 10.00) / 1_000_000
         assert cost == pytest.approx(expected, rel=1e-6)
+
+    def test_calculate_cost_requires_canonical_identifier(self, pricing_service_with_data):
+        """Cost calculation should return None when model lacks provider prefix."""
+        service = pricing_service_with_data
+
+        cost = service.calculate_cost(
+            model="gpt-5",
+            prompt_tokens=1000,
+            completion_tokens=500,
+        )
+
+        assert cost is None
 
     def test_calculate_cost_gemini_default_pricing(self, pricing_service_with_data):
         """Test Gemini cost calculation with default pricing."""
@@ -307,30 +257,6 @@ class TestPricingService:
             prompt_tokens=1000,
             completion_tokens=500)
         assert cost is None
-
-    def test_get_available_models(self, pricing_service_with_data):
-        """Test getting available models by provider."""
-        service = pricing_service_with_data
-
-        models = service.get_available_models()
-
-        assert "openai" in models
-        assert "openai/gpt-5" in models["openai"]
-        assert "openai/gpt-5-mini" in models["openai"]
-
-        assert "anthropic" in models
-        assert "anthropic/claude-sonnet-4" in models["anthropic"]
-
-        assert "google" in models
-        assert "google/gemini-2.5-pro" in models["google"]
-
-    def test_get_available_models_empty_data(self):
-        """Test getting available models with empty pricing data."""
-        service = PricingService()
-        service._pricing_data = {}
-
-        models = service.get_available_models()
-        assert models == {}
 
     def test_calculate_gemini_cost_method(self, pricing_service_with_data):
         """Test the internal _calculate_gemini_cost method."""

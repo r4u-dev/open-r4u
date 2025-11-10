@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tasks import Implementation, Task
 from app.schemas.tasks import ImplementationCreate
+from app.services.provider_service import ProviderService
 
 
 class ImplementationService:
@@ -20,6 +21,7 @@ class ImplementationService:
 
         """
         self.session = session
+        self.provider_service = ProviderService(session)
 
     async def get_implementation(self, implementation_id: int) -> Implementation | None:
         """Get an implementation by ID.
@@ -83,7 +85,7 @@ class ImplementationService:
             task_id=task_id,
             version=payload.version,
             prompt=payload.prompt,
-            model=payload.model,
+            model=await self.provider_service.canonicalize_model(payload.model),
             temperature=payload.temperature,
             reasoning=self._serialize_reasoning(payload.reasoning),
             tools=self._serialize_tools(payload.tools),
@@ -124,7 +126,7 @@ class ImplementationService:
         # Update fields
         implementation.version = payload.version
         implementation.prompt = payload.prompt
-        implementation.model = payload.model
+        implementation.model = await self.provider_service.canonicalize_model(payload.model)
         implementation.temperature = payload.temperature
         implementation.reasoning = self._serialize_reasoning(payload.reasoning)
         implementation.tools = self._serialize_tools(payload.tools)

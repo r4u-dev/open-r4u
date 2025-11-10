@@ -26,6 +26,7 @@ from app.schemas.traces import MessageItem, OutputItem, OutputMessageItem
 from app.services.evaluation_service import EvaluationService
 from app.services.executor import LLMExecutor
 from app.services.pricing_service import PricingService
+from app.services.provider_service import ProviderService
 
 logger = logging.getLogger(__name__)
 
@@ -363,7 +364,7 @@ class OptimizationService:
         prior evaluation feedback). The agent returns a JSON object with field overrides from
         the allowed `changeable_fields`.
         """
-        available_models = self._get_available_models()
+        available_models = await self._get_available_models(session)
         evaluation_weights = await self._get_evaluation_weights(session, task_id)
 
         variables = self._build_optimizer_variables(available_models, evaluation_weights)
@@ -377,9 +378,36 @@ class OptimizationService:
         self._record_variant_in_conversation(task_id, variant)
         return variant
 
-    def _get_available_models(self) -> list[dict[str, Any]]:
-        """Get list of all available models and their pricing across providers, for the optimizer agent."""
-        return self.pricing_service.get_models_with_pricing()
+    async def _get_available_models(self, session: AsyncSession) -> list[dict[str, Any]]:
+        """Get list of available models with API keys and their pricing, for the optimizer agent."""
+        # Get model names from providers with API keys
+        provider_service = ProviderService(session)
+        model_names = await provider_service.list_canonical_model_names_with_api_keys()
+        
+        # Get pricing data for all models
+        all_pricing = self.pricing_service.get_models_with_pricing()
+        
+        # Create a lookup by canonical name
+        pricing_lookup = {model["name"]: model for model in all_pricing}
+        
+        # Filter to only models with API keys and return with pricing
+        available_models = []
+        for model_name in model_names:
+            if model_name in pricing_lookup:
+                available_models.append(pricing_lookup[model_name])
+            else:
+                # Model exists in DB but no pricing data - include with minimal info
+                provider, name = model_name.split("/", 1)
+                available_models.append({
+                    "name": model_name,
+                    "provider": provider,
+                    "input_cost_per_1m": None,
+                    "output_cost_per_1m": None,
+                    "combined_cost_per_1m": None,
+                    "quality_index": None,
+                })
+        
+        return available_models
 
     async def _get_evaluation_weights(
         self, session: AsyncSession, task_id: int,

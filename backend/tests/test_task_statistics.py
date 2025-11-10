@@ -129,7 +129,7 @@ async def test_calculate_trace_cost():
     """Test trace cost calculation."""
     # Create a mock trace
     trace = Trace(
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         prompt_tokens=1000,
         completion_tokens=500,
         cached_tokens=0,
@@ -148,7 +148,7 @@ async def test_calculate_trace_cost():
 async def test_calculate_trace_cost_with_caching():
     """Test trace cost calculation with cached tokens."""
     trace = Trace(
-        model="gpt-4.1",
+        model="openai/gpt-4.1",
         prompt_tokens=1000,
         completion_tokens=500,
         cached_tokens=500,  # Half the prompt was cached
@@ -168,7 +168,7 @@ async def test_calculate_traces_cost():
     """Test calculating costs for multiple traces."""
     traces = [
         Trace(
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             prompt_tokens=100,
             completion_tokens=50,
             cached_tokens=0,
@@ -176,7 +176,7 @@ async def test_calculate_traces_cost():
             project_id=1,
         ),
         Trace(
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             prompt_tokens=200,
             completion_tokens=100,
             cached_tokens=0,
@@ -216,7 +216,7 @@ async def test_get_traces_for_task(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -228,7 +228,7 @@ async def test_get_traces_for_task(test_session: AsyncSession):
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-4",
+            model="openai/gpt-4",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1),
             prompt_tokens=100 * (i + 1),
@@ -273,7 +273,7 @@ async def test_calculate_task_cost_percentile(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -285,7 +285,7 @@ async def test_calculate_task_cost_percentile(test_session: AsyncSession):
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1),
             prompt_tokens=100 * (i + 1),  # 100, 200, 300, ..., 1000
@@ -324,7 +324,7 @@ async def test_calculate_task_latency_percentile(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -338,7 +338,7 @@ async def test_calculate_task_latency_percentile(test_session: AsyncSession):
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-4",
+            model="openai/gpt-4",
             started_at=base_time + timedelta(seconds=i * 10),
             completed_at=base_time + timedelta(seconds=i * 10 + latency),
             prompt_tokens=100,
@@ -387,7 +387,7 @@ async def test_get_task_with_percentiles(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -399,7 +399,7 @@ async def test_get_task_with_percentiles(test_session: AsyncSession):
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1),
             prompt_tokens=100 * (i + 1),
@@ -453,7 +453,7 @@ async def test_list_tasks_with_percentiles(test_session: AsyncSession):
         impl = Implementation(
             task_id=task.id,
             prompt=f"Test prompt {i}",
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             max_output_tokens=1000,
         )
         test_session.add(impl)
@@ -465,7 +465,7 @@ async def test_list_tasks_with_percentiles(test_session: AsyncSession):
             trace = Trace(
                 project_id=project.id,
                 implementation_id=impl.id,
-                model="gpt-3.5-turbo",
+                model="openai/gpt-3.5-turbo",
                 started_at=base_time + timedelta(seconds=j),
                 completed_at=base_time + timedelta(seconds=j + 1),
                 prompt_tokens=100 * (j + 1),
@@ -536,7 +536,7 @@ async def test_task_api_includes_percentiles(
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1),
             prompt_tokens=100 * (i + 1),
@@ -591,7 +591,7 @@ async def test_task_with_no_traces(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -627,7 +627,7 @@ async def test_custom_percentile_values(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -639,7 +639,7 @@ async def test_custom_percentile_values(test_session: AsyncSession):
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1 + i * 0.1),
             prompt_tokens=100 * (i + 1),
@@ -687,7 +687,7 @@ async def test_time_weighted_cost_percentile(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -700,7 +700,7 @@ async def test_time_weighted_cost_percentile(test_session: AsyncSession):
     old_expensive = Trace(
         project_id=project.id,
         implementation_id=impl.id,
-        model="gpt-3.5-turbo",
+        model="openai/gpt-3.5-turbo",
         started_at=now - timedelta(hours=336),  # 2 weeks ago
         completed_at=now - timedelta(hours=336) + timedelta(seconds=1),
         prompt_tokens=10000,  # Very expensive
@@ -713,7 +713,7 @@ async def test_time_weighted_cost_percentile(test_session: AsyncSession):
         cheap_trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=now - timedelta(minutes=i),
             completed_at=now - timedelta(minutes=i) + timedelta(seconds=1),
             prompt_tokens=100,  # Very cheap
@@ -768,7 +768,7 @@ async def test_time_weighted_latency_percentile(test_session: AsyncSession):
     impl = Implementation(
         task_id=task.id,
         prompt="Test prompt",
-        model="gpt-4",
+        model="openai/gpt-4",
         max_output_tokens=1000,
     )
     test_session.add(impl)
@@ -781,7 +781,7 @@ async def test_time_weighted_latency_percentile(test_session: AsyncSession):
     old_slow = Trace(
         project_id=project.id,
         implementation_id=impl.id,
-        model="gpt-4",
+        model="openai/gpt-4",
         started_at=now - timedelta(hours=336),  # 2 weeks ago
         completed_at=now - timedelta(hours=336) + timedelta(seconds=10),  # 10 seconds
         prompt_tokens=100,
@@ -794,7 +794,7 @@ async def test_time_weighted_latency_percentile(test_session: AsyncSession):
         fast_trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=now - timedelta(minutes=i),
             completed_at=now
             - timedelta(minutes=i)
@@ -872,7 +872,7 @@ async def test_api_accepts_half_life_parameter(
         trace = Trace(
             project_id=project.id,
             implementation_id=impl.id,
-            model="gpt-3.5-turbo",
+            model="openai/gpt-3.5-turbo",
             started_at=base_time + timedelta(seconds=i),
             completed_at=base_time + timedelta(seconds=i + 1),
             prompt_tokens=100 * (i + 1),
