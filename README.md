@@ -7,6 +7,8 @@
 
 Open R4U is an open-source LLM observability and optimization platform that helps you trace, monitor, and optimize your AI applications. Track your LLM usage, analyze performance, and maximize ROI through intelligent insights and recommendations.
 
+**🆕 Features automatic task grouping with background processing** - Similar traces are automatically grouped into tasks with templated prompts, running in a separate process to keep your API fast.
+
 ## 🌟 Features
 
 ### 🔍 **HTTP-Level Observability**
@@ -40,6 +42,14 @@ Open R4U is an open-source LLM observability and optimization platform that help
 - **Comprehensive Testing**: 102 tests covering all HTTP wrapper functionality
 - **Well-Documented**: Extensive examples and troubleshooting guides
 
+### 🤖 **Automatic Task Grouping**
+
+- **Pattern Detection**: Automatically identifies similar traces and groups them into tasks
+- **Template Generation**: Creates templated prompts with variable extraction
+- **Background Processing**: CPU-intensive grouping runs in separate process
+- **Smart Throttling**: Only processes latest trace when multiple arrive rapidly
+- **Non-Blocking**: API responses remain fast, grouping happens asynchronously
+
 ## 🏗 Architecture
 
 Open R4U uses HTTP-level tracing to capture all LLM API calls transparently:
@@ -64,6 +74,7 @@ Open R4U uses HTTP-level tracing to capture all LLM API calls transparently:
 4. Request/response data is captured and queued
 5. Background worker sends traces to backend every 5 seconds
 6. Backend stores and analyzes the traces
+7. Task grouping worker analyzes similar traces and creates tasks with templates (in background)
 
 **Supported HTTP Libraries:**
 
@@ -226,6 +237,7 @@ curl http://localhost:8000/api/v1/http-traces/{trace_id}
 ### Backend API
 
 - [Backend API Documentation](backend/README.md)
+- [Background Task Grouping Architecture](backend/docs/BACKGROUND_TASK_GROUPING.md)
 - [API Tests](backend/tests/README.md)
 
 ## 🧪 Testing
@@ -291,8 +303,11 @@ open-r4u/
 │   │   ├── api/v1/            # API endpoints
 │   │   ├── models/            # Database models
 │   │   ├── schemas/           # Pydantic schemas
+│   │   ├── services/          # Business logic
+│   │   ├── workers/           # Background workers
 │   │   └── main.py            # FastAPI app
 │   ├── migrations/            # Database migrations
+│   ├── docs/                  # Architecture docs
 │   └── tests/                 # Backend tests
 ├── sdks/python/               # Python SDK
 │   ├── src/r4u/

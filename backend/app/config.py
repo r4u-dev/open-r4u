@@ -29,7 +29,11 @@ class Settings(BaseSettings):
 
     min_segment_words: int = 7
     min_matching_traces: int = 5
+<<<<<<< HEAD
     min_cluster_size: int = 20
+=======
+    min_cluster_size: int = 30
+>>>>>>> 866cb9c (Create a separate process for task grouping)
 
 
 @lru_cache

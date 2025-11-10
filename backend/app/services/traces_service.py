@@ -11,11 +11,10 @@ from app.config import get_settings
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace, TraceInputItem, TraceOutputItem
-from app.schemas.tasks import ImplementationCreate, TaskCreate
 from app.schemas.traces import TraceCreate
 from app.services.provider_service import ProviderService
 from app.services.task_grouping import TemplateFinder
-from app.services.task_service import TaskService
+from app.services.task_grouping_queue import get_task_grouping_queue
 
 logger = logging.getLogger(__name__)
 
@@ -183,12 +182,12 @@ class TracesService:
             else:
                 logger.debug(f"No implementation match found for trace {trace.id}")
 
-                # Try to create a new implementation from similar traces
-                await self._try_create_implementation_from_similar_traces(
-                    trace=trace,
-                    trace_data=trace_data,
+                # Queue task grouping in background instead of processing synchronously
+                queue_manager = get_task_grouping_queue()
+                queue_manager.enqueue_grouping(
                     project_id=project_id,
-                    session=session,
+                    path=trace.path,
+                    trace_id=trace.id,
                 )
 
         except Exception as e:
@@ -336,160 +335,6 @@ class TracesService:
                 }
 
         return None
-
-    async def _try_create_implementation_from_similar_traces(
-        self,
-        trace: Trace,
-        trace_data: TraceCreate,
-        project_id: int,
-        session: AsyncSession,
-    ) -> None:
-        """Try to create a new task/implementation by grouping similar traces.
-
-        This is called when no existing implementation matches. It:
-        1. Finds all unmatched traces with the same model
-        2. If enough similar traces exist, groups them by prompt patterns
-        3. For each group, creates a task and implementation with inferred template
-
-        Args:
-            trace: The unmatched trace
-            trace_data: Original trace creation data
-            project_id: Project ID
-            session: Database session
-
-        """
-        try:
-            # Extract first message (instructions)
-            input_items = [item.model_dump(mode="json") for item in trace_data.input]
-            system_prompt = await self._extract_system_prompt_from_trace(input_items)
-
-            if not system_prompt:
-                logger.debug(
-                    f"Trace {trace.id} has no first message, skipping auto-grouping",
-                )
-                return
-
-            settings = get_settings()
-
-            traces_query = (
-                select(Trace)
-                .where(Trace.project_id == project_id)
-                .where(Trace.path == trace.path)
-                .where(Trace.implementation_id.is_(None))
-                .options(joinedload(Trace.input_items))
-            )
-            result = await session.execute(traces_query)
-            unmatched_traces = result.unique().scalars().all()
-
-            if len(unmatched_traces) < settings.min_cluster_size:
-                logger.debug(
-                    f"Only {len(unmatched_traces)} unmatched traces with path '{trace.path}', "
-                    f"need {settings.min_cluster_size} to auto-create implementation",
-                )
-                return
-
-            # Extract prompts from all unmatched traces
-            prompts = []
-            trace_map = {}  # Map index to trace
-            for t in unmatched_traces:
-                t_input_items = [
-                    {"type": item.type.value, **item.data} for item in t.input_items
-                ]
-                t_prompt = await self._extract_system_prompt_from_trace(t_input_items)
-                if t_prompt:
-                    prompts.append(t_prompt)
-                    trace_map[len(prompts) - 1] = t
-
-            if len(prompts) < settings.min_matching_traces:
-                logger.debug(
-                    f"Only {len(prompts)} traces with valid prompts, "
-                    f"need {settings.min_matching_traces} to auto-create implementation",
-                )
-                return
-
-            logger.info(
-                f"Found {len(prompts)} unmatched traces with prompts, "
-                f"attempting to create task/implementation groups",
-            )
-
-            # Use TemplateFinder to group similar prompts
-            template_finder = TemplateFinder(
-                settings.min_segment_words,
-                settings.min_matching_traces,
-            )
-
-            # Group prompts into templates
-            groups = template_finder.group_strings(prompts)
-
-            if not groups:
-                logger.debug(
-                    f"Could not create any groups for trace {trace.id}",
-                )
-                return
-
-            # Create task and implementation for each group
-            task_service = TaskService(session)
-
-            for template, prompt_indices in groups.items():
-                # Create implementation data
-                impl_data = ImplementationCreate(
-                    prompt=template,
-                    model=trace.model,
-                    max_output_tokens=trace_data.max_tokens or 1000,
-                    temperature=trace_data.temperature,
-                    tools=trace_data.tools,
-                    tool_choice=trace_data.tool_choice,
-                    reasoning=trace_data.reasoning,
-                    temp=True,  # Mark as temporary/auto-generated
-                )
-
-                # Create task data - name and description will be auto-generated
-                task_data = TaskCreate(
-                    project=trace.project.name if trace.project else "Default Project",
-                    name="",  # Will be auto-generated
-                    description="",  # Will be auto-generated
-                    implementation=impl_data,
-                )
-
-                # Create task with auto-generated name and description
-                task = await task_service.create_task(task_data)
-
-                # Get the implementation ID from production_version_id
-                if not task.production_version_id:
-                    logger.warning(
-                        f"Failed to create implementation for task {task.id}, skipping",
-                    )
-                    continue
-
-                impl_id = task.production_version_id
-
-                # Assign traces to this implementation and extract variables
-                for idx in prompt_indices:
-                    if idx in trace_map:
-                        t = trace_map[idx]
-                        match, variables = template_finder.match_template(
-                            template,
-                            prompts[idx],
-                        )
-                        if match:
-                            t.implementation_id = impl_id
-                            t.prompt_variables = variables
-
-                logger.info(
-                    f"Created task {task.id} with implementation {impl_id} "
-                    f"for {len(prompt_indices)} traces with template: {template}",
-                )
-
-            # Commit all changes
-            await session.commit()
-            await session.refresh(trace)
-
-        except Exception as e:
-            logger.warning(
-                f"Failed to auto-create implementation from similar traces "
-                f"for trace {trace.id}: {e}",
-                exc_info=True,
-            )
 
     async def _extract_system_prompt_from_trace(
         self,
