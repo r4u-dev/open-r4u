@@ -107,6 +107,8 @@ class TracesService:
 
         # Auto-match to implementation if not explicitly set
         if not trace.implementation_id:
+            logger.debug("Attempting to auto-match trace to implementation")
+            print("Attempting to auto-match trace to implementation")
             await self._auto_match_implementation(
                 trace=trace,
                 trace_data=trace_data,
@@ -174,12 +176,14 @@ class TracesService:
                 trace.implementation_id = matching["implementation_id"]
                 trace.prompt_variables = matching["variables"]
                 await session.commit()
+                print(f"Auto-matched trace {trace.id} to implementation ")
                 logger.info(
                     f"Auto-matched trace {trace.id} to implementation "
                     f"{matching['implementation_id']} with variables: "
                     f"{matching['variables']}",
                 )
             else:
+                print(f"No implementation match found for trace {trace.id}")
                 logger.debug(f"No implementation match found for trace {trace.id}")
 
                 # Queue task grouping in background instead of processing synchronously
@@ -312,6 +316,7 @@ class TracesService:
         )
         result = await session.execute(query)
         implementations = result.scalars().all()
+        print([impl.prompt for impl in implementations])
 
         if not implementations:
             return None

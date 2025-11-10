@@ -7,11 +7,17 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import ItemType, MessageRole
 from app.models.http_traces import HTTPTrace
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace
-from app.schemas.traces import TraceCreate
+from app.schemas.traces import (
+    MessageItem,
+    OutputMessageContent,
+    OutputMessageItem,
+    TraceCreate,
+)
 from app.services.traces_service import TracesService
 
 
@@ -67,23 +73,22 @@ class TestTracesServiceCreate:
         trace_data = TraceCreate(
             model="gpt-4",
             project="Test Project",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
             input=[
-                {
-                    "type": "message",
-                    "role": "system",
-                    "content": "Hello, Alice! You are user #42.",
-                },
-                {"type": "message", "role": "user", "content": "Hello!"},
+                MessageItem(
+                    type=ItemType.MESSAGE,
+                    role=MessageRole.SYSTEM,
+                    content="Hello, Alice! You are user #42.",
+                ),
             ],
             output=[
-                {
-                    "type": "message",
-                    "id": "msg-1",
-                    "content": [{"type": "text", "text": "Hi there!"}],
-                },
+                OutputMessageItem(
+                    type="message",
+                    id="msg-1",
+                    content=[OutputMessageContent(type="text", text="Hi there!")],
+                ),
             ],
-            started_at="2025-10-15T10:00:00Z",
-            completed_at="2025-10-15T10:00:01Z",
         )
 
         trace = await traces_service.create_trace(trace_data, test_session)

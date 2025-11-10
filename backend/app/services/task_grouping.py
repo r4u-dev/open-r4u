@@ -1,4 +1,3 @@
-import re
 from collections import defaultdict
 
 
@@ -14,88 +13,126 @@ class TemplateFinder:
 
         Args:
             min_segment_words: Minimum number of words in a template segment
-            min_matching_traces: Minimum number of strings that must match a template
+            min_matching_strings: Minimum number of strings that must match a template
 
         """
         self.min_segment_words = min_segment_words
-        self.min_matching_traces = min_matching_strings
+        self.min_matching_strings = min_matching_strings
+
+    def _tokenize(self, s: str) -> list[str]:
+        """Simple whitespace tokenizer."""
+        return s.split()
 
     def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
-        """Check if a string matches a template and extract variable values.
+        """Match a string against a template with variable placeholders.
 
         Args:
-            template: Template string with {{var_X}} placeholders
+            template: Template string with {{var_name}} placeholders
             s: String to match against the template
 
         Returns:
-            Tuple of (matches: bool, variables: dict[str, str])
-            If matches is True, variables contains the extracted values
+            Tuple of (match_success, variable_mapping)
+
+        Example:
+            >>> match_template("Hi Mr. {{var_0}}, how are you?", "Hi Mr. Johnson, how are you?")
+            (True, {'var_0': 'Johnson'})
 
         """
-        # Parse template into segments and variable positions
+        # Parse template into tokens (literals and variables)
+        tokens = []
+        i = 0
 
-        # Split template by variable placeholders
-        # Pattern matches {{var_0}}, {{var_1}}, etc.
-        var_pattern = r"\{\{var_\d+\}\}"
+        while i < len(template):
+            var_start = template.find("{{", i)
 
-        # Find all variables and their positions
-        variables = re.findall(var_pattern, template)
+            if var_start == -1:
+                # No more variables, rest is literal
+                if i < len(template):
+                    tokens.append(("lit", template[i:]))
+                break
 
-        # Split template by variables to get fixed segments
-        segments = re.split(var_pattern, template)
+            # Add literal before variable (if any)
+            if var_start > i:
+                tokens.append(("lit", template[i:var_start]))
 
-        # Convert segments to token lists
-        segment_tokens = [seg.split() for seg in segments if seg.strip()]
+            # Find variable end
+            var_end = template.find("}}", var_start + 2)
+            if var_end == -1:
+                return False, {}  # Malformed template
 
-        # Tokenize the input string
-        string_tokens = s.split()
+            var_name = template[var_start + 2 : var_end]
+            tokens.append(("var", var_name))
+            i = var_end + 2
 
-        # Try to match the template
-        extracted_vars = {}
-        current_pos = 0
+        # Match tokens against string
+        variables = {}
+        pos = 0
 
-        for i, segment in enumerate(segment_tokens):
-            if not segment:  # Skip empty segments
-                continue
+        for idx in range(len(tokens)):
+            token_type, token_value = tokens[idx]
 
-            # Find this segment in the string starting from current_pos
-            seg_len = len(segment)
-            found = False
+            if token_type == "lit":
+                # Literal must match exactly
+                lit_len = len(token_value)
+                if pos + lit_len > len(s) or s[pos : pos + lit_len] != token_value:
+                    return False, {}
+                pos += lit_len
 
-            for j in range(current_pos, len(string_tokens) - seg_len + 1):
-                if string_tokens[j : j + seg_len] == segment:
-                    # Extract variable value before this segment (if any)
-                    if i > 0 and current_pos < j:
-                        var_name = variables[i - 1].strip("{}")
-                        var_value = " ".join(string_tokens[current_pos:j])
-                        extracted_vars[var_name] = var_value
+            else:  # variable
+                # Determine how much to consume for this variable
+                if idx == len(tokens) - 1:
+                    # Last token - consume remaining string
+                    var_value = s[pos:]
+                else:
+                    # Find next literal token
+                    next_lit_idx = idx + 1
+                    while (
+                        next_lit_idx < len(tokens) and tokens[next_lit_idx][0] != "lit"
+                    ):
+                        next_lit_idx += 1
 
-                    current_pos = j + seg_len
-                    found = True
-                    break
+                    if next_lit_idx >= len(tokens):
+                        # No more literals - greedy match for first var, empty for rest
+                        if idx == next_lit_idx - 1:
+                            var_value = s[pos:]
+                        else:
+                            var_value = ""
+                    else:
+                        # Find next literal in string
+                        next_lit = tokens[next_lit_idx][1]
 
-            if not found:
-                return False, {}
+                        # Search for the literal, considering we need to match remaining pattern
+                        search_start = pos
+                        found_pos = s.find(next_lit, search_start)
 
-        # Handle trailing variable (after last segment)
-        if len(segment_tokens) < len(variables) + 1 and current_pos < len(
-            string_tokens,
-        ):
-            var_name = variables[-1].strip("{}")
-            var_value = " ".join(string_tokens[current_pos:])
-            extracted_vars[var_name] = var_value
-        elif len(segment_tokens) == len(variables) and current_pos < len(string_tokens):
-            # Variable at the end
-            var_name = variables[-1].strip("{}")
-            var_value = " ".join(string_tokens[current_pos:])
-            extracted_vars[var_name] = var_value
+                        if found_pos == -1:
+                            return False, {}
 
-        # Check if we matched all expected variables
-        expected_vars = {var.strip("{}") for var in variables}
-        if extracted_vars.keys() != expected_vars:
-            return False, {}
+                        # For consecutive variables before this literal,
+                        # give everything to the first one
+                        consecutive_vars_before = 0
+                        check_idx = idx
+                        while check_idx > 0 and tokens[check_idx - 1][0] == "var":
+                            consecutive_vars_before += 1
+                            check_idx -= 1
 
-        return True, extracted_vars
+                        if consecutive_vars_before == 0:
+                            var_value = s[pos:found_pos]
+                        else:
+                            # We're not the first in a sequence of consecutive vars
+                            var_value = ""
+
+                # Validate consistency if variable seen before
+                if token_value in variables:
+                    if variables[token_value] != var_value:
+                        return False, {}
+                else:
+                    variables[token_value] = var_value
+
+                pos += len(var_value)
+
+        # Verify entire string was consumed
+        return (pos == len(s), variables)
 
     def group_strings(self, strs: list[str]) -> dict[str, list[int]]:
         """Group strings by their templates.
@@ -107,7 +144,7 @@ class TemplateFinder:
             Dict mapping templates to list of string indices that match
 
         """
-        if not strs or self.min_matching_traces < 1:
+        if not strs or self.min_matching_strings < 1:
             return {}
 
         self.tokenized = [s.split() for s in strs]
@@ -121,7 +158,7 @@ class TemplateFinder:
 
             if segments and length >= self.min_segment_words:
                 # Create template string with variable placeholders
-                template = self._segments_to_template(segments)
+                template = self._segments_to_template(segments, idx)
                 string_to_template[idx] = (template, length)
 
         # Resolve conflicts: if a string matches multiple templates, assign to longest
@@ -144,11 +181,11 @@ class TemplateFinder:
         for idx, (template, length) in final_assignment.items():
             result[template].append(idx)
 
-        # Filter out groups with fewer than min_matching_traces strings
+        # Filter out groups with fewer than min_matching_strings strings
         result = {
             template: indices
             for template, indices in result.items()
-            if len(indices) >= self.min_matching_traces
+            if len(indices) >= self.min_matching_strings
         }
 
         return dict(result)
@@ -163,16 +200,34 @@ class TemplateFinder:
                 ngram = tuple(tokens[i : i + n])
                 self.ngram_to_strings[ngram].add(idx)
 
-    def _segments_to_template(self, segments: list[list[str]]) -> str:
+    def _segments_to_template(self, segments: list[list[str]], string_idx: int) -> str:
         """Convert segments to template string with variable placeholders."""
         if not segments:
             return ""
 
         template_parts = []
+        tokens = self.tokenized[string_idx]
+        current_token_pos = 0
+        var_counter = 0
+
         for i, segment in enumerate(segments):
-            template_parts.append(" ".join(segment))
-            if i < len(segments) - 1:
-                template_parts.append(f"{{{{var_{i}}}}}")
+            # Find where this segment appears in the original string
+            seg_len = len(segment)
+            for j in range(current_token_pos, len(tokens) - seg_len + 1):
+                if tokens[j : j + seg_len] == segment:
+                    # Add variable placeholder for any gap before this segment
+                    if j > current_token_pos:
+                        template_parts.append(f"{{{{var_{var_counter}}}}}")
+                        var_counter += 1
+
+                    # Add the fixed segment
+                    template_parts.append(" ".join(segment))
+                    current_token_pos = j + seg_len
+                    break
+
+        # Add trailing variable if there are tokens after the last segment
+        if current_token_pos < len(tokens):
+            template_parts.append(f"{{{{var_{var_counter}}}}}")
 
         return " ".join(template_parts)
 
@@ -249,7 +304,7 @@ class TemplateFinder:
                     if self._matches_segments(self.tokenized[idx], test_segments)
                 )
 
-                if match_count >= self.min_matching_traces:
+                if match_count >= self.min_matching_strings:
                     best_seg = candidate_seg
                     best_seg_len = mid
                     left = mid + 1  # Try longer

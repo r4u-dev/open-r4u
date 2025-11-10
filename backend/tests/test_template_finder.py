@@ -39,6 +39,7 @@ class TestTemplateFinder:
         assert len(groups) == 2
         template = next(iter(groups))
         # Should have two variable placeholders
+        print(groups)
         assert template.count("{{var_0}}") == 1
         assert "Send email to Alice about project" in template
 
@@ -128,7 +129,6 @@ class TestTemplateFinder:
         """Test matching strings to templates and extracting variables."""
         finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
         match, variables = finder.match_template(template, s)
-        print(template, s)
         assert match == expected_match
         assert variables == expected_vars
 
@@ -155,12 +155,3 @@ class TestTemplateFinder:
         match, variables = finder.match_template(template, s)
         assert match is True
         assert variables == {"var_0": "Alice", "var_1": "sushi"}
-
-    def test_match_template_adjacent_variables_not_supported(self):
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
-        template = "{{var_0}} {{var_1}}"
-        s = "Alice sushi"
-        match, variables = finder.match_template(template, s)
-        # Adjacent variables are not supported by the implementation
-        assert match is False
-        assert variables == {}
