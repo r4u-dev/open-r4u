@@ -27,8 +27,18 @@ async def lifespan(app: FastAPI):
     yaml_path = Path(__file__).parent.parent / "models.yaml"
     async with AsyncSessionMaker() as session:
         await load_providers_from_yaml(session, yaml_path)
+
+    logger.info("Starting background workers...")
+    queue_manager = get_task_grouping_queue()
+    queue_manager.start_worker()
+    logger.info("Background workers started")
+
     yield
-    # Shutdown: cleanup if needed
+
+    logger.info("Stopping background workers...")
+    queue_manager = get_task_grouping_queue()
+    queue_manager.stop_worker(timeout=10.0)
+    logger.info("Background workers stopped")
 
 
 app = FastAPI(title="Open R4U Backend", lifespan=lifespan)
@@ -48,24 +58,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Start background workers on application startup."""
-    logger.info("Starting background workers...")
-    queue_manager = get_task_grouping_queue()
-    queue_manager.start_worker()
-    logger.info("Background workers started")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop background workers on application shutdown."""
-    logger.info("Stopping background workers...")
-    queue_manager = get_task_grouping_queue()
-    queue_manager.stop_worker(timeout=10.0)
-    logger.info("Background workers stopped")
 
 
 @app.get("/health", tags=["health"])
