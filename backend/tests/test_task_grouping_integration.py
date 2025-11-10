@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,13 +16,13 @@ from app.services.task_grouping_queue import get_task_grouping_queue
 from app.services.traces_service import TracesService
 
 
-@pytest.fixture
-async def project(db_session: AsyncSession):
+@pytest_asyncio.fixture
+async def project(test_session: AsyncSession):
     """Create a test project."""
     project = Project(name="Test Project")
-    db_session.add(project)
-    await db_session.commit()
-    await db_session.refresh(project)
+    test_session.add(project)
+    await test_session.commit()
+    await test_session.refresh(project)
     return project
 
 
@@ -51,7 +52,7 @@ def sample_trace_data(project):
 
 @pytest.mark.asyncio
 async def test_worker_processes_grouping_request(
-    db_session: AsyncSession,
+    test_session: AsyncSession,
     project,
     sample_trace_data,
 ):
@@ -73,7 +74,7 @@ async def test_worker_processes_grouping_request(
     created_traces = []
     for instr in instructions:
         trace_data = sample_trace_data(instr)
-        trace = await traces_service.create_trace(trace_data, db_session)
+        trace = await traces_service.create_trace(trace_data, test_session)
         created_traces.append(trace)
 
     # All traces should be created
@@ -89,7 +90,7 @@ async def test_worker_processes_grouping_request(
         .where(Trace.project_id == project.id)
         .where(Trace.implementation_id.is_(None))
     )
-    result = await db_session.execute(query)
+    result = await test_session.execute(query)
     unmatched_traces = result.scalars().all()
 
     assert len(unmatched_traces) == 5
@@ -97,7 +98,7 @@ async def test_worker_processes_grouping_request(
 
 @pytest.mark.asyncio
 async def test_trace_creation_enqueues_grouping(
-    db_session: AsyncSession,
+    test_session: AsyncSession,
     project,
     sample_trace_data,
 ):
@@ -126,7 +127,7 @@ async def test_trace_creation_enqueues_grouping(
         traces_service = TracesService()
         trace_data = sample_trace_data("Test instruction")
 
-        trace = await traces_service.create_trace(trace_data, db_session)
+        trace = await traces_service.create_trace(trace_data, test_session)
 
         # Should have enqueued a request
         assert len(enqueued_requests) == 1
@@ -141,7 +142,7 @@ async def test_trace_creation_enqueues_grouping(
 
 @pytest.mark.asyncio
 async def test_throttling_behavior(
-    db_session: AsyncSession,
+    test_session: AsyncSession,
     project,
     sample_trace_data,
 ):
@@ -155,33 +156,37 @@ async def test_throttling_behavior(
     mock_process = Mock()
     mock_process.is_alive.return_value = True
     queue_manager._worker_process = mock_process
-    queue_manager._queue = mp.Queue()
+    test_queue = mp.Queue()
+    queue_manager._queue = test_queue
 
-    traces_service = TracesService()
+    try:
+        traces_service = TracesService()
 
-    # Create multiple traces rapidly for same path
-    trace_ids = []
-    for i in range(5):
-        trace_data = sample_trace_data(f"Instruction {i}")
-        trace = await traces_service.create_trace(trace_data, db_session)
-        trace_ids.append(trace.id)
+        # Create multiple traces rapidly for same path
+        trace_ids = []
+        for i in range(5):
+            trace_data = sample_trace_data(f"Instruction {i}")
+            trace = await traces_service.create_trace(trace_data, test_session)
+            trace_ids.append(trace.id)
 
-    # Should have enqueued 5 requests
-    assert queue_manager.get_queue_size() == 5
+        # Should have enqueued 5 requests
+        assert queue_manager.get_queue_size() == 5
 
-    # But pending should only have the last one
-    pending = queue_manager.get_pending_request(project.id, "/api/chat")
-    assert pending is not None
-    assert pending.trace_id == trace_ids[-1]  # Last trace
-
-    # Cleanup
-    queue_manager._worker_process = None
-    queue_manager._queue = None
+        # But pending should only have the last one
+        pending = queue_manager.get_pending_request(project.id, "/api/chat")
+        assert pending is not None
+        assert pending.trace_id == trace_ids[-1]  # Last trace
+    finally:
+        # Cleanup - properly close the queue
+        queue_manager._worker_process = None
+        queue_manager._queue = None
+        test_queue.close()
+        test_queue.join_thread()
 
 
 @pytest.mark.asyncio
 async def test_different_paths_not_throttled_together(
-    db_session: AsyncSession,
+    test_session: AsyncSession,
     project,
     sample_trace_data,
 ):
@@ -195,40 +200,44 @@ async def test_different_paths_not_throttled_together(
     mock_process = Mock()
     mock_process.is_alive.return_value = True
     queue_manager._worker_process = mock_process
-    queue_manager._queue = mp.Queue()
+    test_queue = mp.Queue()
+    queue_manager._queue = test_queue
 
-    traces_service = TracesService()
+    try:
+        traces_service = TracesService()
 
-    # Create traces for different paths
-    paths = ["/api/chat", "/api/summarize", "/api/translate"]
-    for path in paths:
-        trace_data = TraceCreate(
-            project=project.name,
-            model="gpt-4",
-            path=path,
-            instructions="Test instruction",
-            started_at=datetime.now(),
-            input=[
-                MessageItem(
-                    type=ItemType.MESSAGE,
-                    role=MessageRole.SYSTEM,
-                    content="Test instruction",
-                ),
-            ],
-            temperature=0.7,
-        )
-        await traces_service.create_trace(trace_data, db_session)
+        # Create traces for different paths
+        paths = ["/api/chat", "/api/summarize", "/api/translate"]
+        for path in paths:
+            trace_data = TraceCreate(
+                project=project.name,
+                model="gpt-4",
+                path=path,
+                instructions="Test instruction",
+                started_at=datetime.now(),
+                input=[
+                    MessageItem(
+                        type=ItemType.MESSAGE,
+                        role=MessageRole.SYSTEM,
+                        content="Test instruction",
+                    ),
+                ],
+                temperature=0.7,
+            )
+            await traces_service.create_trace(trace_data, test_session)
 
-    # Should have 3 pending requests (one per path)
-    pending_keys = queue_manager.get_pending_keys()
-    assert len(pending_keys) == 3
-    assert (project.id, "/api/chat") in pending_keys
-    assert (project.id, "/api/summarize") in pending_keys
-    assert (project.id, "/api/translate") in pending_keys
-
-    # Cleanup
-    queue_manager._worker_process = None
-    queue_manager._queue = None
+        # Should have 3 pending requests (one per path)
+        pending_keys = queue_manager.get_pending_keys()
+        assert len(pending_keys) == 3
+        assert (project.id, "/api/chat") in pending_keys
+        assert (project.id, "/api/summarize") in pending_keys
+        assert (project.id, "/api/translate") in pending_keys
+    finally:
+        # Cleanup - properly close the queue
+        queue_manager._worker_process = None
+        queue_manager._queue = None
+        test_queue.close()
+        test_queue.join_thread()
 
 
 def test_grouping_request_ordering():
