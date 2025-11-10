@@ -1,9 +1,9 @@
 """LLM executor service for running task implementations using LiteLLM."""
 
 import json
-import re
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -65,22 +65,23 @@ class LLMExecutor:
         
         Returns:
             Rendered value with {{ var }} replaced by variables[var]
+
         """
         if variables is None:
             return value
-            
+
         if isinstance(value, str):
             # Early exit if no template markers
             if "{{" not in value:
                 return value
-                
+
             def replace_match(match: re.Match[str]) -> str:
                 key = match.group(1).strip()
                 if key not in variables:
                     logger.warning(f"Missing variable in template: {key}")
                     return match.group(0)
                 return str(variables[key])
-            
+
             try:
                 return re.sub(r"\{\{\s*([^}]+?)\s*\}\}", replace_match, value)
             except ValueError:
@@ -89,7 +90,7 @@ class LLMExecutor:
             except Exception as e:
                 logger.warning(f"Error rendering template: {e}")
                 return value
-                
+
         elif isinstance(value, list):
             return [self._render_template(v, variables) for v in value]
         elif isinstance(value, dict):

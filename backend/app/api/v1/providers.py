@@ -62,7 +62,6 @@ async def list_all_models(
     service: Annotated[ProviderService, Depends(get_provider_service)],
 ) -> list[str]:
     """Return models from providers with API keys configured as canonical identifiers."""
-
     models = await service.list_canonical_model_names_with_api_keys()
     return models
 

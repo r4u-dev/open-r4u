@@ -166,15 +166,15 @@ class TestExecutor:
 
         executor = LLMExecutor(mock_settings)
         variables = {"user": "Bob", "age": 25}
-        
+
         # Test nested dict and list
         nested = {
             "greeting": "Hello {{user}}",
             "details": ["Age: {{age}}", "Status: active"],
-            "raw_json": {"key": "value"}
+            "raw_json": {"key": "value"},
         }
         result = executor._render_template(nested, variables)
-        
+
         assert result["greeting"] == "Hello Bob"
         assert result["details"] == ["Age: 25", "Status: active"]
         assert result["raw_json"] == {"key": "value"}

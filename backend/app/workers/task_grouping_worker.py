@@ -261,8 +261,8 @@ class TaskGroupingWorker:
                 project=sample_trace.project.name
                 if sample_trace.project
                 else "Default Project",
-                name="",  # Will be auto-generated
-                description="",  # Will be auto-generated
+                name=None,  # Will be auto-generated
+                description=None,  # Will be auto-generated
                 implementation=impl_data,
             )
 

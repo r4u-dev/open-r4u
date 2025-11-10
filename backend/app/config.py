@@ -27,9 +27,9 @@ class Settings(BaseSettings):
     together_api_key: str | None = None
     # Add more providers as needed
 
-    min_segment_words: int = 7
-    min_matching_traces: int = 5
-    min_cluster_size: int = 20
+    min_segment_words: int = 2
+    min_matching_traces: int = 2
+    min_cluster_size: int = 2
 
 
 @lru_cache

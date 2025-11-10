@@ -1067,5 +1067,5 @@ class EvaluationService:
                 project_id,
             )
             return [default_accuracy_grader.id, default_pairwise_grader.id]
-        
+
         return [grader.id for grader in graders]

@@ -11,12 +11,12 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.enums import ScoreType
-from app.models.evaluation import Grade, Grader, Evaluation
+from app.models.evaluation import Grade, Grader
 from app.models.executions import ExecutionResult
 from app.models.traces import Trace
 from app.schemas.traces import OutputItem, OutputMessageItem
@@ -56,7 +56,7 @@ class GradingService:
         """
         if raw_score is None:
             return None
-        s = 0.0 if raw_score < 0.0 else 1.0 if raw_score > 1.0 else raw_score
+        s = 0.0 if raw_score < 0.0 else min(raw_score, 1.0)
         b = baseline_good
         if s <= 0.5:
             return (s / 0.5) * b
@@ -111,7 +111,9 @@ class GradingService:
             return default
         try:
             # Local import to avoid circular dependency at module import time
-            from app.services.evaluation_service import EvaluationService  # type: ignore
+            from app.services.evaluation_service import (
+                EvaluationService,  # type: ignore
+            )
 
             eval_service = EvaluationService(self.settings)
             stats = await eval_service.get_implementation_evaluation_stats(

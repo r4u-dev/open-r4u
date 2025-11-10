@@ -8,7 +8,6 @@ from app.models.providers import Model, Provider
 @pytest.mark.asyncio
 async def test_list_all_models_endpoint_only_with_api_keys(client, test_session):
     """Ensure `/v1/providers/models` returns only models from providers with API keys."""
-
     # Provider with API key
     provider_with_key = Provider(
         name="openai",
