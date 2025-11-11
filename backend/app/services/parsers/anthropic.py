@@ -225,8 +225,6 @@ class AnthropicParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        task_id = metadata.get("task_id") if metadata else None
-
         return TraceCreate(
             project=project,
             model=model,
@@ -236,7 +234,6 @@ class AnthropicParser(ProviderParser):
             completed_at=completed_at,
             input=input_items,
             path=call_path,
-            task_id=task_id,
             tools=tools,
             instructions=system_prompt,
             prompt=None,

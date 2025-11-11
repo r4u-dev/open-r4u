@@ -456,7 +456,6 @@ class OpenAIParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        task_id = metadata.get("task_id") if metadata else None
         max_tokens = request_body.get("max_tokens")
 
         return TraceCreate(
@@ -685,7 +684,6 @@ class OpenAIParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        task_id = metadata.get("task_id") if metadata else None
         max_tokens = request_body.get("max_tokens")
 
         return TraceCreate(
@@ -697,7 +695,6 @@ class OpenAIParser(ProviderParser):
             completed_at=completed_at,
             input=input_items,
             path=call_path,
-            task_id=task_id,
             tools=tools,
             instructions=instructions,
             prompt=None,

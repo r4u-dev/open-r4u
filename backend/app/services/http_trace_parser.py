@@ -24,6 +24,54 @@ class HTTPTraceParserService:
             GoogleGenAIParser(),
         ]
 
+    def _extract_error_from_response(
+        self,
+        response_body: dict[str, Any],
+        parser: ProviderParser,
+    ) -> str | None:
+        """Extract error message from response body based on provider format.
+
+        Args:
+            response_body: Parsed response body
+            parser: The provider parser being used
+
+        Returns:
+            Error message string if found, None otherwise
+
+        """
+        if not response_body:
+            return None
+
+        # OpenAI format: {"error": {"message": "...", "type": "...", "code": "..."}}
+        if isinstance(parser, OpenAIParser):
+            error_obj = response_body.get("error")
+            if error_obj and isinstance(error_obj, dict):
+                message = error_obj.get("message", "")
+                error_type = error_obj.get("type", "")
+                code = error_obj.get("code", "")
+                parts = [p for p in [error_type, code, message] if p]
+                return ": ".join(parts) if parts else None
+
+        # Anthropic format: {"type": "error", "error": {"type": "...", "message": "..."}}
+        elif isinstance(parser, AnthropicParser):
+            error_obj = response_body.get("error")
+            if error_obj and isinstance(error_obj, dict):
+                message = error_obj.get("message", "")
+                error_type = error_obj.get("type", "")
+                parts = [p for p in [error_type, message] if p]
+                return ": ".join(parts) if parts else None
+
+        # Google format: {"error": {"code": 400, "message": "...", "status": "..."}}
+        elif isinstance(parser, GoogleGenAIParser):
+            error_obj = response_body.get("error")
+            if error_obj and isinstance(error_obj, dict):
+                message = error_obj.get("message", "")
+                status = error_obj.get("status", "")
+                parts = [p for p in [status, message] if p]
+                return ": ".join(parts) if parts else None
+
+        return None
+
     def parse_http_trace(
         self,
         request: bytes | str,
@@ -112,7 +160,7 @@ class HTTPTraceParserService:
         response_body = {}
         is_streaming = False
 
-        if not error and response_str:
+        if response_str:
             # Check if this is a streaming response (Server-Sent Events)
             content_type = response_headers.get("content-type", "")
             if "text/event-stream" in content_type or response_str.strip().startswith(
@@ -126,6 +174,12 @@ class HTTPTraceParserService:
                     # If response parsing fails, it's not necessarily an error
                     # (could be streaming or non-JSON response)
                     pass
+
+        # Extract error from response body if status code indicates error and no error set
+        if status_code >= 400 and not error:
+            extracted_error = self._extract_error_from_response(response_body, parser)
+            if extracted_error:
+                error = extracted_error
 
         # Use the parser to create TraceCreate
         return parser.parse(

@@ -67,7 +67,9 @@ The HTTP tracing system consists of three main components:
     - Token usage (prompt, completion, cached, reasoning)
     - Finish reason, system fingerprint
     - Response format/schema
+    - Error details from error responses (4xx, 5xx status codes)
 - **Note**: Automatically detects and supports both Chat Completions and Responses API formats, including streaming responses
+- **Error Handling**: Extracts error messages from response body for non-2xx status codes
 - **See**: [OpenAI Responses API Support](OPENAI_RESPONSES_API.md) for details
 
 ### 2. Anthropic (Claude)
@@ -79,6 +81,8 @@ The HTTP tracing system consists of three main components:
     - Token usage (input, output)
     - Stop reason (mapped to finish reason)
     - Temperature
+    - Error details from error responses (4xx, 5xx status codes)
+- **Error Handling**: Extracts error messages from response body for non-2xx status codes
 
 ### 3. Google Generative AI
 
@@ -89,6 +93,8 @@ The HTTP tracing system consists of three main components:
     - Token usage (prompt, candidates, total)
     - Finish reason (mapped)
     - Generation config (temperature)
+    - Error details from error responses (4xx, 5xx status codes)
+- **Error Handling**: Extracts error messages from response body for non-2xx status codes
 
 ## API Endpoint
 
@@ -268,6 +274,61 @@ def __init__(self):
 
 ### Error Handling
 
+#### Non-2xx Status Codes
+
+When the HTTP response has a non-2xx status code (400, 429, 500, etc.), the parser automatically extracts error information from the response body:
+
+**OpenAI Error Format**:
+
+```json
+{
+    "error": {
+        "message": "Invalid request: missing required field",
+        "type": "invalid_request_error",
+        "code": "invalid_request"
+    }
+}
+```
+
+Extracted error: `"invalid_request_error: invalid_request: Invalid request: missing required field"`
+
+**Anthropic Error Format**:
+
+```json
+{
+    "type": "error",
+    "error": {
+        "type": "invalid_request_error",
+        "message": "messages: field required"
+    }
+}
+```
+
+Extracted error: `"invalid_request_error: messages: field required"`
+
+**Google GenAI Error Format**:
+
+```json
+{
+    "error": {
+        "code": 400,
+        "message": "Invalid request: missing required field",
+        "status": "INVALID_ARGUMENT"
+    }
+}
+```
+
+Extracted error: `"INVALID_ARGUMENT: Invalid request: missing required field"`
+
+The extracted error is:
+
+- Stored in the `Trace.error` field
+- Prevents creation of output items (trace is marked as failed)
+- Sets `finish_reason` to `None`
+- Preserves input items and request metadata for debugging
+
+#### Parsing Errors
+
 - If provider is unsupported: HTTPTrace is saved, returns 400 with error message
 - If parsing fails: HTTPTrace is saved, returns 400 with parsing error details
 - If request/response is not valid JSON: HTTPTrace is saved, returns 400
@@ -331,6 +392,14 @@ Run the test suite:
 cd backend
 pytest tests/test_http_traces.py -v
 ```
+
+The test suite includes comprehensive tests for:
+
+- Successful requests (200 status codes) for all providers
+- Error responses (400, 429, 500, 529) for all providers
+- Streaming responses (Chat Completions and Responses API)
+- Tool calls and function calling
+- Unsupported providers
 
 ## Database Schema
 
