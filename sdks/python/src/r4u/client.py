@@ -1,6 +1,7 @@
 """R4U HTTP client for creating traces."""
 
 import atexit
+import logging
 import os
 import queue
 import threading
@@ -13,6 +14,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+logger = logging.getLogger(__name__)
+
 
 class HTTPTrace(BaseModel):
     """Schema for HTTP trace creation (provider-agnostic)."""
@@ -21,7 +24,8 @@ class HTTPTrace(BaseModel):
     url: str = Field(..., description="The request URL")
     method: str = Field(..., description="The HTTP method (GET, POST, etc.)")
     path: str | None = Field(
-        None, description="The call path where the request was made",
+        None,
+        description="The call path where the request was made",
     )
 
     # Timing
@@ -35,18 +39,22 @@ class HTTPTrace(BaseModel):
     # Raw data
     request: bytes = Field(..., description="Complete raw request bytes (raw or JSON)")
     request_headers: dict[str, str] = Field(
-        ..., description="Complete raw request headers",
+        ...,
+        description="Complete raw request headers",
     )
     response: bytes = Field(
-        ..., description="Complete raw response bytes (raw or JSON)",
+        ...,
+        description="Complete raw response bytes (raw or JSON)",
     )
     response_headers: dict[str, str] = Field(
-        ..., description="Complete raw response headers",
+        ...,
+        description="Complete raw response headers",
     )
 
     # Optional extracted fields for convenience
     metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata",
+        default_factory=dict,
+        description="Additional metadata",
     )
 
     model_config = ConfigDict(extra="allow")
@@ -76,7 +84,7 @@ class ConsoleTracer(AbstractTracer):
             trace: HTTP trace to log.
 
         """
-        print(trace.model_dump_json(indent=2))
+        logger.info(trace.model_dump_json(indent=2))
 
 
 class R4UClient(AbstractTracer):
@@ -118,7 +126,8 @@ class R4UClient(AbstractTracer):
         if self._worker_thread is None or not self._worker_thread.is_alive():
             self._stop_worker.clear()
             self._worker_thread = threading.Thread(
-                target=self._worker_loop, daemon=True,
+                target=self._worker_loop,
+                daemon=True,
             )
             self._worker_thread.start()
 
@@ -141,9 +150,9 @@ class R4UClient(AbstractTracer):
 
                 # Wait 1 seconds or until stop event is set
                 self._stop_worker.wait(1.0)
-            except Exception as e:
+            except Exception:
                 # Log error but continue processing
-                print(f"Error in worker thread: {e}")
+                logger.exception("Error in worker thread")
 
     def _send_traces_batch(self, traces: list[HTTPTrace]) -> None:
         """Send a batch of traces to the server.
@@ -152,16 +161,15 @@ class R4UClient(AbstractTracer):
             traces: List of traces to send.
 
         """
-        for trace in traces:
-            try:
+        try:
+            for trace in traces:
                 self._sync_client.post(
                     f"{self.api_url}/v1/http-traces",
                     json=trace.model_dump(mode="json", by_alias=True),
                     headers={"Content-Type": "application/json"},
                 ).raise_for_status()
-            except Exception as e:
-                # Log error but continue processing other traces
-                print(f"Error sending trace: {e}")
+        except Exception:
+            logger.exception("Error sending trace")
 
     def stop_worker(self) -> None:
         """Stop the worker thread."""
