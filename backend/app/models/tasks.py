@@ -13,8 +13,15 @@ from app.models.executions import ExecutionResult
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 
 if TYPE_CHECKING:
-    from app.models.evaluation import Evaluation, TargetTaskMetrics
+    from app.models.evaluation import (
+        Evaluation,
+        EvaluationConfig,
+        TargetTaskMetrics,
+        TestCase,
+    )
     from app.models.optimizations import Optimization
+    from app.models.projects import Project
+    from app.models.traces import Trace
 
 
 class Implementation(Base):
