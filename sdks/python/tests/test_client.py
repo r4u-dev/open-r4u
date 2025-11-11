@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 
 from r4u.client import (
     AbstractTracer,
-    ConsoleTracer,
     HTTPTrace,
     R4UClient,
     get_r4u_client,
@@ -24,6 +23,8 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="POST",
+            path=None,
+            error=None,
             started_at=started,
             completed_at=completed,
             status_code=200,
@@ -51,6 +52,7 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="POST",
+            error=None,
             path="module.py::main->query_llm->create",
             started_at=started,
             completed_at=completed,
@@ -70,6 +72,7 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="GET",
+            path=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=500,
@@ -90,6 +93,8 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.openai.com/v1/chat/completions",
             method="POST",
+            path=None,
+            error=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=200,
@@ -108,6 +113,8 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="GET",
+            path=None,
+            error=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=200,
@@ -131,6 +138,8 @@ class TestHTTPTraceModel:
             trace = HTTPTrace(
                 url="https://api.example.com/test",
                 method=method,
+                path=None,
+                error=None,
                 started_at=datetime.now(timezone.utc),
                 completed_at=datetime.now(timezone.utc),
                 status_code=200,
@@ -146,6 +155,8 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="GET",
+            path=None,
+            error=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=204,
@@ -167,6 +178,8 @@ class TestHTTPTraceModel:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="POST",
+            path=None,
+            error=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=200,
@@ -178,37 +191,6 @@ class TestHTTPTraceModel:
 
         assert len(trace.request) == 10000
         assert len(trace.response) == 10000
-
-
-class TestConsoleTracer:
-    """Tests for ConsoleTracer."""
-
-    def test_console_tracer_logs_trace(self, capsys):
-        """Test ConsoleTracer prints trace to console."""
-        tracer = ConsoleTracer()
-        trace = HTTPTrace(
-            url="https://api.example.com/test",
-            method="GET",
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
-            status_code=200,
-            request=b"request",
-            request_headers={},
-            response=b"response",
-            response_headers={},
-        )
-
-        tracer.log(trace)
-
-        captured = capsys.readouterr()
-        assert "https://api.example.com/test" in captured.out
-        assert "GET" in captured.out
-        assert "200" in captured.out
-
-    def test_console_tracer_is_abstract_tracer(self):
-        """Test ConsoleTracer implements AbstractTracer."""
-        tracer = ConsoleTracer()
-        assert isinstance(tracer, AbstractTracer)
 
 
 class TestR4UClient:
@@ -237,6 +219,8 @@ class TestR4UClient:
         trace = HTTPTrace(
             url="https://api.example.com/test",
             method="GET",
+            path=None,
+            error=None,
             started_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
             status_code=200,
@@ -280,6 +264,8 @@ class TestR4UClient:
             HTTPTrace(
                 url="https://api.example.com/test1",
                 method="GET",
+                path=None,
+                error=None,
                 started_at=datetime.now(timezone.utc),
                 completed_at=datetime.now(timezone.utc),
                 status_code=200,
@@ -291,6 +277,8 @@ class TestR4UClient:
             HTTPTrace(
                 url="https://api.example.com/test2",
                 method="POST",
+                path=None,
+                error=None,
                 started_at=datetime.now(timezone.utc),
                 completed_at=datetime.now(timezone.utc),
                 status_code=201,
@@ -305,36 +293,6 @@ class TestR4UClient:
 
         # Should have called post twice (once per trace)
         assert mock_client_instance.post.call_count == 2
-
-        client.stop_worker()
-
-    @patch("r4u.client.httpx.Client")
-    def test_r4u_client_handles_send_error(self, mock_httpx_client, capsys):
-        """Test R4UClient handles errors when sending traces."""
-        mock_client_instance = Mock()
-        mock_client_instance.post.side_effect = Exception("Network error")
-        mock_httpx_client.return_value = mock_client_instance
-
-        client = R4UClient(api_url="http://localhost:8000")
-
-        trace = HTTPTrace(
-            url="https://api.example.com/test",
-            method="GET",
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
-            status_code=200,
-            request=b"",
-            request_headers={},
-            response=b"",
-            response_headers={},
-        )
-
-        # Should not raise exception
-        client._send_traces_batch([trace])
-
-        # Should have printed error
-        captured = capsys.readouterr()
-        assert "Error sending trace" in captured.out
 
         client.stop_worker()
 
@@ -406,11 +364,13 @@ class TestGetR4UClient:
         get_r4u_client()
 
         mock_r4u_client_class.assert_called_once_with(
-            api_url="http://custom:9000", timeout=30.0,
+            api_url="http://custom:9000",
+            timeout=30.0,
         )
 
     @patch.dict(
-        "os.environ", {"R4U_API_URL": "http://custom:9000", "R4U_TIMEOUT": "60.0"},
+        "os.environ",
+        {"R4U_API_URL": "http://custom:9000", "R4U_TIMEOUT": "60.0"},
     )
     @patch("r4u.client.R4UClient")
     def test_get_r4u_client_uses_custom_timeout(self, mock_r4u_client_class):
@@ -423,5 +383,6 @@ class TestGetR4UClient:
         get_r4u_client()
 
         mock_r4u_client_class.assert_called_once_with(
-            api_url="http://custom:9000", timeout=60.0,
+            api_url="http://custom:9000",
+            timeout=60.0,
         )

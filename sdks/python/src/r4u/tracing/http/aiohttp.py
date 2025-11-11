@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 import types
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -10,6 +11,8 @@ import aiohttp
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
 from r4u.utils import extract_call_path
+
+logger = logging.getLogger(__name__)
 
 
 class StreamingResponseWrapper:
@@ -148,9 +151,9 @@ class StreamingResponseWrapper:
         )
         try:
             self._tracer.log(trace)
-        except Exception as error:
+        except Exception:
             # Log error but don't fail the request
-            print(f"Failed to create HTTP trace: {error}")
+            logger.exception("Failed to create HTTP trace")
 
 
 def _is_streaming_request(kwargs: dict) -> bool:
@@ -224,9 +227,9 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
             )
             try:
                 tracer.log(trace)
-            except Exception as trace_error:
+            except Exception:
                 # Log error but don't fail the request
-                print(f"Failed to create HTTP trace: {trace_error}")
+                logger.exception("Failed to create HTTP trace")
             raise
 
     return wrapper
@@ -269,9 +272,9 @@ def _create_aiohttp_constructor_wrapper(
                     "_r4u_patched",
                 ):
                     trace_async_client(self, tracer)
-        except Exception as e:
+        except Exception:
             # Don't fail session creation if tracing fails
-            print(f"Failed to apply tracing to {session_class.__name__}: {e}")
+            logger.exception(f"Failed to apply tracing to {session_class.__name__}")
 
     return wrapper
 

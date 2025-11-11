@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     min_matching_traces: int = 5
     min_cluster_size: int = 20
 
+    max_task_name_length: int = 25
+    max_task_description_length: int = 150
+
 
 @lru_cache
 def get_settings() -> Settings:
