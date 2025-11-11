@@ -221,6 +221,10 @@ class TestTracesServiceCreate:
     ):
         """Test creating a trace with http_trace_id."""
         # Create HTTP trace first
+        project = Project(name="Default Project")
+        test_session.add(project)
+        await test_session.commit()
+
         http_trace = HTTPTrace(
             started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
             completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
@@ -229,6 +233,7 @@ class TestTracesServiceCreate:
             request_headers={},
             response='{"choices":[]}',
             response_headers={},
+            project_id=project.id,
         )
         test_session.add(http_trace)
         await test_session.flush()

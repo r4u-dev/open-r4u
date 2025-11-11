@@ -38,6 +38,11 @@ class HTTPTraceCreate(BaseModel):
         ...,
         description="Complete raw response headers",
     )
+    project_id: int | None = Field(default=None, description="Associated project ID")
+    project_name: str | None = Field(
+        default=None,
+        description="Associated project name",
+    )
 
     # Optional extracted fields for convenience
     metadata: dict[str, Any] = Field(

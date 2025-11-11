@@ -18,7 +18,9 @@ class TestTraceEndpoints:
     """Test trace CRUD operations."""
 
     async def test_create_trace_with_default_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test creating a trace with default project."""
         payload = {
@@ -57,7 +59,9 @@ class TestTraceEndpoints:
         assert project.name == "Default Project"
 
     async def test_create_trace_with_custom_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test creating a trace with a custom project."""
         # Set up provider and model for canonicalization
@@ -65,7 +69,11 @@ class TestTraceEndpoints:
         test_session.add(provider)
         await test_session.flush()
 
-        model = Model(provider_id=provider.id, name="gpt-3.5-turbo", display_name="GPT-3.5 Turbo")
+        model = Model(
+            provider_id=provider.id,
+            name="gpt-3.5-turbo",
+            display_name="GPT-3.5 Turbo",
+        )
         test_session.add(model)
         await test_session.commit()
 
@@ -399,7 +407,9 @@ class TestTraceEndpoints:
         assert data["input"] == []
 
     async def test_create_trace_reuses_existing_project(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test that creating traces with same project name reuses the project."""
         # Create first trace with project
@@ -579,7 +589,9 @@ class TestTraceEndpoints:
         assert data["completion_tokens"] is None
 
     async def test_create_trace_with_implementation_id(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test creating a trace with an associated implementation_id."""
         from app.models.tasks import Implementation, Task
@@ -829,11 +841,18 @@ class TestTraceEndpoints:
         assert data["temperature"] == 1.0
 
     async def test_get_trace_http_trace(
-        self, client: AsyncClient, test_session: AsyncSession,
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession,
     ):
         """Test fetching HTTP trace data for a trace."""
         # First create an HTTP trace
+        project = Project(name="Default Project")
+        test_session.add(project)
+        await test_session.commit()
+
         http_trace = HTTPTrace(
+            project_id=project.id,
             started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
             completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
             status_code=200,

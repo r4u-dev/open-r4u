@@ -1,8 +1,12 @@
 import inspect
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from async_trace import collect_async_trace
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @dataclass
@@ -107,3 +111,8 @@ def extract_call_path(
         return (call_path, line_number)
 
     return None
+
+
+def get_project_name() -> str | None:
+    """Get the project name from environment variables."""
+    return os.getenv("PROJECT_NAME")
