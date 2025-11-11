@@ -10,6 +10,7 @@ from app.models.http_traces import HTTPTrace
 from app.schemas.http_traces import HTTPTraceCreate
 from app.schemas.traces import TraceRead
 from app.services.http_trace_parser import HTTPTraceParserService
+from app.services.project_service import get_project_by_name
 from app.services.traces_service import TracesService
 
 logger = logging.getLogger(__name__)
@@ -50,9 +51,24 @@ async def create_http_trace(
         if isinstance(payload.response, bytes)
         else payload.response
     )
+    if not payload.project_id:
+        if not payload.project_name:
+            payload.project_name = "Default Project"
+
+        project = await get_project_by_name(
+            payload.project_name,
+            session,
+        )
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with name '{payload.project_name}' not found",
+            )
+        payload.project_id = project.id
 
     # Create and persist HTTPTrace first
     http_trace = HTTPTrace(
+        project_id=payload.project_id,
         started_at=payload.started_at,
         completed_at=payload.completed_at,
         status_code=payload.status_code,

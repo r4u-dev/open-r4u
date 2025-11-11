@@ -14,6 +14,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from r4u.utils import get_project_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +33,12 @@ class HTTPTrace(BaseModel):
     # Timing
     started_at: datetime = Field(..., description="When the request started")
     completed_at: datetime = Field(..., description="When the request completed")
+
+    project_id: int | None = Field(default=None, description="Associated project ID")
+    project_name: str | None = Field(
+        default=None,
+        description="Associated project name",
+    )
 
     # Status
     status_code: int = Field(..., description="HTTP status code")
@@ -119,6 +127,7 @@ class R4UClient(AbstractTracer):
             trace: HTTP trace to log.
 
         """
+        trace.project_name = get_project_name()
         self._trace_queue.put(trace)
 
     def _start_worker_thread(self) -> None:
