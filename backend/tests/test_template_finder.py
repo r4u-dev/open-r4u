@@ -13,8 +13,12 @@ class TestTemplateFinder:
             "Order sushi for Bob",
             "Cancel pizza order for Alice",
         ]
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
-        groups = finder.group_strings(strings)
+        finder = TemplateFinder()
+        groups = finder.group_strings(
+            strings,
+            min_segment_words=2,
+            min_matching_strings=2,
+        )
         # There should be at least two groups: one for "Order pizza for ..." and one for "Order sushi for ..."
         templates = list(groups.keys())
         assert any("Order pizza for" in t for t in templates)
@@ -34,8 +38,12 @@ class TestTemplateFinder:
             "Send email to Alice about project Y",
             "Send email to Bob about project Y",
         ]
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
-        groups = finder.group_strings(strings)
+        finder = TemplateFinder()
+        groups = finder.group_strings(
+            strings,
+            min_segment_words=2,
+            min_matching_strings=2,
+        )
         assert len(groups) == 2
         template = next(iter(groups))
         # Should have two variable placeholders
@@ -43,8 +51,12 @@ class TestTemplateFinder:
         assert template.count("{{var_0}}") == 1
         assert "Send email to Alice about project" in template
 
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
-        groups = finder.group_strings(strings)
+        finder = TemplateFinder()
+        groups = finder.group_strings(
+            strings,
+            min_segment_words=2,
+            min_matching_strings=2,
+        )
         # Should have at least one group with the common pattern
         assert len(groups) >= 1
         # Find the template that has the pattern
@@ -127,13 +139,13 @@ class TestTemplateFinder:
     )
     def test_match_template(self, template, s, expected_match, expected_vars):
         """Test matching strings to templates and extracting variables."""
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
+        finder = TemplateFinder()
         match, variables = finder.match_template(template, s)
         assert match == expected_match
         assert variables == expected_vars
 
     def test_match_template_variable_at_end(self):
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
+        finder = TemplateFinder()
         template = "Hello {{var_0}}"
         s = "Hello Alice"
         match, variables = finder.match_template(template, s)
@@ -141,7 +153,7 @@ class TestTemplateFinder:
         assert variables == {"var_0": "Alice"}
 
     def test_match_template_variable_at_start(self):
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
+        finder = TemplateFinder()
         template = "{{var_0}} likes pizza"
         s = "Bob likes pizza"
         match, variables = finder.match_template(template, s)
@@ -149,7 +161,7 @@ class TestTemplateFinder:
         assert variables == {"var_0": "Bob"}
 
     def test_match_template_multiple_variables(self):
-        finder = TemplateFinder(min_segment_words=2, min_matching_strings=2)
+        finder = TemplateFinder()
         template = "{{var_0}} ordered {{var_1}}"
         s = "Alice ordered sushi"
         match, variables = finder.match_template(template, s)
