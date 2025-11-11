@@ -7,6 +7,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.projects import Project
+
 
 @pytest.mark.asyncio
 async def test_create_openai_http_trace(
@@ -14,6 +16,9 @@ async def test_create_openai_http_trace(
     test_session: AsyncSession,
 ):
     """Test creating a trace from OpenAI HTTP request/response."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
     # Sample OpenAI request
     request_data = {
         "model": "gpt-4",
@@ -111,6 +116,9 @@ async def test_create_anthropic_http_trace(
 ):
     """Test creating a trace from Anthropic HTTP request/response."""
     # Sample Anthropic request
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
     request_data = {
         "model": "claude-3-opus-20240229",
         "max_tokens": 1024,
@@ -201,6 +209,10 @@ async def test_create_openai_responses_api_trace(
 ):
     """Test creating a trace from OpenAI Responses API format."""
     # Sample OpenAI Responses API request
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-4",
         "input": [
@@ -285,6 +297,10 @@ async def test_create_openai_responses_api_trace(
 @pytest.mark.asyncio
 async def test_unsupported_provider(client: AsyncClient, test_session: AsyncSession):
     """Test that unsupported provider returns error."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {"test": "data"}
     response_data = {"result": "data"}
 
@@ -324,6 +340,10 @@ async def test_create_openai_tool_call_trace(
 ):
     """Test creating a trace from OpenAI with tool calls."""
     # Sample OpenAI request with tools
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-4",
         "messages": [
@@ -431,6 +451,10 @@ async def test_http_trace_persisted_on_parse_failure(
     test_session: AsyncSession,
 ):
     """Test that HTTPTrace is persisted even when parsing fails."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     from sqlalchemy import select
 
     from app.models.http_traces import HTTPTrace
@@ -495,6 +519,10 @@ async def test_create_openai_streaming_chat_completions_trace(
 ):
     """Test creating a trace from OpenAI streaming Chat Completions API."""
     # Sample OpenAI request
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-3.5-turbo-0125",
         "messages": [
@@ -587,6 +615,10 @@ async def test_create_openai_streaming_responses_api_trace(
 ):
     """Test creating a trace from OpenAI streaming Responses API."""
     # Sample OpenAI Responses API request
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-3.5-turbo-0125",
         "input": [
@@ -716,6 +748,10 @@ async def test_openai_error_response_400(
     test_session: AsyncSession,
 ):
     """Test handling OpenAI 400 error response."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-4",
         "messages": [
@@ -775,6 +811,10 @@ async def test_openai_error_response_429(
     test_session: AsyncSession,
 ):
     """Test handling OpenAI 429 rate limit error."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-4",
         "messages": [
@@ -830,6 +870,10 @@ async def test_openai_error_response_500(
     test_session: AsyncSession,
 ):
     """Test handling OpenAI 500 server error."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "gpt-4",
         "messages": [
@@ -884,6 +928,10 @@ async def test_anthropic_error_response_400(
     test_session: AsyncSession,
 ):
     """Test handling Anthropic 400 error response."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "claude-3-opus-20240229",
         "max_tokens": 1024,
@@ -940,6 +988,10 @@ async def test_anthropic_error_response_529(
     test_session: AsyncSession,
 ):
     """Test handling Anthropic 529 overloaded error."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "model": "claude-3-opus-20240229",
         "max_tokens": 1024,
@@ -994,6 +1046,10 @@ async def test_google_genai_error_response_400(
     test_session: AsyncSession,
 ):
     """Test handling Google GenAI 400 error response."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "contents": [
             {
@@ -1052,6 +1108,10 @@ async def test_google_genai_error_response_429(
     test_session: AsyncSession,
 ):
     """Test handling Google GenAI 429 rate limit error."""
+    project = Project(name="Default Project")
+    test_session.add(project)
+    await test_session.commit()
+
     request_data = {
         "contents": [
             {
