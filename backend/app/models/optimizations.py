@@ -46,10 +46,12 @@ class Optimization(Base):
         default=OptimizationStatus.PENDING,
     )
     started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -57,7 +59,9 @@ class Optimization(Base):
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False)
     changeable_fields: Mapped[list[str]] = mapped_column(JSONType, nullable=False)
     max_consecutive_no_improvements: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=3,
+        Integer,
+        nullable=False,
+        default=3,
     )
 
     # Progress tracking
@@ -66,11 +70,13 @@ class Optimization(Base):
 
     # Iteration details (stored as JSON array, updated incrementally)
     iterations: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONType, nullable=False, default=list,
+        JSONType,
+        nullable=False,
+        default=list,
     )
 
     # Relationships
-    task: Mapped["Task"] = relationship("Task", back_populates="optimizations")  # type: ignore
+    task: Mapped["Task"] = relationship("Task", back_populates="optimizations")
 
     created_at: Mapped[created_at_col]
     updated_at: Mapped[updated_at_col]
