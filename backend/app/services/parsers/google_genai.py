@@ -217,7 +217,6 @@ class GoogleGenAIParser(ProviderParser):
             if metadata
             else "Default Project"
         )
-        task_id = metadata.get("task_id") if metadata else None
         max_tokens = generation_config.get("maxOutputTokens")
 
         return TraceCreate(
@@ -229,7 +228,6 @@ class GoogleGenAIParser(ProviderParser):
             completed_at=completed_at,
             input=input_items,
             path=call_path,
-            task_id=task_id,
             tools=None,  # TODO: Parse Google tools if needed
             instructions=None,
             prompt=None,

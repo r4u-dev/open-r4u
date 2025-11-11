@@ -708,3 +708,396 @@ data: {"type":"response.completed","sequence_number":18,"response":{"id":"resp_0
     assert len(data["input"]) == 1
     assert data["input"][0]["type"] == "message"
     assert data["input"][0]["data"]["role"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_openai_error_response_400(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling OpenAI 400 error response."""
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Test"},
+        ],
+    }
+
+    # Sample OpenAI error response
+    error_response = {
+        "error": {
+            "message": "Invalid request: missing required field",
+            "type": "invalid_request_error",
+            "param": "messages",
+            "code": "invalid_request",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 400,
+        "error": None,  # Error should be extracted from response body
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "api.openai.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    # Verify error was captured
+    assert data["error"] is not None
+    assert "Invalid request: missing required field" in data["error"]
+    assert data["model"] == "gpt-4"
+    assert data["finish_reason"] is None
+    assert len(data["output"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_openai_error_response_429(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling OpenAI 429 rate limit error."""
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Test"},
+        ],
+    }
+
+    error_response = {
+        "error": {
+            "message": "Rate limit exceeded. Please try again later.",
+            "type": "rate_limit_error",
+            "param": None,
+            "code": "rate_limit_exceeded",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 429,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "api.openai.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "Rate limit exceeded" in data["error"]
+    assert data["model"] == "gpt-4"
+
+
+@pytest.mark.asyncio
+async def test_openai_error_response_500(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling OpenAI 500 server error."""
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Test"},
+        ],
+    }
+
+    error_response = {
+        "error": {
+            "message": "The server had an error processing your request.",
+            "type": "server_error",
+            "param": None,
+            "code": "internal_server_error",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 500,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "api.openai.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "server had an error" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_error_response_400(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling Anthropic 400 error response."""
+    request_data = {
+        "model": "claude-3-opus-20240229",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": "Test"},
+        ],
+    }
+
+    error_response = {
+        "type": "error",
+        "error": {
+            "type": "invalid_request_error",
+            "message": "messages: field required",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 400,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "api.anthropic.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "field required" in data["error"]
+    assert data["model"] == "claude-3-opus-20240229"
+    assert len(data["output"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_anthropic_error_response_529(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling Anthropic 529 overloaded error."""
+    request_data = {
+        "model": "claude-3-opus-20240229",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": "Test"},
+        ],
+    }
+
+    error_response = {
+        "type": "error",
+        "error": {
+            "type": "overloaded_error",
+            "message": "Overloaded. Please try again later.",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 529,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "api.anthropic.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "project": "Test Project",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "Overloaded" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_google_genai_error_response_400(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling Google GenAI 400 error response."""
+    request_data = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": "Test"}],
+            },
+        ],
+    }
+
+    error_response = {
+        "error": {
+            "code": 400,
+            "message": "Invalid request: missing required field",
+            "status": "INVALID_ARGUMENT",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 400,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "generativelanguage.googleapis.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent",
+            "method": "POST",
+            "project": "Test Project",
+            "model": "gemini-pro",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "Invalid request" in data["error"]
+    assert data["model"] == "gemini-pro"
+    assert len(data["output"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_google_genai_error_response_429(
+    client: AsyncClient,
+    test_session: AsyncSession,
+):
+    """Test handling Google GenAI 429 rate limit error."""
+    request_data = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": "Test"}],
+            },
+        ],
+    }
+
+    error_response = {
+        "error": {
+            "code": 429,
+            "message": "Resource has been exhausted (e.g. check quota).",
+            "status": "RESOURCE_EXHAUSTED",
+        },
+    }
+
+    started_at = datetime.now(UTC)
+    completed_at = datetime.now(UTC)
+
+    payload = {
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "status_code": 429,
+        "error": None,
+        "request": json.dumps(request_data).encode("utf-8").hex(),
+        "request_headers": {
+            "content-type": "application/json",
+            "host": "generativelanguage.googleapis.com",
+        },
+        "response": json.dumps(error_response).encode("utf-8").hex(),
+        "response_headers": {
+            "content-type": "application/json",
+        },
+        "metadata": {
+            "url": "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent",
+            "method": "POST",
+            "project": "Test Project",
+            "model": "gemini-pro",
+        },
+    }
+
+    response = await client.post("/v1/http-traces", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["error"] is not None
+    assert "exhausted" in data["error"]
+    assert data["model"] == "gemini-pro"
