@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,17 +20,19 @@ from app.utils.statistics import (
     calculate_weighted_percentile,
 )
 
-PROMPT = """\
-An agentic workflow has been given the following instructions:
-{instructions}
+settings = get_settings()
 
-Create a concise name and description for a task that fulfills these instructions.
+PROMPT = """\
+Imagine there is an agentic AI with these instructions: {instructions}
+
+Based on these instructions, provide a concise name and a description that describes this AI agent
+Name and description shouldn't be longer than {name_length} and {description_length} characters respectively.
 """
 
 
 class TaskDetails(BaseModel):
-    name: str
-    description: str
+    name: str = Field(max_length=settings.max_task_name_length)
+    description: str = Field(max_length=settings.max_task_description_length)
 
 
 class TaskService:
@@ -313,6 +315,8 @@ class TaskService:
                 model="gpt-4.1",
                 input=PROMPT.format(
                     instructions=task_data.implementation.prompt,
+                    name_length=self.settings.max_task_name_length,
+                    description_length=self.settings.max_task_description_length,
                 ),
                 text_format=TaskDetails,
             )

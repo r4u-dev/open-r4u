@@ -3,9 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.config import get_settings
 from app.schemas.traces import Reasoning, ToolDefinition
+
+settings = get_settings()
 
 
 class ImplementationCreate(BaseModel):
@@ -42,8 +45,11 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     """Schema for task creation payload."""
 
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=settings.max_task_name_length)
+    description: str | None = Field(
+        default=None,
+        max_length=settings.max_task_description_length,
+    )
     project: str = "Default Project"  # Project name, defaults to "Default Project"
     implementation: ImplementationCreate  # Initial implementation version
 
