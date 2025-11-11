@@ -7,7 +7,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.config import get_settings
 from app.models.projects import Project
 from app.models.tasks import Implementation, Task
 from app.models.traces import Trace, TraceInputItem, TraceOutputItem
@@ -318,11 +317,7 @@ class TracesService:
             return None
 
         # Try to match the system prompt against each implementation's prompt template
-        settings = get_settings()
-        template_finder = TemplateFinder(
-            settings.min_segment_words,
-            settings.min_matching_traces,
-        )
+        template_finder = TemplateFinder()
 
         for impl in implementations:
             match, variables = template_finder.match_template(

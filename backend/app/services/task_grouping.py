@@ -8,21 +8,6 @@ class TemplateFinder:
     Example: "hello {{var_0}} world {{var_1}} test"
     """
 
-    def __init__(self, min_segment_words: int, min_matching_strings: int):
-        """Initialize the TemplateFinder.
-
-        Args:
-            min_segment_words: Minimum number of words in a template segment
-            min_matching_strings: Minimum number of strings that must match a template
-
-        """
-        self.min_segment_words = min_segment_words
-        self.min_matching_strings = min_matching_strings
-
-    def _tokenize(self, s: str) -> list[str]:
-        """Simple whitespace tokenizer."""
-        return s.split()
-
     def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
         """Match a string against a template with variable placeholders.
 
@@ -134,7 +119,12 @@ class TemplateFinder:
         # Verify entire string was consumed
         return (pos == len(s), variables)
 
-    def group_strings(self, strs: list[str]) -> dict[str, list[int]]:
+    def group_strings(
+        self,
+        strs: list[str],
+        min_segment_words: int,
+        min_matching_strings: int,
+    ) -> dict[str, list[int]]:
         """Group strings by their templates.
 
         Args:
@@ -144,19 +134,23 @@ class TemplateFinder:
             Dict mapping templates to list of string indices that match
 
         """
-        if not strs or self.min_matching_strings < 1:
+        if not strs or min_matching_strings < 1:
             return {}
 
         self.tokenized = [s.split() for s in strs]
-        self._build_ngram_index()
+        self._build_ngram_index(min_segment_words)
 
         # Extract templates for each string
         string_to_template = {}
 
         for idx in range(len(strs)):
-            segments, length = self._extract_best_template(idx)
+            segments, length = self._extract_best_template(
+                idx,
+                min_segment_words,
+                min_matching_strings,
+            )
 
-            if segments and length >= self.min_segment_words:
+            if segments and length >= min_segment_words:
                 # Create template string with variable placeholders
                 template = self._segments_to_template(segments, idx)
                 string_to_template[idx] = (template, length)
@@ -185,15 +179,15 @@ class TemplateFinder:
         result = {
             template: indices
             for template, indices in result.items()
-            if len(indices) >= self.min_matching_strings
+            if len(indices) >= min_matching_strings
         }
 
         return dict(result)
 
-    def _build_ngram_index(self):
+    def _build_ngram_index(self, min_segment_words: int):
         """Build n-gram index for fast lookup."""
         self.ngram_to_strings = defaultdict(set)
-        n = self.min_segment_words
+        n = min_segment_words
 
         for idx, tokens in enumerate(self.tokenized):
             for i in range(len(tokens) - n + 1):
@@ -249,31 +243,25 @@ class TemplateFinder:
                 return False
         return True
 
-    def _get_candidate_matches(self, segment: list[str]) -> set[int]:
+    def _get_candidate_matches(
+        self,
+        segment: list[str],
+        min_segment_words: int,
+    ) -> set[int]:
         """Quickly find candidate strings that might contain this segment."""
-        if len(segment) < self.min_segment_words:
+        if len(segment) < min_segment_words:
             return set(range(len(self.tokenized)))
 
         # Use n-gram index for fast filtering
-        ngram = tuple(segment[: self.min_segment_words])
+        ngram = tuple(segment[:min_segment_words])
         return self.ngram_to_strings.get(ngram, set())
 
-    def _get_matching_indices(self, segments: list[list[str]]) -> list[int]:
-        """Get all string indices that match the given segments."""
-        if not segments:
-            return list(range(len(self.tokenized)))
-
-        # Start with candidates from first segment
-        candidates = self._get_candidate_matches(segments[0])
-
-        # Filter candidates that match all segments
-        matching = []
-        for idx in candidates:
-            if self._matches_segments(self.tokenized[idx], segments):
-                matching.append(idx)
-        return matching
-
-    def _extract_best_template(self, string_idx: int) -> tuple[list[list[str]], int]:
+    def _extract_best_template(
+        self,
+        string_idx: int,
+        min_segment_words: int,
+        min_matching_strings: int,
+    ) -> tuple[list[list[str]], int]:
         """Extract the longest valid template from a string using optimized greedy approach.
         Returns (segments, total_length).
         """
@@ -281,7 +269,7 @@ class TemplateFinder:
         segments = []
         current_pos = 0
         total_len = 0
-        n = self.min_segment_words
+        n = min_segment_words
 
         while current_pos <= len(tokens) - n:
             # Find the longest segment starting at current_pos
@@ -297,14 +285,17 @@ class TemplateFinder:
                 test_segments = segments + [candidate_seg]
 
                 # Quick check using n-gram index
-                candidates = self._get_candidate_matches(candidate_seg)
+                candidates = self._get_candidate_matches(
+                    candidate_seg,
+                    min_segment_words,
+                )
                 match_count = sum(
                     1
                     for idx in candidates
                     if self._matches_segments(self.tokenized[idx], test_segments)
                 )
 
-                if match_count >= self.min_matching_strings:
+                if match_count >= min_matching_strings:
                     best_seg = candidate_seg
                     best_seg_len = mid
                     left = mid + 1  # Try longer

@@ -209,10 +209,10 @@ class TaskGroupingWorker:
                 prompts.append(prompt)
                 trace_map[len(prompts) - 1] = trace
 
-        if len(prompts) < self.settings.min_matching_traces:
+        if len(prompts) < self.settings.min_cluster_size:
             logger.debug(
                 f"Only {len(prompts)} traces with valid prompts, "
-                f"need {self.settings.min_matching_traces} to create implementation",
+                f"need {self.settings.min_cluster_size} to create implementation",
             )
             return None
 
@@ -222,13 +222,15 @@ class TaskGroupingWorker:
         )
 
         # Use TemplateFinder to group similar prompts
-        template_finder = TemplateFinder(
-            self.settings.min_segment_words,
-            self.settings.min_matching_traces,
-        )
+        min_matching_traces = self.settings.min_matching_traces or (len(prompts) // 5)
+        template_finder = TemplateFinder()
 
         # Group prompts into templates
-        groups = template_finder.group_strings(prompts)
+        groups = template_finder.group_strings(
+            prompts,
+            self.settings.min_segment_words,
+            min_matching_traces,
+        )
 
         if not groups:
             logger.debug(f"Could not create any groups for path '{path}'")
