@@ -1,7 +1,7 @@
 """Execution models for task execution results."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
@@ -21,6 +21,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.enums import FinishReason
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 from app.models.evaluation import Grade
+
+if TYPE_CHECKING:
+    from app.models.evaluation import Evaluation, TestCase
+    from app.models.tasks import Implementation, Task
 
 # Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")

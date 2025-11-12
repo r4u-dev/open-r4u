@@ -7,9 +7,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, created_at_col, intpk, updated_at_col
-from app.models.executions import ExecutionResult
+from app.models.optimizations import Optimization
 
-# Use JSONB for PostgreSQL, JSON for other databases
 JSONType = JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 
 if TYPE_CHECKING:
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
         TargetTaskMetrics,
         TestCase,
     )
-    from app.models.optimizations import Optimization
+    from app.models.executions import ExecutionResult
     from app.models.projects import Project
     from app.models.traces import Trace
 
@@ -55,18 +54,18 @@ class Implementation(Base):
         "Task",
         back_populates="implementations",
         foreign_keys=[task_id],
-    )  # type: ignore
-    traces: Mapped[list["Trace"]] = relationship(  # type: ignore
+    )
+    traces: Mapped[list["Trace"]] = relationship(
         "Trace",
         back_populates="implementation",
     )
 
-    executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
+    executions: Mapped[list["ExecutionResult"]] = relationship(
         "ExecutionResult",
         back_populates="implementation",
         cascade="all, delete-orphan",
     )
-    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+    evaluations: Mapped[list["Evaluation"]] = relationship(
         "Evaluation",
         back_populates="implementation",
         cascade="all, delete-orphan",
@@ -98,51 +97,51 @@ class Task(Base):
         nullable=True,
     )
 
-    project: Mapped["Project"] = relationship("Project", back_populates="tasks")  # type: ignore
+    project: Mapped["Project"] = relationship("Project", back_populates="tasks")
     implementations: Mapped[list["Implementation"]] = relationship(
         "Implementation",
         back_populates="task",
         foreign_keys="Implementation.task_id",
         cascade="all, delete-orphan",
-    )  # type: ignore
+    )
     production_version: Mapped["Implementation | None"] = relationship(
         "Implementation",
         foreign_keys=[production_version_id],
         post_update=True,
-    )  # type: ignore
+    )
     response_schema: Mapped[dict[str, Any] | None] = mapped_column(
         JSONType,
         nullable=True,
     )
-    executions: Mapped[list["ExecutionResult"]] = relationship(  # type: ignore
+    executions: Mapped[list["ExecutionResult"]] = relationship(
         "ExecutionResult",
         back_populates="task",
         cascade="all, delete-orphan",
     )
-    test_cases: Mapped[list["TestCase"]] = relationship(  # type: ignore
+    test_cases: Mapped[list["TestCase"]] = relationship(
         "TestCase",
         back_populates="task",
         cascade="all, delete-orphan",
     )
-    evaluation_config: Mapped["EvaluationConfig | None"] = relationship(  # type: ignore
+    evaluation_config: Mapped["EvaluationConfig | None"] = relationship(
         "EvaluationConfig",
         back_populates="task",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    evaluations: Mapped[list["Evaluation"]] = relationship(  # type: ignore
+    evaluations: Mapped[list["Evaluation"]] = relationship(
         "Evaluation",
         back_populates="task",
         cascade="all, delete-orphan",
     )
-    target_task_metrics: Mapped["TargetTaskMetrics | None"] = relationship(  # type: ignore
+    target_task_metrics: Mapped["TargetTaskMetrics | None"] = relationship(
         "TargetTaskMetrics",
         back_populates="task",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    optimizations: Mapped[list["Optimization"]] = relationship(  # type: ignore
-        "Optimization",
+    optimizations: Mapped[list["Optimization"]] = relationship(
+        Optimization,
         back_populates="task",
         cascade="all, delete-orphan",
     )
