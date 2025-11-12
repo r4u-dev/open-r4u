@@ -9,7 +9,6 @@ from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 if TYPE_CHECKING:
     from app.models.evaluation import Grader
-    from app.models.http_traces import HTTPTrace
     from app.models.tasks import Task
     from app.models.traces import Trace
 
@@ -36,11 +35,6 @@ class Project(Base):
     )
     graders: Mapped[list["Grader"]] = relationship(  # type: ignore
         "Grader",
-        back_populates="project",
-        cascade="all, delete-orphan",
-    )
-    http_traces: Mapped[list["HTTPTrace"]] = relationship(
-        "HTTPTrace",
         back_populates="project",
         cascade="all, delete-orphan",
     )

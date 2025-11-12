@@ -233,7 +233,6 @@ class TestTracesServiceCreate:
             request_headers={},
             response='{"choices":[]}',
             response_headers={},
-            project_id=project.id,
         )
         test_session.add(http_trace)
         await test_session.flush()

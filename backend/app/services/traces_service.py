@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models.projects import Project
-from app.models.tasks import Implementation, Task
+from app.models.tasks import Implementation
 from app.models.traces import Trace, TraceInputItem, TraceOutputItem
 from app.schemas.traces import TraceCreate
 from app.services.provider_service import ProviderService
@@ -49,11 +49,11 @@ class TracesService:
 
         # Create trace model (canonicalize model for downstream consumers/tests)
         provider_service = ProviderService(session)
-        model_canonical = await provider_service.canonicalize_model(trace_data.model)
+        trace_data.model = await provider_service.canonicalize_model(trace_data.model)
         trace = Trace(
             project_id=project.id,
             http_trace_id=http_trace_id,
-            model=model_canonical,
+            model=trace_data.model,
             error=trace_data.error,
             started_at=trace_data.started_at,
             completed_at=trace_data.completed_at,
@@ -166,7 +166,6 @@ class TracesService:
             matching = await self._find_matching_implementation(
                 input_items=input_items,
                 model=trace_data.model,
-                project_id=project_id,
                 session=session,
             )
 
@@ -284,7 +283,6 @@ class TracesService:
         self,
         input_items: list[dict[str, Any]],
         model: str,
-        project_id: int,
         session: AsyncSession,
     ) -> dict[str, Any] | None:
         """Find a matching implementation based on input items and model.
@@ -303,13 +301,7 @@ class TracesService:
         if not system_prompt:
             return None
 
-        # Get all implementations for this project and model
-        query = (
-            select(Implementation)
-            .join(Task, Implementation.task_id == Task.id)
-            .where(Task.project_id == project_id)
-            .where(Implementation.model == model)
-        )
+        query = select(Implementation).where(Implementation.model == model)
         result = await session.execute(query)
         implementations = result.scalars().all()
 

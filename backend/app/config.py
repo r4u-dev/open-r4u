@@ -27,10 +27,10 @@ class Settings(BaseSettings):
     together_api_key: str | None = None
     # Add more providers as needed
 
-    min_segment_words: int = 7
+    min_segment_words: int = 3
     min_cluster_size: int = 10
     # if unset, will be set to number_of_traces // 5
-    min_matching_traces: int | None = 3
+    min_matching_traces: int | None = None
 
     max_task_name_length: int = 25
     max_task_description_length: int = 150
