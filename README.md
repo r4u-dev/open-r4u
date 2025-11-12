@@ -113,7 +113,7 @@ uv add r4u
 import os
 
 # STEP 1: Import R4U and enable tracing FIRST
-from r4u.tracing.http.httpx import trace_all, untrace_all
+from r4u.tracing import trace_all, untrace_all
 trace_all()
 
 # STEP 2: Import OpenAI AFTER enabling tracing
@@ -150,7 +150,7 @@ import asyncio
 import os
 
 # Enable tracing BEFORE importing OpenAI
-from r4u.tracing.http.httpx import trace_all, untrace_all
+from r4u.tracing import trace_all, untrace_all
 trace_all()
 
 from openai import AsyncOpenAI
@@ -182,7 +182,7 @@ if __name__ == "__main__":
 Streaming responses are automatically detected and captured:
 
 ```python
-from r4u.tracing.http.httpx import trace_all
+from r4u.tracing import trace_all
 trace_all()
 
 from openai import OpenAI
@@ -341,7 +341,7 @@ Use a custom tracer instead of the default:
 
 ```python
 from r4u.client import R4UClient
-from r4u.tracing.http.httpx import trace_all
+from r4u.tracing import trace_all
 
 # Create custom tracer with specific settings
 tracer = R4UClient(
@@ -378,7 +378,7 @@ For testing, capture traces in memory instead of sending to backend:
 
 ```python
 from r4u.client import AbstractTracer, HTTPTrace
-from r4u.tracing.http.httpx import trace_all
+from r4u.tracing import trace_all
 
 class CapturingTracer(AbstractTracer):
     def __init__(self):
@@ -420,7 +420,7 @@ If you're getting no traces, the most common issue is import order. See [Import 
 
 ```python
 # ✅ Correct order
-from r4u.tracing.http.httpx import trace_all
+from r4u.tracing import trace_all
 trace_all()
 from openai import OpenAI
 
