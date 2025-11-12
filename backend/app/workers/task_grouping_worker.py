@@ -285,14 +285,13 @@ class TaskGroupingWorker:
             for idx in prompt_indices:
                 if idx in trace_map:
                     trace = trace_map[idx]
-                    match, variables = template_finder.match_template(
+                    _, variables = template_finder.match_template(
                         template,
                         prompts[idx],
                     )
-                    if match:
-                        trace.implementation_id = impl_id
-                        trace.prompt_variables = variables
-                        group_traces += 1
+                    trace.implementation_id = impl_id
+                    trace.prompt_variables = variables
+                    group_traces += 1
 
             logger.info(
                 f"Created task {task.id} with implementation {impl_id} "
