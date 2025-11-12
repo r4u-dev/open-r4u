@@ -852,7 +852,6 @@ class TestTraceEndpoints:
         await test_session.commit()
 
         http_trace = HTTPTrace(
-            project_id=project.id,
             started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
             completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
             status_code=200,

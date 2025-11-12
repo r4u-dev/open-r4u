@@ -3,14 +3,13 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, Text
+from sqlalchemy import JSON, DateTime, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, created_at_col, intpk, updated_at_col
 
 if TYPE_CHECKING:
-    from app.models.projects import Project
     from app.models.traces import Trace
 
 # Use JSONB for PostgreSQL, JSON for other databases
@@ -27,9 +26,6 @@ class HTTPTrace(Base):
     )
 
     id: Mapped[intpk]
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey("project.id", ondelete="CASCADE"),
-    )
 
     # Timing
     started_at: Mapped[datetime] = mapped_column(
@@ -63,10 +59,6 @@ class HTTPTrace(Base):
         "Trace",
         back_populates="http_trace",
         uselist=False,
-    )
-    project: Mapped["Project"] = relationship(
-        "Project",
-        back_populates="http_traces",
     )
 
     created_at: Mapped[created_at_col]
