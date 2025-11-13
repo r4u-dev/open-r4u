@@ -119,23 +119,33 @@ const TaskDetail = () => {
         const ensureValidVersionId = (id?: string | null) =>
             id && task.versions.some((version) => version.id === id) ? id : null;
 
+        const productionVersionId = task.versions.find(
+            (version) => version.version === task.production_version,
+        )?.id;
+
         const fallbackTarget =
-            ensureValidVersionId(selectedVersion) ?? task.versions[0].id;
+            ensureValidVersionId(selectedVersion) ??
+            productionVersionId ??
+            task.versions[0].id;
 
         setDiffTargetVersionId(
             (prev) => ensureValidVersionId(prev) ?? fallbackTarget,
         );
 
-        const fallbackBase =
-            task.versions.find((version) => version.id !== fallbackTarget)?.id ??
-            null;
-
         setDiffBaseVersionId((prev) => {
             const validPrev = ensureValidVersionId(prev);
-            if (validPrev && validPrev !== fallbackTarget) {
+            if (validPrev) {
                 return validPrev;
             }
-            return fallbackBase;
+
+            if (productionVersionId && productionVersionId !== fallbackTarget) {
+                return productionVersionId;
+            }
+
+            return (
+                task.versions.find((version) => version.id !== fallbackTarget)
+                    ?.id ?? productionVersionId ?? null
+            );
         });
     }, [task, selectedVersion]);
 
@@ -147,15 +157,25 @@ const TaskDetail = () => {
         const ensureValidVersionId = (id?: string | null) =>
             id && task.versions.some((version) => version.id === id) ? id : null;
 
+        const productionVersionId = task.versions.find(
+            (version) => version.version === task.production_version,
+        )?.id;
+
         const targetId =
-            ensureValidVersionId(selectedVersion) ?? task.versions[0].id;
+            ensureValidVersionId(selectedVersion) ??
+            productionVersionId ??
+            task.versions[0].id;
         const baseCandidate =
-            task.versions.find((version) => version.id !== targetId)?.id ?? null;
+            productionVersionId && productionVersionId !== targetId
+                ? productionVersionId
+                : task.versions.find((version) => version.id !== targetId)?.id ??
+                  productionVersionId ??
+                  null;
 
         setDiffTargetVersionId(targetId);
         setDiffBaseVersionId((prev) => {
             const validPrev = ensureValidVersionId(prev);
-            if (validPrev && validPrev !== targetId) {
+            if (validPrev) {
                 return validPrev;
             }
             return baseCandidate;
