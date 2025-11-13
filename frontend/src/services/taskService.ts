@@ -1,5 +1,6 @@
 import { TaskListItem } from "@/lib/api/tasks";
 import { TaskDetail } from "@/lib/mock-data/taskDetails";
+import { mapImplementationToTaskVersion } from "@/lib/implementations";
 
 // Mock task data for the list view
 const mockTasks: TaskListItem[] = [
@@ -52,6 +53,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.3,
             cost_efficiency: 0.3,
         },
+        cost_percentile: 0.52,
+        latency_percentile: 0.48,
+        last_activity: "2024-10-24T14:30:00Z",
         created_at: "2024-10-15T08:00:00Z",
         updated_at: "2024-10-24T14:30:00Z",
     },
@@ -95,6 +99,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.2,
             cost_efficiency: 0.3,
         },
+        cost_percentile: 0.6,
+        latency_percentile: 0.5,
+        last_activity: "2024-10-23T09:15:00Z",
         created_at: "2024-10-10T12:00:00Z",
         updated_at: "2024-10-23T09:15:00Z",
     },
@@ -139,6 +146,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.2,
             cost_efficiency: 0.2,
         },
+        cost_percentile: 0.7,
+        latency_percentile: 0.6,
+        last_activity: "2024-10-24T11:20:00Z",
         created_at: "2024-10-12T16:00:00Z",
         updated_at: "2024-10-24T11:20:00Z",
     },
@@ -191,6 +201,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.3,
             cost_efficiency: 0.2,
         },
+        cost_percentile: 0.8,
+        latency_percentile: 0.7,
+        last_activity: "2024-10-22T16:45:00Z",
         created_at: "2024-10-08T10:30:00Z",
         updated_at: "2024-10-22T16:45:00Z",
     },
@@ -240,6 +253,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.2,
             cost_efficiency: 0.1,
         },
+        cost_percentile: 0.9,
+        latency_percentile: 0.8,
+        last_activity: "2024-10-20T08:15:00Z",
         created_at: "2024-10-05T14:20:00Z",
         updated_at: "2024-10-20T08:15:00Z",
     },
@@ -284,6 +300,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.25,
             cost_efficiency: 0.15,
         },
+        cost_percentile: 0.75,
+        latency_percentile: 0.7,
+        last_activity: "2024-10-18T13:30:00Z",
         created_at: "2024-10-03T11:45:00Z",
         updated_at: "2024-10-18T13:30:00Z",
     },
@@ -336,6 +355,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.4,
             cost_efficiency: 0.2,
         },
+        cost_percentile: 0.8,
+        latency_percentile: 0.8,
+        last_activity: "2024-10-15T12:00:00Z",
         created_at: "2024-09-28T09:15:00Z",
         updated_at: "2024-10-15T12:00:00Z",
     },
@@ -388,6 +410,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.1,
             cost_efficiency: 0.1,
         },
+        cost_percentile: 0.9,
+        latency_percentile: 0.9,
+        last_activity: "2024-10-12T14:20:00Z",
         created_at: "2024-09-25T16:30:00Z",
         updated_at: "2024-10-12T14:20:00Z",
     },
@@ -533,6 +558,9 @@ const mockTasks: TaskListItem[] = [
             time_efficiency: 0.3,
             cost_efficiency: 0.2,
         },
+        cost_percentile: 0.7,
+        latency_percentile: 0.7,
+        last_activity: "2024-10-15T09:30:00Z",
         created_at: "2024-10-15T09:30:00Z",
         updated_at: "2024-10-15T09:30:00Z",
     },
@@ -704,21 +732,7 @@ export class TaskService {
                     created_at: backendTask.created_at,
                 },
                 versions: implementation
-                    ? [
-                          {
-                              id: implementation.id.toString(),
-                              version: implementation.version,
-                              model: implementation.model,
-                              settings: {
-                                  temperature: implementation.temperature,
-                                  max_output_tokens:
-                                      implementation.max_output_tokens,
-                              },
-                              prompt: implementation.prompt,
-                              tools: toolNames,
-                              createdAt: implementation.created_at,
-                          },
-                      ]
+                    ? [mapImplementationToTaskVersion(implementation)]
                     : [],
                 traces: [],
                 executions: [],

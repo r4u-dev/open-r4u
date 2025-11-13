@@ -1,5 +1,7 @@
 import { Task } from "../types/task";
 
+import type { ImplementationCreate } from "@/services/implementationsApi";
+
 export interface TaskVersion {
   id: string;
   version: string;
@@ -8,6 +10,8 @@ export interface TaskVersion {
   prompt: string;
   tools: string[];
   createdAt: string;
+  reasoning?: ImplementationCreate["reasoning"] | null;
+  toolChoice?: ImplementationCreate["tool_choice"] | null;
 }
 
 export interface Trace {
