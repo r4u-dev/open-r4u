@@ -13,6 +13,7 @@ interface TraceDetailPanelProps {
 export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
     const [expandedSections, setExpandedSections] = useState({
         prompt: true,
+        promptVariables: true,
         inputMessages: true,
         modelSettings: true,
         metrics: true,
@@ -176,6 +177,25 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                     <Section title="Prompt" section="prompt">
                         <div className="whitespace-pre-wrap break-words text-foreground">
                             {trace.prompt}
+                        </div>
+                    </Section>
+                )}
+
+                {trace.promptVariables && (
+                    <Section title="Prompt Variables" section="promptVariables">
+                        <div className="space-y-1 font-mono">
+                            {Object.entries(trace.promptVariables).map(
+                                ([key, value]) => (
+                                    <div key={key} className="flex justify-between">
+                                        <span className="text-muted-foreground">
+                                            {key}:
+                                        </span>
+                                        <span className="text-foreground break-all">
+                                            {JSON.stringify(value)}
+                                        </span>
+                                    </div>
+                                ),
+                            )}
                         </div>
                     </Section>
                 )}

@@ -2168,41 +2168,420 @@ const TaskDetail = () => {
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <div>
-                                                                <div className="text-xs text-muted-foreground mb-1">
-                                                                    Input
+                                                        <div className="space-y-3">
+                                                            {trace.promptVariables && (
+                                                                <div>
+                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
+                                                                        Prompt Variables
+                                                                    </div>
+                                                                    <div className="bg-muted/50 p-2 rounded border border-border">
+                                                                        <div className="space-y-1.5">
+                                                                            {Object.entries(
+                                                                                trace.promptVariables,
+                                                                            ).map(
+                                                                                ([
+                                                                                    key,
+                                                                                    value,
+                                                                                ]) => (
+                                                                                    <div
+                                                                                        key={
+                                                                                            key
+                                                                                        }
+                                                                                        className="flex gap-2 text-xs"
+                                                                                    >
+                                                                                        <span className="text-muted-foreground font-medium min-w-[100px]">
+                                                                                            {key}:
+                                                                                        </span>
+                                                                                        <span className="text-foreground break-words flex-1">
+                                                                                            {typeof value ===
+                                                                                            "object"
+                                                                                                ? JSON.stringify(
+                                                                                                      value,
+                                                                                                  )
+                                                                                                : String(
+                                                                                                      value,
+                                                                                                  )}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ),
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                                                                    {trace.inputMessages &&
-                                                                    trace
-                                                                        .inputMessages
-                                                                        .length >
-                                                                        0
-                                                                        ? JSON.stringify(
-                                                                              trace.inputMessages,
-                                                                              null,
-                                                                              2,
-                                                                          )
-                                                                        : "No input"}
+                                                            )}
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
+                                                                        Input
+                                                                    </div>
+                                                                    <div className="bg-muted/50 p-2 rounded border border-border max-h-32 overflow-auto">
+                                                                        {trace.inputMessages &&
+                                                                        trace
+                                                                            .inputMessages
+                                                                            .filter(
+                                                                                (item) =>
+                                                                                    !(
+                                                                                        item.type ===
+                                                                                            "message" &&
+                                                                                        item.role ===
+                                                                                            "system"
+                                                                                    ),
+                                                                            )
+                                                                            .length >
+                                                                            0 ? (
+                                                                            <div className="space-y-2">
+                                                                                {trace.inputMessages
+                                                                                    .filter(
+                                                                                        (item) =>
+                                                                                            !(
+                                                                                                item.type ===
+                                                                                                    "message" &&
+                                                                                                item.role ===
+                                                                                                    "system"
+                                                                                            ),
+                                                                                    )
+                                                                                    .map(
+                                                                                        (
+                                                                                            item,
+                                                                                            idx,
+                                                                                        ) => {
+                                                                                        if (
+                                                                                            item.type ===
+                                                                                            "message"
+                                                                                        ) {
+                                                                                            const content =
+                                                                                                typeof item.content ===
+                                                                                                "string"
+                                                                                                    ? item.content
+                                                                                                    : Array.isArray(
+                                                                                                          item.content,
+                                                                                                      )
+                                                                                                    ? item.content
+                                                                                                          .map(
+                                                                                                              (
+                                                                                                                  c,
+                                                                                                              ) =>
+                                                                                                                  typeof c ===
+                                                                                                                  "string"
+                                                                                                                      ? c
+                                                                                                                      : c?.text ||
+                                                                                                                        "",
+                                                                                                          )
+                                                                                                          .join(
+                                                                                                              " ",
+                                                                                                          )
+                                                                                                    : "";
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
+                                                                                                        {
+                                                                                                            item.role
+                                                                                                        }
+                                                                                                        :
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        {content ||
+                                                                                                            "No content"}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "tool_call"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Tool Call:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        <span className="font-semibold">
+                                                                                                            {
+                                                                                                                item.tool_name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        {item.arguments &&
+                                                                                                            `(${typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments)})`}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "tool_result"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Tool Result:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        <span className="font-semibold">
+                                                                                                            {
+                                                                                                                item.tool_name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        {" → "}
+                                                                                                        {typeof item.result ===
+                                                                                                        "string"
+                                                                                                            ? item.result
+                                                                                                            : JSON.stringify(
+                                                                                                                  item.result,
+                                                                                                              )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "function_call"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Function Call:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        <span className="font-semibold">
+                                                                                                            {
+                                                                                                                item.name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        {item.arguments &&
+                                                                                                            `(${typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments)})`}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "function_result"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Function Result:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        <span className="font-semibold">
+                                                                                                            {
+                                                                                                                item.name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        {" → "}
+                                                                                                        {typeof item.result ===
+                                                                                                        "string"
+                                                                                                            ? item.result
+                                                                                                            : JSON.stringify(
+                                                                                                                  item.result,
+                                                                                                              )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
+                                                                                                        {
+                                                                                                            item.type
+                                                                                                        }
+                                                                                                        :
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        {JSON.stringify(
+                                                                                                            item,
+                                                                                                            null,
+                                                                                                            2,
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        }
+                                                                                    },
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-muted-foreground text-xs italic">
+                                                                                No input
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-xs text-muted-foreground mb-1">
-                                                                    Output
-                                                                </div>
-                                                                <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                                                                    {trace.outputItems &&
-                                                                    trace
-                                                                        .outputItems
-                                                                        .length >
-                                                                        0
-                                                                        ? JSON.stringify(
-                                                                              trace.outputItems,
-                                                                              null,
-                                                                              2,
-                                                                          )
-                                                                        : "No output"}
+                                                                <div>
+                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
+                                                                        Output
+                                                                    </div>
+                                                                    <div className="bg-muted/50 p-2 rounded border border-border max-h-32 overflow-auto">
+                                                                        {trace.outputItems &&
+                                                                        trace
+                                                                            .outputItems
+                                                                            .length >
+                                                                            0 ? (
+                                                                            <div className="space-y-2">
+                                                                                {trace.outputItems.map(
+                                                                                    (
+                                                                                        item,
+                                                                                        idx,
+                                                                                    ) => {
+                                                                                        if (
+                                                                                            item.type ===
+                                                                                            "message"
+                                                                                        ) {
+                                                                                            const content =
+                                                                                                item.content &&
+                                                                                                Array.isArray(
+                                                                                                    item.content,
+                                                                                                )
+                                                                                                    ? item.content
+                                                                                                          .map(
+                                                                                                              (
+                                                                                                                  c,
+                                                                                                              ) =>
+                                                                                                                  c?.text ||
+                                                                                                                  "",
+                                                                                                          )
+                                                                                                          .join(
+                                                                                                              " ",
+                                                                                                          )
+                                                                                                    : "";
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="text-foreground break-words text-xs"
+                                                                                                >
+                                                                                                    {content ||
+                                                                                                        "No content"}
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "function_call"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Function Call:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        <span className="font-semibold">
+                                                                                                            {
+                                                                                                                item.name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        {item.arguments &&
+                                                                                                            `(${item.arguments})`}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "file_search_call"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        File Search:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        {item.queries?.join(
+                                                                                                            ", ",
+                                                                                                        ) ||
+                                                                                                            "No queries"}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else if (
+                                                                                            item.type ===
+                                                                                            "web_search_call"
+                                                                                        ) {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
+                                                                                                        Web Search:
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        {item.action?.type ||
+                                                                                                            "Search"}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        } else {
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={
+                                                                                                        idx
+                                                                                                    }
+                                                                                                    className="space-y-0.5"
+                                                                                                >
+                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
+                                                                                                        {
+                                                                                                            item.type
+                                                                                                        }
+                                                                                                        :
+                                                                                                    </span>
+                                                                                                    <div className="text-foreground break-words text-xs pl-2">
+                                                                                                        {JSON.stringify(
+                                                                                                            item,
+                                                                                                            null,
+                                                                                                            2,
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        }
+                                                                                    },
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-muted-foreground text-xs italic">
+                                                                                No output
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -4464,3 +4843,6 @@ const TaskDetail = () => {
 };
 
 export default TaskDetail;
+
+
+

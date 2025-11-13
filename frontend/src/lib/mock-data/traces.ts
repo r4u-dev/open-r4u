@@ -119,6 +119,10 @@ const generateTraces = (): Trace[] => {
             cost: isError ? 0 : getRandomCost(),
             taskVersion,
             prompt,
+            promptVariables: {
+                user_id: `user_${Math.floor(Math.random() * 1000)}`,
+                locale: ["en-US", "es-ES", "fr-FR"][Math.floor(Math.random() * 3)],
+            },
             inputMessages: [
                 {
                     type: "message",
