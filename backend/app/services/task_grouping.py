@@ -240,7 +240,7 @@ class TemplateFinder:
                     result.append(" ")
                 result.append(token)
 
-        return "".join(result).strip()
+        return "".join(result)
 
     def _matches_segments(self, sentence: list[str], segments: list[list[str]]) -> bool:
         """Check if sentence contains all segments in order."""
