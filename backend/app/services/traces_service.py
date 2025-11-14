@@ -117,6 +117,34 @@ class TracesService:
         # Reload trace with relationships
         return await self._load_trace_with_relationships(trace.id, session)
 
+    async def list_traces(
+        self,
+        session: AsyncSession,
+        implementation_id: int | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        without_implementation: bool = False,
+    ) -> list[Trace]:
+        """List all traces."""
+        # TODO: Use this method in traces API endpoint
+        query = (
+            select(Trace)
+            .options(
+                joinedload(Trace.input_items),
+                joinedload(Trace.output_items),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        if implementation_id:
+            query = query.where(Trace.implementation_id == implementation_id)
+        elif without_implementation:
+            query = query.where(Trace.implementation_id.is_(None))
+
+        result = await session.scalars(query)
+        return list(result.unique().all())
+
     async def _get_or_create_project(
         self,
         project_name: str,

@@ -25,6 +25,12 @@ class ImplementationCreate(BaseModel):
     temp: bool = False
 
 
+class ImplementationUpdate(BaseModel):
+    """Schema for updating an implementation (version)."""
+
+    prompt: str | None = None
+
+
 class ImplementationRead(ImplementationCreate):
     """Schema for reading an implementation."""
 

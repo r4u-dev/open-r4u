@@ -5,9 +5,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import ItemType
 from app.models.tasks import Implementation, Task
-from app.schemas.tasks import ImplementationCreate
+from app.schemas.tasks import ImplementationCreate, ImplementationUpdate
 from app.services.provider_service import ProviderService
+from app.services.task_grouping import TemplateFinder
+from app.services.traces_service import TracesService
 
 
 class ImplementationService:
@@ -38,7 +41,8 @@ class ImplementationService:
         return result.scalar_one_or_none()
 
     async def list_implementations(
-        self, task_id: int | None = None,
+        self,
+        task_id: int | None = None,
     ) -> list[Implementation]:
         """List implementations, optionally filtered by task_id.
 
@@ -104,7 +108,7 @@ class ImplementationService:
     async def update_implementation(
         self,
         implementation_id: int,
-        payload: ImplementationCreate,
+        payload: ImplementationUpdate,
     ) -> Implementation:
         """Update an existing implementation.
 
@@ -124,14 +128,35 @@ class ImplementationService:
             raise ValueError(f"Implementation with id {implementation_id} not found")
 
         # Update fields
-        implementation.version = payload.version
-        implementation.prompt = payload.prompt
-        implementation.model = await self.provider_service.canonicalize_model(payload.model)
-        implementation.temperature = payload.temperature
-        implementation.reasoning = self._serialize_reasoning(payload.reasoning)
-        implementation.tools = self._serialize_tools(payload.tools)
-        implementation.tool_choice = self._serialize_tool_choice(payload.tool_choice)
-        implementation.max_output_tokens = payload.max_output_tokens
+        if payload.prompt:
+            implementation.prompt = payload.prompt
+
+            traces_service = TracesService()
+            current_traces = await traces_service.list_traces(
+                self.session,
+                implementation.id,
+            )
+            ungrouped_traces = await traces_service.list_traces(
+                self.session,
+                without_implementation=True,
+            )
+            tf = TemplateFinder()
+            for trace in current_traces + ungrouped_traces:
+                if not trace.input_items:
+                    continue
+                if trace.input_items[0].type != ItemType.MESSAGE:
+                    continue
+                instructions = trace.input_items[0].data.get("content", "")
+                match, variables = tf.match_template(
+                    implementation.prompt,
+                    instructions,
+                )
+                if not match:
+                    trace.implementation_id = None
+                    trace.prompt_variables = None
+                else:
+                    trace.implementation_id = implementation.id
+                    trace.prompt_variables = variables
 
         await self.session.commit()
         await self.session.refresh(implementation)
@@ -265,4 +290,3 @@ async def create_implementation(
     """
     service = ImplementationService(session)
     return await service.create_implementation(task_id, payload)
-

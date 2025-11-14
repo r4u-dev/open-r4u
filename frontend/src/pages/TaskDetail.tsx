@@ -245,6 +245,15 @@ const TaskDetail = () => {
     const [toolsInput, setToolsInput] = useState<string>("");
     const [maxTokensInput, setMaxTokensInput] = useState<string>("4000");
 
+    // Prompt editing state
+    const [editPromptOpen, setEditPromptOpen] = useState(false);
+    const [editPromptLoading, setEditPromptLoading] = useState(false);
+    const [editPromptError, setEditPromptError] = useState<string | null>(null);
+    const [editPromptValue, setEditPromptValue] = useState<string>("");
+    const [editingImplementationId, setEditingImplementationId] = useState<
+        number | null
+    >(null);
+
     // Compute next auto version (increment minor from the latest version present)
     const computeNextVersion = (): string => {
         if (!task || !task.versions || task.versions.length === 0) return "1.0";
@@ -785,99 +794,95 @@ const TaskDetail = () => {
         });
     };
 
-    useEffect(() => {
-        const loadTask = async () => {
-            if (!taskId) {
-                setError("No task ID provided");
-                setIsLoading(false);
-                return;
-            }
+    const loadTask = async () => {
+        if (!taskId) {
+            setError("No task ID provided");
+            setIsLoading(false);
+            return;
+        }
 
-            try {
-                setIsLoading(true);
-                setError(null);
-                const taskData = await TaskService.getTaskById(taskId);
-                if (taskData) {
-                    // Fetch all implementations for this task
-                    try {
-                        const implementationsRes =
-                            await implementationsApi.listImplementations(
-                                Number(taskId),
-                            );
-                        const implementations = implementationsRes.data || [];
-
-                        // Update versions array with all implementations
-                        const updatedVersions = implementations.map((impl) => {
-                            const toolNames =
-                                impl.tools
-                                    ?.map((tool: any) => tool.function?.name)
-                                    .filter(Boolean) || [];
-
-                            return {
-                                id: String(impl.id),
-                                version: impl.version,
-                                model: impl.model,
-                                settings: {
-                                    temperature: impl.temperature,
-                                    max_output_tokens: impl.max_output_tokens,
-                                },
-                                prompt: impl.prompt || "",
-                                tools: toolNames,
-                                createdAt: impl.created_at,
-                            };
-                        });
-
-                        setTask({
-                            ...taskData,
-                            versions: updatedVersions,
-                        });
-                        // Determine initial version: from URL ?implementation_id=, else production, else first
-                        const urlImplId =
-                            searchParams.get("implementation_id") || "";
-                        const hasUrlImpl =
-                            urlImplId &&
-                            updatedVersions.some((v) => v.id === urlImplId);
-                        const productionVersion = updatedVersions.find(
-                            (v) => v.version === taskData.production_version,
+        try {
+            setIsLoading(true);
+            setError(null);
+            const taskData = await TaskService.getTaskById(taskId);
+            if (taskData) {
+                // Fetch all implementations for this task
+                try {
+                    const implementationsRes =
+                        await implementationsApi.listImplementations(
+                            Number(taskId),
                         );
-                        const defaultVersionId = hasUrlImpl
-                            ? urlImplId
-                            : productionVersion?.id ||
-                              updatedVersions[0]?.id ||
-                              "";
-                        setSelectedVersion(defaultVersionId);
-                        setEvalVersionId(defaultVersionId);
-                    } catch (implError) {
-                        // If fetching implementations fails, use the task data as-is
-                        console.error(
-                            "Failed to fetch implementations:",
-                            implError,
-                        );
-                        setTask(taskData);
-                        // Select production version by default, or first version if no production version
-                        const productionVersion = taskData.versions.find(
-                            (v) => v.version === taskData.production_version,
-                        );
-                        const defaultVersionId =
-                            productionVersion?.id ||
-                            taskData.versions[0]?.id ||
-                            "";
-                        setSelectedVersion(defaultVersionId);
-                        setEvalVersionId(defaultVersionId);
-                    }
-                    setPageTitle(taskData.name);
-                } else {
-                    setError(`Task not found for ID: ${taskId}`);
+                    const implementations = implementationsRes.data || [];
+
+                    // Update versions array with all implementations
+                    const updatedVersions = implementations.map((impl) => {
+                        const toolNames =
+                            impl.tools
+                                ?.map((tool: any) => tool.function?.name)
+                                .filter(Boolean) || [];
+
+                        return {
+                            id: String(impl.id),
+                            version: impl.version,
+                            model: impl.model,
+                            settings: {
+                                temperature: impl.temperature,
+                                max_output_tokens: impl.max_output_tokens,
+                            },
+                            prompt: impl.prompt || "",
+                            tools: toolNames,
+                            createdAt: impl.created_at,
+                        };
+                    });
+
+                    setTask({
+                        ...taskData,
+                        versions: updatedVersions,
+                    });
+                    // Determine initial version: from URL ?implementation_id=, else production, else first
+                    const urlImplId =
+                        searchParams.get("implementation_id") || "";
+                    const hasUrlImpl =
+                        urlImplId &&
+                        updatedVersions.some((v) => v.id === urlImplId);
+                    const productionVersion = updatedVersions.find(
+                        (v) => v.version === taskData.production_version,
+                    );
+                    const defaultVersionId = hasUrlImpl
+                        ? urlImplId
+                        : productionVersion?.id || updatedVersions[0]?.id || "";
+                    setSelectedVersion(defaultVersionId);
+                    setEvalVersionId(defaultVersionId);
+                } catch (implError) {
+                    // If fetching implementations fails, use the task data as-is
+                    console.error(
+                        "Failed to fetch implementations:",
+                        implError,
+                    );
+                    setTask(taskData);
+                    // Select production version by default, or first version if no production version
+                    const productionVersion = taskData.versions.find(
+                        (v) => v.version === taskData.production_version,
+                    );
+                    const defaultVersionId =
+                        productionVersion?.id || taskData.versions[0]?.id || "";
+                    setSelectedVersion(defaultVersionId);
+                    setEvalVersionId(defaultVersionId);
                 }
-            } catch (err) {
-                setError(
-                    err instanceof Error ? err.message : "Failed to load task",
-                );
-            } finally {
-                setIsLoading(false);
+                setPageTitle(taskData.name);
+            } else {
+                setError(`Task not found for ID: ${taskId}`);
             }
-        };
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Failed to load task",
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
+    useEffect(() => {
         loadTask();
     }, [taskId, setPageTitle]);
 
@@ -1080,26 +1085,26 @@ const TaskDetail = () => {
                 setGradersListOverflowing(scrollHeight > clientHeight);
             }
         };
-        
+
         checkOverflow();
         // Also check after a short delay to account for any animations
         const timeout = setTimeout(checkOverflow, 100);
-        
+
         const container = gradersListRef.current;
         if (container) {
             // Check on scroll
-            container.addEventListener('scroll', checkOverflow);
+            container.addEventListener("scroll", checkOverflow);
             // Check on resize
             const resizeObserver = new ResizeObserver(checkOverflow);
             resizeObserver.observe(container);
-            
+
             return () => {
                 clearTimeout(timeout);
-                container.removeEventListener('scroll', checkOverflow);
+                container.removeEventListener("scroll", checkOverflow);
                 resizeObserver.disconnect();
             };
         }
-        
+
         return () => clearTimeout(timeout);
     }, [displayGraders]);
 
@@ -1179,7 +1184,11 @@ const TaskDetail = () => {
             setEditForm({
                 description: tc.description ?? "",
                 arguments: JSON.stringify(tc.arguments ?? {}, null, 2),
-                expected_output: JSON.stringify(tc.expected_output ?? [], null, 2),
+                expected_output: JSON.stringify(
+                    tc.expected_output ?? [],
+                    null,
+                    2,
+                ),
             });
         } catch (e) {
             setTestsError(
@@ -1194,7 +1203,9 @@ const TaskDetail = () => {
             setTestsSubmitting(true);
             setCreateError(null);
             const argsObj = JSON.parse(createForm.arguments || "{}");
-            const expectedArray = JSON.parse(createForm.expected_output || "[]");
+            const expectedArray = JSON.parse(
+                createForm.expected_output || "[]",
+            );
             await testCasesApi.createTestCase({
                 task_id: String(taskId),
                 description: createForm.description || undefined,
@@ -1237,6 +1248,38 @@ const TaskDetail = () => {
             );
         } finally {
             setTestsSubmitting(false);
+        }
+    };
+
+    const openPromptEdit = (
+        implementationId: number,
+        currentPrompt: string,
+    ) => {
+        setEditingImplementationId(implementationId);
+        setEditPromptValue(currentPrompt);
+        setEditPromptError(null);
+        setEditPromptOpen(true);
+    };
+
+    const submitPromptEdit = async () => {
+        if (!editingImplementationId) return;
+        try {
+            setEditPromptLoading(true);
+            setEditPromptError(null);
+            await implementationsApi.updatePrompt(
+                editingImplementationId,
+                editPromptValue,
+            );
+            // Reload the task to get the updated implementation
+            await loadTask();
+            setEditPromptOpen(false);
+            setEditingImplementationId(null);
+        } catch (e) {
+            setEditPromptError(
+                e instanceof Error ? e.message : "Failed to update prompt",
+            );
+        } finally {
+            setEditPromptLoading(false);
         }
     };
 
@@ -1640,9 +1683,26 @@ const TaskDetail = () => {
                                             return version ? (
                                                 <div className="space-y-3">
                                                     <div>
-                                                        <div className="text-muted-foreground mb-1 text-xs">
-                                                            Prompt
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="text-muted-foreground text-xs">
+                                                                Prompt
+                                                            </div>
+
+                                                            <button
+                                                                className="text-xs font-semibold text-blue-500 hover:underline p-0 m-0 bg-transparent border-none"
+                                                                onClick={() =>
+                                                                    openPromptEdit(
+                                                                        Number(
+                                                                            selectedVersion,
+                                                                        ),
+                                                                        version.prompt,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Edit
+                                                            </button>
                                                         </div>
+
                                                         <div className="text-sm">
                                                             {version.prompt}
                                                         </div>
@@ -2310,30 +2370,68 @@ const TaskDetail = () => {
                                                             ),
                                                         };
                                                         // Reset evalConfig to original values
-                                                        const originalGraderIdsArray = (originalConfig as any).grader_ids || [];
+                                                        const originalGraderIdsArray =
+                                                            (
+                                                                originalConfig as any
+                                                            ).grader_ids || [];
                                                         setEvalConfig({
                                                             ...(evalConfig as any),
-                                                            quality_weight: Number(
-                                                                (originalConfig as any).quality_weight || 0,
-                                                            ),
+                                                            quality_weight:
+                                                                Number(
+                                                                    (
+                                                                        originalConfig as any
+                                                                    )
+                                                                        .quality_weight ||
+                                                                        0,
+                                                                ),
                                                             cost_weight: Number(
-                                                                (originalConfig as any).cost_weight || 0,
+                                                                (
+                                                                    originalConfig as any
+                                                                ).cost_weight ||
+                                                                    0,
                                                             ),
                                                             time_weight: Number(
-                                                                (originalConfig as any).time_weight || 0,
+                                                                (
+                                                                    originalConfig as any
+                                                                ).time_weight ||
+                                                                    0,
                                                             ),
-                                                            grader_ids: originalGraderIdsArray,
+                                                            grader_ids:
+                                                                originalGraderIdsArray,
                                                         });
                                                         // Restore original display order for graders (selected first)
-                                                        if (graders.length > 0) {
-                                                            const selectedIds = new Set(originalGraderIdsArray as number[]);
-                                                            const ordered = [...graders].sort((a, b) => {
-                                                                const aSel = selectedIds.has(a.id);
-                                                                const bSel = selectedIds.has(b.id);
-                                                                if (aSel !== bSel) return aSel ? -1 : 1;
-                                                                return a.name.localeCompare(b.name);
+                                                        if (
+                                                            graders.length > 0
+                                                        ) {
+                                                            const selectedIds =
+                                                                new Set(
+                                                                    originalGraderIdsArray as number[],
+                                                                );
+                                                            const ordered = [
+                                                                ...graders,
+                                                            ].sort((a, b) => {
+                                                                const aSel =
+                                                                    selectedIds.has(
+                                                                        a.id,
+                                                                    );
+                                                                const bSel =
+                                                                    selectedIds.has(
+                                                                        b.id,
+                                                                    );
+                                                                if (
+                                                                    aSel !==
+                                                                    bSel
+                                                                )
+                                                                    return aSel
+                                                                        ? -1
+                                                                        : 1;
+                                                                return a.name.localeCompare(
+                                                                    b.name,
+                                                                );
                                                             });
-                                                            setDisplayGraders(ordered);
+                                                            setDisplayGraders(
+                                                                ordered,
+                                                            );
                                                         }
                                                         animateWeights(
                                                             currentWeights,
@@ -2403,7 +2501,9 @@ const TaskDetail = () => {
                                                 }}
                                                 onWeightsChange={(w) => {
                                                     if (!isEditingConfig) {
-                                                        setIsEditingConfig(true);
+                                                        setIsEditingConfig(
+                                                            true,
+                                                        );
                                                     }
                                                     setEvalConfig({
                                                         ...(evalConfig as any),
@@ -2413,7 +2513,7 @@ const TaskDetail = () => {
                                                             w.costEfficiency,
                                                         time_weight:
                                                             w.timeEfficiency,
-                                                    })
+                                                    });
                                                 }}
                                             />
                                         </div>
@@ -2429,10 +2529,8 @@ const TaskDetail = () => {
                                                     {gradersError}
                                                 </div>
                                             ) : (
-                                                <div
-                                                    className="mt-2 relative"
-                                                >
-                                                    <div 
+                                                <div className="mt-2 relative">
+                                                    <div
                                                         ref={gradersListRef}
                                                         className="grid gap-1.5 max-h-48 overflow-y-auto pr-1"
                                                     >
@@ -2480,8 +2578,12 @@ const TaskDetail = () => {
                                                                                             !evalConfig
                                                                                         )
                                                                                             return;
-                                                                                        if (!isEditingConfig) {
-                                                                                            setIsEditingConfig(true);
+                                                                                        if (
+                                                                                            !isEditingConfig
+                                                                                        ) {
+                                                                                            setIsEditingConfig(
+                                                                                                true,
+                                                                                            );
                                                                                         }
                                                                                         const set =
                                                                                             new Set(
@@ -4391,6 +4493,61 @@ const TaskDetail = () => {
                         >
                             {deleteImplLoading ? "Deleting..." : "Delete"}
                         </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Prompt Dialog */}
+            <Dialog open={editPromptOpen} onOpenChange={setEditPromptOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Prompt</DialogTitle>
+                        <DialogDescription>
+                            Update the prompt for this implementation.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="prompt">Prompt</Label>
+                            <Textarea
+                                id="prompt"
+                                value={editPromptValue}
+                                onChange={(e) =>
+                                    setEditPromptValue(e.target.value)
+                                }
+                                className="min-h-[200px] font-mono text-sm"
+                                placeholder="Enter the prompt..."
+                            />
+                        </div>
+                        {editPromptError && (
+                            <div className="text-sm text-destructive">
+                                {editPromptError}
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setEditPromptOpen(false)}
+                                disabled={editPromptLoading}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={submitPromptEdit}
+                                disabled={
+                                    editPromptLoading || !editPromptValue.trim()
+                                }
+                            >
+                                {editPromptLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    "Save"
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -93,6 +93,7 @@ class R4UClient(AbstractTracer):
     def __init__(
         self,
         api_url: str = "http://localhost:8000",
+        api_key: str | None = None,
         timeout: float = 30.0,
     ):
         """Initialize the R4U tracer.
@@ -104,6 +105,7 @@ class R4UClient(AbstractTracer):
         """
         self.api_url = api_url.rstrip("/")
         self._sync_client = httpx.Client(base_url=self.api_url, timeout=timeout)
+        self.api_key = api_key
 
         # Queue-based processing
         self._trace_queue: queue.Queue = queue.Queue()
@@ -161,15 +163,23 @@ class R4UClient(AbstractTracer):
             traces: List of traces to send.
 
         """
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["X_API_KEY"] = self.api_key
+
         try:
             for trace in traces:
-                self._sync_client.post(
+                response = self._sync_client.post(
                     f"{self.api_url}/v1/http-traces",
                     json=trace.model_dump(mode="json", by_alias=True),
-                    headers={"Content-Type": "application/json"},
-                ).raise_for_status()
+                    headers=headers,
+                )
+                response.raise_for_status()
         except Exception:
-            logger.exception("Error sending trace")
+            # logger.exception("Error sending trace")
+            pass
 
     def stop_worker(self) -> None:
         """Stop the worker thread."""
@@ -195,6 +205,7 @@ class R4UClient(AbstractTracer):
 def get_r4u_client() -> AbstractTracer:
     """Get the R4U client."""
     return R4UClient(
-        api_url=os.getenv("R4U_API_URL", "http://localhost:8000"),
+        api_url=os.environ.get("R4U_API_URL", "http://localhost:8000"),
+        api_key=os.environ.get("R4U_API_KEY", None),
         timeout=float(os.getenv("R4U_TIMEOUT", "30.0")),
     )
