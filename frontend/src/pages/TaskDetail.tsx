@@ -9,6 +9,8 @@ import {
     Pencil,
     Trash2,
     GitCompare,
+    FileText,
+    Sparkles,
 } from "lucide-react";
 import { ChevronUp as SortUp, ChevronDown as SortDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -54,6 +56,7 @@ import { ImplementationEvaluationStats } from "@/lib/types/evaluation";
 import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
 import { tracesApi } from "@/services/tracesApi";
 import type { Trace } from "@/lib/types/trace";
+import { TraceDetailPanel } from "@/components/trace/TraceDetailPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Table,
@@ -198,6 +201,9 @@ const TaskDetail = () => {
     const [testsError, setTestsError] = useState<string | null>(null);
     const [selectedTraces, setSelectedTraces] = useState<Set<string>>(
         new Set(),
+    );
+    const [selectedTraceId, setSelectedTraceId] = useState<string | null>(
+        null,
     );
     const [creatingTestCases, setCreatingTestCases] = useState(false);
     const [createTestCasesError, setCreateTestCasesError] = useState<
@@ -1379,6 +1385,13 @@ const TaskDetail = () => {
 
                 const fetchedTraces = await tracesApi.fetchTraces(params);
                 setTraces(fetchedTraces);
+                
+                // Select the first trace by default
+                if (fetchedTraces.length > 0) {
+                    setSelectedTraceId(fetchedTraces[0].id);
+                } else {
+                    setSelectedTraceId(null);
+                }
             } catch (e) {
                 setTracesError(
                     e instanceof Error ? e.message : "Failed to load traces",
@@ -2118,477 +2131,146 @@ const TaskDetail = () => {
                                         </div>
                                     )}
 
-                                    {/* Traces List */}
-                                    <div className="space-y-2">
-                                        {traces.map((trace) => (
-                                            <div
-                                                key={trace.id}
-                                                className={`border rounded p-3 text-sm transition-colors ${
-                                                    selectedTraces.has(trace.id)
-                                                        ? "border-primary bg-primary/5"
-                                                        : "border-border"
-                                                }`}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    {/* Checkbox */}
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedTraces.has(
-                                                            trace.id,
-                                                        )}
-                                                        onChange={() =>
-                                                            toggleTraceSelection(
+                                    {/* Traces List and Detail View */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        {/* Traces List */}
+                                        <div className="space-y-2">
+                                            {traces.map((trace) => {
+                                                const isSelected = selectedTraceId === trace.id;
+                                                const isChecked = selectedTraces.has(trace.id);
+                                                
+                                                return (
+                                                    <div
+                                                        key={trace.id}
+                                                        className={`border rounded-lg p-3 text-sm transition-all cursor-pointer hover:border-primary/50 ${
+                                                            isSelected
+                                                                ? "border-primary bg-primary/5 shadow-sm"
+                                                                : "border-border"
+                                                        } ${
+                                                            isChecked
+                                                                ? "ring-2 ring-primary/20"
+                                                                : ""
+                                                        }`}
+                                                        onClick={(e) => {
+                                                            // Don't select if clicking on checkbox
+                                                            if (
+                                                                (e.target as HTMLElement).closest(
+                                                                    'input[type="checkbox"]',
+                                                                )
+                                                            ) {
+                                                                return;
+                                                            }
+                                                            setSelectedTraceId(
                                                                 trace.id,
-                                                            )
-                                                        }
-                                                        className="mt-1 h-4 w-4 rounded border-gray-300"
-                                                    />
+                                                            );
+                                                        }}
+                                                    >
+                                                        <div className="flex items-start gap-3">
+                                                            {/* Checkbox */}
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleTraceSelection(
+                                                                        trace.id,
+                                                                    );
+                                                                }}
+                                                                onClick={(e) =>
+                                                                    e.stopPropagation()
+                                                                }
+                                                                className="mt-1 h-4 w-4 rounded border-gray-300 cursor-pointer"
+                                                            />
 
-                                                    {/* Trace Content */}
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {new Date(
-                                                                    trace.timestamp,
-                                                                ).toLocaleString()}
-                                                            </span>
-                                                            <div className="flex items-center gap-2">
-                                                                <span
-                                                                    className={`text-xs px-2 py-1 rounded ${trace.status === "success" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
-                                                                >
-                                                                    {
-                                                                        trace.status
-                                                                    }
-                                                                </span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {trace.latency.toFixed(
-                                                                        2,
-                                                                    )}
-                                                                    s
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-3">
-                                                            {trace.promptVariables && (
-                                                                <div>
-                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
-                                                                        Prompt Variables
-                                                                    </div>
-                                                                    <div className="bg-muted/50 p-2 rounded border border-border">
-                                                                        <div className="space-y-1.5">
-                                                                            {Object.entries(
-                                                                                trace.promptVariables,
-                                                                            ).map(
-                                                                                ([
-                                                                                    key,
-                                                                                    value,
-                                                                                ]) => (
-                                                                                    <div
-                                                                                        key={
-                                                                                            key
-                                                                                        }
-                                                                                        className="flex gap-2 text-xs"
-                                                                                    >
-                                                                                        <span className="text-muted-foreground font-medium min-w-[100px]">
-                                                                                            {key}:
-                                                                                        </span>
-                                                                                        <span className="text-foreground break-words flex-1">
-                                                                                            {typeof value ===
-                                                                                            "object"
-                                                                                                ? JSON.stringify(
-                                                                                                      value,
-                                                                                                  )
-                                                                                                : String(
-                                                                                                      value,
-                                                                                                  )}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                ),
-                                                                            )}
-                                                                        </div>
+                                                            {/* Trace Summary */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center justify-between gap-2 mb-2">
+                                                                    <span className="text-xs font-medium text-foreground truncate">
+                                                                        {new Date(
+                                                                            trace.timestamp,
+                                                                        ).toLocaleString()}
+                                                                    </span>
+                                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                                        <span
+                                                                            className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                                                                trace.status ===
+                                                                                "success"
+                                                                                    ? "bg-success/20 text-success"
+                                                                                    : "bg-destructive/20 text-destructive"
+                                                                            }`}
+                                                                        >
+                                                                            {trace.status}
+                                                                        </span>
+                                                                        <span className="text-xs text-muted-foreground">
+                                                                            {(trace.latency / 1000).toFixed(2)}s
+                                                                        </span>
                                                                     </div>
                                                                 </div>
-                                                            )}
-                                                            <div className="grid grid-cols-2 gap-3">
-                                                                <div>
-                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
-                                                                        Input
-                                                                    </div>
-                                                                    <div className="bg-muted/50 p-2 rounded border border-border max-h-32 overflow-auto">
-                                                                        {trace.inputMessages &&
-                                                                        trace
-                                                                            .inputMessages
-                                                                            .filter(
-                                                                                (item) =>
-                                                                                    !(
-                                                                                        item.type ===
-                                                                                            "message" &&
-                                                                                        item.role ===
-                                                                                            "system"
-                                                                                    ),
-                                                                            )
-                                                                            .length >
-                                                                            0 ? (
-                                                                            <div className="space-y-2">
-                                                                                {trace.inputMessages
-                                                                                    .filter(
-                                                                                        (item) =>
-                                                                                            !(
-                                                                                                item.type ===
-                                                                                                    "message" &&
-                                                                                                item.role ===
-                                                                                                    "system"
-                                                                                            ),
-                                                                                    )
-                                                                                    .map(
-                                                                                        (
-                                                                                            item,
-                                                                                            idx,
-                                                                                        ) => {
-                                                                                        if (
-                                                                                            item.type ===
-                                                                                            "message"
-                                                                                        ) {
-                                                                                            const content =
-                                                                                                typeof item.content ===
-                                                                                                "string"
-                                                                                                    ? item.content
-                                                                                                    : Array.isArray(
-                                                                                                          item.content,
-                                                                                                      )
-                                                                                                    ? item.content
-                                                                                                          .map(
-                                                                                                              (
-                                                                                                                  c,
-                                                                                                              ) =>
-                                                                                                                  typeof c ===
-                                                                                                                  "string"
-                                                                                                                      ? c
-                                                                                                                      : c?.text ||
-                                                                                                                        "",
-                                                                                                          )
-                                                                                                          .join(
-                                                                                                              " ",
-                                                                                                          )
-                                                                                                    : "";
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
-                                                                                                        {
-                                                                                                            item.role
-                                                                                                        }
-                                                                                                        :
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        {content ||
-                                                                                                            "No content"}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "tool_call"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Tool Call:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        <span className="font-semibold">
-                                                                                                            {
-                                                                                                                item.tool_name
-                                                                                                            }
-                                                                                                        </span>
-                                                                                                        {item.arguments &&
-                                                                                                            `(${typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments)})`}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "tool_result"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Tool Result:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        <span className="font-semibold">
-                                                                                                            {
-                                                                                                                item.tool_name
-                                                                                                            }
-                                                                                                        </span>
-                                                                                                        {" → "}
-                                                                                                        {typeof item.result ===
-                                                                                                        "string"
-                                                                                                            ? item.result
-                                                                                                            : JSON.stringify(
-                                                                                                                  item.result,
-                                                                                                              )}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "function_call"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Function Call:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        <span className="font-semibold">
-                                                                                                            {
-                                                                                                                item.name
-                                                                                                            }
-                                                                                                        </span>
-                                                                                                        {item.arguments &&
-                                                                                                            `(${typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments)})`}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "function_result"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Function Result:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        <span className="font-semibold">
-                                                                                                            {
-                                                                                                                item.name
-                                                                                                            }
-                                                                                                        </span>
-                                                                                                        {" → "}
-                                                                                                        {typeof item.result ===
-                                                                                                        "string"
-                                                                                                            ? item.result
-                                                                                                            : JSON.stringify(
-                                                                                                                  item.result,
-                                                                                                              )}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
-                                                                                                        {
-                                                                                                            item.type
-                                                                                                        }
-                                                                                                        :
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        {JSON.stringify(
-                                                                                                            item,
-                                                                                                            null,
-                                                                                                            2,
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        }
-                                                                                    },
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="text-muted-foreground text-xs italic">
-                                                                                No input
-                                                                            </span>
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                    <span className="capitalize">
+                                                                        {trace.provider}
+                                                                    </span>
+                                                                    <span>•</span>
+                                                                    <span className="truncate">
+                                                                        {trace.model}
+                                                                    </span>
+                                                                    {trace.cost !== null &&
+                                                                        trace.cost > 0 && (
+                                                                            <>
+                                                                                <span>•</span>
+                                                                                <span>
+                                                                                    $
+                                                                                    {trace.cost.toFixed(
+                                                                                        4,
+                                                                                    )}
+                                                                                </span>
+                                                                            </>
                                                                         )}
-                                                                    </div>
-                                                                </div>
-                                                                <div>
-                                                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
-                                                                        Output
-                                                                    </div>
-                                                                    <div className="bg-muted/50 p-2 rounded border border-border max-h-32 overflow-auto">
-                                                                        {trace.outputItems &&
-                                                                        trace
-                                                                            .outputItems
-                                                                            .length >
-                                                                            0 ? (
-                                                                            <div className="space-y-2">
-                                                                                {trace.outputItems.map(
-                                                                                    (
-                                                                                        item,
-                                                                                        idx,
-                                                                                    ) => {
-                                                                                        if (
-                                                                                            item.type ===
-                                                                                            "message"
-                                                                                        ) {
-                                                                                            const content =
-                                                                                                item.content &&
-                                                                                                Array.isArray(
-                                                                                                    item.content,
-                                                                                                )
-                                                                                                    ? item.content
-                                                                                                          .map(
-                                                                                                              (
-                                                                                                                  c,
-                                                                                                              ) =>
-                                                                                                                  c?.text ||
-                                                                                                                  "",
-                                                                                                          )
-                                                                                                          .join(
-                                                                                                              " ",
-                                                                                                          )
-                                                                                                    : "";
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="text-foreground break-words text-xs"
-                                                                                                >
-                                                                                                    {content ||
-                                                                                                        "No content"}
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "function_call"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Function Call:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        <span className="font-semibold">
-                                                                                                            {
-                                                                                                                item.name
-                                                                                                            }
-                                                                                                        </span>
-                                                                                                        {item.arguments &&
-                                                                                                            `(${item.arguments})`}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "file_search_call"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        File Search:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        {item.queries?.join(
-                                                                                                            ", ",
-                                                                                                        ) ||
-                                                                                                            "No queries"}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else if (
-                                                                                            item.type ===
-                                                                                            "web_search_call"
-                                                                                        ) {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium text-[10px]">
-                                                                                                        Web Search:
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        {item.action?.type ||
-                                                                                                            "Search"}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        } else {
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        idx
-                                                                                                    }
-                                                                                                    className="space-y-0.5"
-                                                                                                >
-                                                                                                    <span className="text-muted-foreground font-medium capitalize text-[10px]">
-                                                                                                        {
-                                                                                                            item.type
-                                                                                                        }
-                                                                                                        :
-                                                                                                    </span>
-                                                                                                    <div className="text-foreground break-words text-xs pl-2">
-                                                                                                        {JSON.stringify(
-                                                                                                            item,
-                                                                                                            null,
-                                                                                                            2,
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            );
-                                                                                        }
-                                                                                    },
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="text-muted-foreground text-xs italic">
-                                                                                No output
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Trace Detail Panel */}
+                                        <div className="border border-border rounded-lg overflow-hidden bg-card max-h-[calc(100vh-300px)] flex flex-col">
+                                            {selectedTraceId ? (
+                                                (() => {
+                                                    const selectedTrace =
+                                                        traces.find(
+                                                            (t) =>
+                                                                t.id ===
+                                                                selectedTraceId,
+                                                        );
+                                                    return selectedTrace ? (
+                                                        <div className="h-full overflow-auto">
+                                                            <TraceDetailPanel
+                                                                trace={
+                                                                    selectedTrace
+                                                                }
+                                                                hideSystemMessages={true}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="p-4 text-sm text-muted-foreground">
+                                                            Trace not found
+                                                        </div>
+                                                    );
+                                                })()
+                                            ) : (
+                                                <div className="flex items-center justify-center flex-1 min-h-[400px] p-8 text-center">
+                                                    <div className="text-muted-foreground">
+                                                        <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                                        <p className="text-sm">
+                                                            Select a trace to view
+                                                            details
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )}
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -3009,16 +2691,20 @@ const TaskDetail = () => {
                                                 this task
                                             </p>
                                         </div>
-                                        <Button
-                                            size="sm"
-                                            onClick={() =>
-                                                navigate(
-                                                    `/tasks/${taskId}/test-cases/new?tab=${activeTab}`,
-                                                )
-                                            }
-                                        >
-                                            Add Test Case
-                                        </Button>
+                                        {testCases.length > 0 && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() =>
+                                                    navigate(
+                                                        `/tasks/${taskId}/test-cases/new?tab=${activeTab}`,
+                                                    )
+                                                }
+                                                className="flex items-center gap-2"
+                                            >
+                                                <FileText className="h-4 w-4" />
+                                                Add Test Case
+                                            </Button>
+                                        )}
                                     </div>
 
                                     {testsLoading ? (
@@ -3030,8 +2716,48 @@ const TaskDetail = () => {
                                             {testsError}
                                         </div>
                                     ) : testCases.length === 0 ? (
-                                        <div className="text-center py-8 text-sm text-muted-foreground">
-                                            No test cases yet
+                                        <div className="text-center py-12">
+                                            <div className="max-w-md mx-auto space-y-4">
+                                                <div className="flex flex-col items-center gap-3 mb-2">
+                                                    <FileText className="h-12 w-12 text-muted-foreground opacity-50" />
+                                                    <div className="text-muted-foreground">
+                                                        <p className="text-sm font-medium mb-1">
+                                                            No test cases yet
+                                                        </p>
+                                                        <p className="text-xs">
+                                                            Create test cases to
+                                                            evaluate your task
+                                                            implementations
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            setActiveTab("traces");
+                                                            setSearchParams({
+                                                                tab: "traces",
+                                                            });
+                                                        }}
+                                                        className="flex items-center gap-2"
+                                                    >
+                                                        <Sparkles className="h-4 w-4" />
+                                                        Generate from Traces
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() =>
+                                                            navigate(
+                                                                `/tasks/${taskId}/test-cases/new?tab=${activeTab}`,
+                                                            )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                    >
+                                                        <FileText className="h-4 w-4" />
+                                                        Create Test Case
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
                                     ) : (
                                         <Table>
