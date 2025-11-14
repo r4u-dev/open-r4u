@@ -8,13 +8,16 @@ import {
     Eye,
     Pencil,
     Trash2,
+    GitCompare,
 } from "lucide-react";
 import { ChevronUp as SortUp, ChevronDown as SortDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TaskService } from "@/services/taskService";
-import { TaskDetail as TaskDetailType } from "@/lib/mock-data/taskDetails";
+import {
+    TaskDetail as TaskDetailType,
+} from "@/lib/mock-data/taskDetails";
 import { usePage } from "@/contexts/PageContext";
 import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 import {
@@ -73,6 +76,8 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
+import ImplementationDiffDialog from "@/components/task/ImplementationDiffDialog";
+import { mapImplementationToTaskVersion } from "@/lib/implementations";
 
 type TabType =
     | "overview"
@@ -97,6 +102,97 @@ const TaskDetail = () => {
     const initialTab = (searchParams.get("tab") as TabType) || "overview";
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
     const [selectedVersion, setSelectedVersion] = useState<string>("");
+    const [diffDialogOpen, setDiffDialogOpen] = useState(false);
+    const [diffBaseVersionId, setDiffBaseVersionId] = useState<string | null>(
+        null,
+    );
+    const [diffTargetVersionId, setDiffTargetVersionId] = useState<
+        string | null
+    >(null);
+    useEffect(() => {
+        if (!task || !task.versions || task.versions.length === 0) {
+            setDiffBaseVersionId(null);
+            setDiffTargetVersionId(null);
+            return;
+        }
+
+        const ensureValidVersionId = (id?: string | null) =>
+            id && task.versions.some((version) => version.id === id) ? id : null;
+
+        const productionVersionId = task.versions.find(
+            (version) => version.version === task.production_version,
+        )?.id;
+
+        // Get the most recent version (last created)
+        const sortedVersions = [...task.versions].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        const lastVersionId = sortedVersions[0]?.id;
+
+        // Default base version: production version
+        const defaultBaseId =
+            productionVersionId ?? task.versions[0]?.id ?? null;
+
+        setDiffBaseVersionId((prev) => {
+            const validPrev = ensureValidVersionId(prev);
+            if (validPrev) {
+                return validPrev;
+            }
+            return defaultBaseId;
+        });
+
+        // Default comparison version: last version (if different from base), or selected version, or first other version
+        const defaultTargetId =
+            lastVersionId && lastVersionId !== defaultBaseId
+                ? lastVersionId
+                : ensureValidVersionId(selectedVersion) ??
+                  task.versions.find((version) => version.id !== defaultBaseId)
+                      ?.id ??
+                  task.versions[0]?.id;
+
+        setDiffTargetVersionId(
+            (prev) => ensureValidVersionId(prev) ?? defaultTargetId,
+        );
+    }, [task, selectedVersion]);
+
+    const openDiffDialog = () => {
+        if (!task || !task.versions || task.versions.length < 2) {
+            return;
+        }
+
+        const ensureValidVersionId = (id?: string | null) =>
+            id && task.versions.some((version) => version.id === id) ? id : null;
+
+        const productionVersionId = task.versions.find(
+            (version) => version.version === task.production_version,
+        )?.id;
+
+        // Get the most recent version (last created)
+        const sortedVersions = [...task.versions].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        const lastVersionId = sortedVersions[0]?.id;
+
+        // Default base version: production version
+        const baseId =
+            productionVersionId ??
+            task.versions[0]?.id ??
+            null;
+
+        // Default comparison version: last version (if different from base), or selected version, or first other version
+        const targetId =
+            lastVersionId && lastVersionId !== baseId
+                ? lastVersionId
+                : ensureValidVersionId(selectedVersion) ??
+                  task.versions.find((version) => version.id !== baseId)?.id ??
+                  task.versions[0]?.id;
+
+        setDiffBaseVersionId(baseId);
+        setDiffTargetVersionId(targetId);
+        setDiffDialogOpen(true);
+    };
     const [expandedSection, setExpandedSection] = useState<"contracts" | null>(
         "contracts",
     );
@@ -509,25 +605,9 @@ const TaskDetail = () => {
             const taskData = await TaskService.getTaskById(taskId);
             if (taskData) {
                 // Update versions array with all implementations
-                const updatedVersions = implementations.map((impl) => {
-                    const toolNames =
-                        impl.tools
-                            ?.map((tool: any) => tool.function?.name)
-                            .filter(Boolean) || [];
-
-                    return {
-                        id: String(impl.id),
-                        version: impl.version,
-                        model: impl.model,
-                        settings: {
-                            temperature: impl.temperature,
-                            max_output_tokens: impl.max_output_tokens,
-                        },
-                        prompt: impl.prompt || "",
-                        tools: toolNames,
-                        createdAt: impl.created_at,
-                    };
-                });
+                const updatedVersions = implementations.map(
+                    mapImplementationToTaskVersion,
+                );
 
                 setTask({
                     ...taskData,
@@ -807,25 +887,9 @@ const TaskDetail = () => {
                         const implementations = implementationsRes.data || [];
 
                         // Update versions array with all implementations
-                        const updatedVersions = implementations.map((impl) => {
-                            const toolNames =
-                                impl.tools
-                                    ?.map((tool: any) => tool.function?.name)
-                                    .filter(Boolean) || [];
-
-                            return {
-                                id: String(impl.id),
-                                version: impl.version,
-                                model: impl.model,
-                                settings: {
-                                    temperature: impl.temperature,
-                                    max_output_tokens: impl.max_output_tokens,
-                                },
-                                prompt: impl.prompt || "",
-                                tools: toolNames,
-                                createdAt: impl.created_at,
-                            };
-                        });
+                        const updatedVersions = implementations.map(
+                            mapImplementationToTaskVersion,
+                        );
 
                         setTask({
                             ...taskData,
@@ -1464,6 +1528,20 @@ const TaskDetail = () => {
                                         Implementation
                                     </h2>
                                     <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={openDiffDialog}
+                                            disabled={
+                                                !task ||
+                                                !task.versions ||
+                                                task.versions.length < 2
+                                            }
+                                            className="gap-2"
+                                        >
+                                            <GitCompare className="h-4 w-4" />
+                                            Compare versions
+                                        </Button>
                                         {selectedVersion && (
                                             <>
                                                 <Button
@@ -3911,6 +3989,20 @@ const TaskDetail = () => {
                 </div>
             </div>
 
+            {/* Implementation Version Diff */}
+            <ImplementationDiffDialog
+                open={diffDialogOpen}
+                onOpenChange={setDiffDialogOpen}
+                versions={task?.versions ?? []}
+                baseVersionId={diffBaseVersionId}
+                targetVersionId={diffTargetVersionId}
+                onBaseVersionChange={(versionId) =>
+                    setDiffBaseVersionId(versionId)
+                }
+                onTargetVersionChange={(versionId) =>
+                    setDiffTargetVersionId(versionId)
+                }
+            />
             {/* Create Implementation Dialog */}
             <Dialog open={createImplOpen} onOpenChange={setCreateImplOpen}>
                 <DialogContent className="max-w-2xl">
@@ -4348,25 +4440,9 @@ const TaskDetail = () => {
                                         await TaskService.getTaskById(taskId!);
                                     if (taskData) {
                                         const updatedVersions =
-                                            implementations.map((impl) => ({
-                                                id: String(impl.id),
-                                                version: impl.version,
-                                                model: impl.model,
-                                                settings: {
-                                                    temperature:
-                                                        impl.temperature,
-                                                    max_output_tokens:
-                                                        impl.max_output_tokens,
-                                                },
-                                                prompt: impl.prompt || "",
-                                                tools: (impl.tools || [])
-                                                    .map(
-                                                        (t: any) =>
-                                                            t.function?.name,
-                                                    )
-                                                    .filter(Boolean),
-                                                createdAt: impl.created_at,
-                                            }));
+                                            implementations.map(
+                                                mapImplementationToTaskVersion,
+                                            );
                                         setTask({
                                             ...taskData,
                                             versions: updatedVersions,
