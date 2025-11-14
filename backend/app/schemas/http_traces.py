@@ -68,14 +68,3 @@ class HTTPTraceRead(BaseModel):
     """Schema for reading HTTP trace data."""
 
     id: int
-    started_at: datetime
-    completed_at: datetime
-    status_code: int
-    error: str | None
-    request: str
-    request_headers: dict[str, str]
-    response: str
-    response_headers: dict[str, str]
-    http_metadata: dict[str, Any]
-
-    model_config = ConfigDict(from_attributes=True)

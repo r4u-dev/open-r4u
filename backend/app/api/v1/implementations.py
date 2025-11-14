@@ -1,11 +1,14 @@
 """API endpoints for Implementation management."""
 
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.schemas.tasks import ImplementationCreate, ImplementationRead
+from app.schemas.tasks import (
+    ImplementationCreate,
+    ImplementationRead,
+    ImplementationUpdate,
+)
 from app.services.implementation_service import ImplementationService
 
 router = APIRouter(prefix="/implementations", tags=["implementations"])
@@ -68,7 +71,7 @@ async def create_implementation(
 @router.put("/{implementation_id}", response_model=ImplementationRead)
 async def update_implementation(
     implementation_id: int,
-    payload: ImplementationCreate,
+    payload: ImplementationUpdate,
     service: ImplementationService = Depends(get_implementation_service),
 ) -> ImplementationRead:
     """Update an existing implementation."""
@@ -114,4 +117,3 @@ async def set_production_version(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-
