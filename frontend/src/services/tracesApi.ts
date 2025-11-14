@@ -165,6 +165,7 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         cost: backendTrace.cost,
         taskVersion: undefined, // Task name not available from backend
         prompt,
+        promptVariables: backendTrace.prompt_variables,
         inputMessages,
         modelSettings,
         metrics,

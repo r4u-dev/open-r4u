@@ -218,12 +218,18 @@ class EvaluationService:
 
         for trace in traces:
             # Extract messages from input items for arguments
+            # Exclude system messages since they're already in the prompt
             messages = []
             for item in sorted(trace.input_items, key=lambda x: x.position):
+                # Skip system messages - they're in the prompt, not input
+                if item.type.value == "message" and item.data.get("role") == "system":
+                    continue
                 messages.append({"type": item.type.value, **item.data})
 
             # Build arguments dict with messages
             arguments = {"messages": messages} if messages else {}
+            if trace.prompt_variables:
+                arguments.update(trace.prompt_variables)
             output = []
             for item in sorted(trace.output_items, key=lambda x: x.position):
                 output.append({"type": item.type, **item.data})

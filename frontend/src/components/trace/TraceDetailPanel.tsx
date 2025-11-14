@@ -8,11 +8,13 @@ import { OutputItemRenderer } from "./OutputItemRenderer";
 
 interface TraceDetailPanelProps {
     trace: Trace;
+    hideSystemMessages?: boolean;
 }
 
-export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
+export function TraceDetailPanel({ trace, hideSystemMessages = false }: TraceDetailPanelProps) {
     const [expandedSections, setExpandedSections] = useState({
         prompt: true,
+        promptVariables: true,
         inputMessages: true,
         modelSettings: true,
         metrics: true,
@@ -180,21 +182,51 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                     </Section>
                 )}
 
+                {trace.promptVariables && (
+                    <Section title="Prompt Variables" section="promptVariables">
+                        <div className="space-y-3 font-mono">
+                            {Object.entries(trace.promptVariables).map(
+                                ([key, value]) => (
+                                    <div key={key} className="flex justify-between">
+                                        <span className="text-muted-foreground">
+                                            {key}:
+                                        </span>
+                                        <span className="text-foreground break-all">
+                                            {JSON.stringify(value)}
+                                        </span>
+                                    </div>
+                                ),
+                            )}
+                        </div>
+                    </Section>
+                )}
+
                 <Section title="Input Messages" section="inputMessages">
                     <div className="space-y-3">
-                        {trace.inputMessages.length > 0 ? (
-                            trace.inputMessages.map((item, idx) => (
-                                <InputItemRenderer
-                                    key={idx}
-                                    item={item}
-                                    index={idx}
-                                />
-                            ))
-                        ) : (
-                            <span className="text-muted-foreground italic">
-                                No input messages
-                            </span>
-                        )}
+                        {(() => {
+                            const filteredMessages = hideSystemMessages
+                                ? trace.inputMessages.filter(
+                                      (item) =>
+                                          !(
+                                              item.type === "message" &&
+                                              item.role === "system"
+                                          ),
+                                  )
+                                : trace.inputMessages;
+                            return filteredMessages.length > 0 ? (
+                                filteredMessages.map((item, idx) => (
+                                    <InputItemRenderer
+                                        key={idx}
+                                        item={item}
+                                        index={idx}
+                                    />
+                                ))
+                            ) : (
+                                <span className="text-muted-foreground italic">
+                                    No input messages
+                                </span>
+                            );
+                        })()}
                     </div>
                 </Section>
 
