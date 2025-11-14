@@ -400,7 +400,7 @@ export const ImplementationDiffDialog: React.FC<
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Compare implementation versions</DialogTitle>
                     <DialogDescription>
@@ -409,13 +409,14 @@ export const ImplementationDiffDialog: React.FC<
                     </DialogDescription>
                 </DialogHeader>
 
-                {versions.length < 2 ? (
-                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                        You need at least two versions to compare. Create another
-                        implementation to unlock the diff view.
-                    </div>
-                ) : (
-                    <div className="space-y-6">
+                <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+                    {versions.length < 2 ? (
+                        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                            You need at least two versions to compare. Create another
+                            implementation to unlock the diff view.
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
                                 <Label htmlFor="diff-base-version">
@@ -425,7 +426,7 @@ export const ImplementationDiffDialog: React.FC<
                                     value={baseVersionId ?? ""}
                                     onValueChange={onBaseVersionChange}
                                 >
-                                    <SelectTrigger id="diff-base-version">
+                                    <SelectTrigger id="diff-base-version" className="focus:ring-0 focus:ring-offset-0">
                                         <SelectValue placeholder="Select base version" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -445,7 +446,7 @@ export const ImplementationDiffDialog: React.FC<
                                     value={targetVersionId ?? ""}
                                     onValueChange={onTargetVersionChange}
                                 >
-                                    <SelectTrigger id="diff-target-version">
+                                    <SelectTrigger id="diff-target-version" className="focus:ring-0 focus:ring-offset-0">
                                         <SelectValue placeholder="Select comparison version" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -537,6 +538,7 @@ export const ImplementationDiffDialog: React.FC<
                         )}
                     </div>
                 )}
+                </div>
             </DialogContent>
         </Dialog>
     );
