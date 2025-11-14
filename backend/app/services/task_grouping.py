@@ -30,93 +30,94 @@ class TemplateFinder:
         return parts
 
     def match_template(self, template: str, s: str) -> tuple[bool, dict[str, str]]:
-        """Check if a string matches a template and extract variable values.
-
-        Args:
-            template: Template string with {{var_X}} placeholders
-            s: String to match against the template
+        """Match `s` against a template with placeholders {{var_name}}.
 
         Returns:
-            Tuple of (matches: bool, variables: dict[str, str])
-            If matches is True, variables contains the extracted values
+            (matched: bool, mapping: dict(var_name -> value))
+
+        Rules:
+            - Fixed text must match exactly.
+            - A variable can match an empty string.
+            - Repeated variables must match the same substring.
+            - The entire string s must be consumed (no partial matches).
 
         """
-        # Pattern matches {{var_0}}, {{var_1}}, etc.
-        var_pattern = r"\{\{var_\d+\}\}"
+        # Parse template into fixed parts + variable names
+        pattern = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
+        var_names = [m.group(1) for m in pattern.finditer(template)]
+        fixed_parts = pattern.split(template)[::2]  # fixed0, fixed1, ..., fixedN
+        n_vars = len(var_names)
+        n_fixed = len(fixed_parts)
 
-        # Find all variables in order
-        variables = re.findall(var_pattern, template)
+        # Quick case: no variables at all
+        if n_vars == 0:
+            return (s == template, {})
 
-        # Split template by variables to get fixed segments
-        segments = re.split(var_pattern, template)
+        L = len(s)
 
-        # Tokenize segments and input string
-        string_tokens = self._tokenize(s)
+        # Precompute remaining fixed-part lengths for pruning
+        suffix_fixed_len = [0] * (n_fixed + 1)
+        for i in range(n_fixed - 1, -1, -1):
+            suffix_fixed_len[i] = suffix_fixed_len[i + 1] + len(fixed_parts[i])
 
-        # Track which segments are empty (variables at start/end/consecutive)
-        segment_tokens = []
-        for seg in segments:
-            tokens = self._tokenize(seg)
-            segment_tokens.append(tokens)
-
-        # Match the template
-        extracted_vars = {}
-        current_pos = 0
-        segment_idx = 0
-        var_idx = 0
-
-        # Handle leading variable (template starts with {{var_X}})
-        if segment_tokens[0] == []:
-            segment_idx = 1
-
-        while segment_idx < len(segment_tokens) or var_idx < len(variables):
-            # Process next segment (if any)
-            if segment_idx < len(segment_tokens) and segment_tokens[segment_idx]:
-                segment = segment_tokens[segment_idx]
-                seg_len = len(segment)
-
-                # Find this segment in the string
-                found = False
-                for j in range(current_pos, len(string_tokens) - seg_len + 1):
-                    if string_tokens[j : j + seg_len] == segment:
-                        # Extract variable value before this segment (if any)
-                        if var_idx < len(variables) and current_pos < j:
-                            var_name = variables[var_idx].strip("{}")
-                            var_value = self._tokens_to_string(
-                                string_tokens[current_pos:j],
-                            )
-                            extracted_vars[var_name] = var_value
-                            var_idx += 1
-
-                        current_pos = j + seg_len
-                        found = True
-                        break
-
-                if not found:
-                    return False, {}
-
-                segment_idx += 1
+        # Occurrences of a fixed substring f in s starting at or after min_pos
+        def occurrences(f: str, min_pos: int):
+            if f == "":
+                for p in range(min_pos, L + 1):
+                    yield p
             else:
-                # Empty segment (consecutive variables or leading/trailing var)
-                segment_idx += 1
+                pos = s.find(f, min_pos)
+                while pos != -1:
+                    yield pos
+                    pos = s.find(f, pos + 1)
 
-        # Handle trailing variable (template ends with {{var_X}})
-        if var_idx < len(variables) and current_pos <= len(string_tokens):
-            var_name = variables[var_idx].strip("{}")
-            var_value = self._tokens_to_string(string_tokens[current_pos:])
-            extracted_vars[var_name] = var_value
-            var_idx += 1
+        # Backtracking, copies mapping on each branch to avoid backtracking complexity
+        def dfs(i: int, prev_end: int, assignments: dict[str, str]):
+            # Can remaining fixed parts even fit?
+            if suffix_fixed_len[i] > L - prev_end:
+                return False, {}
 
-        # Verify we extracted all variables
-        expected_vars = {var.strip("{}") for var in variables}
-        if extracted_vars.keys() != expected_vars:
+            fixed = fixed_parts[i]
+            # For the very first fixed part, if nonempty, it must be placed at position 0
+            min_pos = prev_end if not (i == 0 and fixed != "") else 0
+
+            for p in occurrences(fixed, min_pos):
+                if i == 0 and fixed != "" and p != 0:
+                    continue
+
+                end = p + len(fixed)
+
+                # If this is the last fixed part, must end exactly at the end of s
+                if i == n_vars and end != L:
+                    continue
+
+                # Cannot move backwards
+                if p < prev_end:
+                    continue
+
+                new_map = assignments.copy()
+
+                # Extract variable before this fixed (except for i == 0)
+                if i > 0:
+                    var_name = var_names[i - 1]
+                    var_value = s[prev_end:p]
+
+                    if var_name in new_map:
+                        if new_map[var_name] != var_value:
+                            continue
+                    else:
+                        new_map[var_name] = var_value
+
+                if i == n_vars:  # placed last fixed part
+                    return True, new_map
+
+                ok, result = dfs(i + 1, end, new_map)
+                if ok:
+                    return True, result
+
             return False, {}
 
-        # Verify we consumed the entire string
-        if current_pos < len(string_tokens) and var_idx >= len(variables):
-            return False, {}
-
-        return True, extracted_vars
+        return dfs(0, 0, {})
 
     def group_strings(
         self,
