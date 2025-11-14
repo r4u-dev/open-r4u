@@ -123,30 +123,37 @@ const TaskDetail = () => {
             (version) => version.version === task.production_version,
         )?.id;
 
-        const fallbackTarget =
-            ensureValidVersionId(selectedVersion) ??
-            productionVersionId ??
-            task.versions[0].id;
-
-        setDiffTargetVersionId(
-            (prev) => ensureValidVersionId(prev) ?? fallbackTarget,
+        // Get the most recent version (last created)
+        const sortedVersions = [...task.versions].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
+        const lastVersionId = sortedVersions[0]?.id;
+
+        // Default base version: production version
+        const defaultBaseId =
+            productionVersionId ?? task.versions[0]?.id ?? null;
 
         setDiffBaseVersionId((prev) => {
             const validPrev = ensureValidVersionId(prev);
             if (validPrev) {
                 return validPrev;
             }
-
-            if (productionVersionId && productionVersionId !== fallbackTarget) {
-                return productionVersionId;
-            }
-
-            return (
-                task.versions.find((version) => version.id !== fallbackTarget)
-                    ?.id ?? productionVersionId ?? null
-            );
+            return defaultBaseId;
         });
+
+        // Default comparison version: last version (if different from base), or selected version, or first other version
+        const defaultTargetId =
+            lastVersionId && lastVersionId !== defaultBaseId
+                ? lastVersionId
+                : ensureValidVersionId(selectedVersion) ??
+                  task.versions.find((version) => version.id !== defaultBaseId)
+                      ?.id ??
+                  task.versions[0]?.id;
+
+        setDiffTargetVersionId(
+            (prev) => ensureValidVersionId(prev) ?? defaultTargetId,
+        );
     }, [task, selectedVersion]);
 
     const openDiffDialog = () => {
@@ -161,25 +168,29 @@ const TaskDetail = () => {
             (version) => version.version === task.production_version,
         )?.id;
 
-        const targetId =
-            ensureValidVersionId(selectedVersion) ??
-            productionVersionId ??
-            task.versions[0].id;
-        const baseCandidate =
-            productionVersionId && productionVersionId !== targetId
-                ? productionVersionId
-                : task.versions.find((version) => version.id !== targetId)?.id ??
-                  productionVersionId ??
-                  null;
+        // Get the most recent version (last created)
+        const sortedVersions = [...task.versions].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        const lastVersionId = sortedVersions[0]?.id;
 
+        // Default base version: production version
+        const baseId =
+            productionVersionId ??
+            task.versions[0]?.id ??
+            null;
+
+        // Default comparison version: last version (if different from base), or selected version, or first other version
+        const targetId =
+            lastVersionId && lastVersionId !== baseId
+                ? lastVersionId
+                : ensureValidVersionId(selectedVersion) ??
+                  task.versions.find((version) => version.id !== baseId)?.id ??
+                  task.versions[0]?.id;
+
+        setDiffBaseVersionId(baseId);
         setDiffTargetVersionId(targetId);
-        setDiffBaseVersionId((prev) => {
-            const validPrev = ensureValidVersionId(prev);
-            if (validPrev) {
-                return validPrev;
-            }
-            return baseCandidate;
-        });
         setDiffDialogOpen(true);
     };
     const [expandedSection, setExpandedSection] = useState<"contracts" | null>(
