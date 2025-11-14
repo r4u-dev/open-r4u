@@ -1,7 +1,6 @@
 """Service for managing trace operations."""
 
 import logging
-from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import select
@@ -124,7 +123,9 @@ class TracesService:
         implementation_id: int | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> Sequence[Trace]:
+        *,
+        without_implementation: bool = False,
+    ) -> list[Trace]:
         """List all traces."""
         # TODO: Use this method in traces API endpoint
         query = (
@@ -138,9 +139,11 @@ class TracesService:
         )
         if implementation_id:
             query = query.where(Trace.implementation_id == implementation_id)
+        elif without_implementation:
+            query = query.where(Trace.implementation_id.is_(None))
 
         result = await session.scalars(query)
-        return result.unique().all()
+        return list(result.unique().all())
 
     async def _get_or_create_project(
         self,

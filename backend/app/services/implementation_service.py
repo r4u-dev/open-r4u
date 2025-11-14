@@ -132,9 +132,16 @@ class ImplementationService:
             implementation.prompt = payload.prompt
 
             traces_service = TracesService()
-            traces = await traces_service.list_traces(self.session, implementation.id)
+            current_traces = await traces_service.list_traces(
+                self.session,
+                implementation.id,
+            )
+            ungrouped_traces = await traces_service.list_traces(
+                self.session,
+                without_implementation=True,
+            )
             tf = TemplateFinder()
-            for trace in traces:
+            for trace in current_traces + ungrouped_traces:
                 if not trace.input_items:
                     continue
                 if trace.input_items[0].type != ItemType.MESSAGE:
@@ -146,7 +153,9 @@ class ImplementationService:
                 )
                 if not match:
                     trace.implementation_id = None
+                    trace.prompt_variables = None
                 else:
+                    trace.implementation_id = implementation.id
                     trace.prompt_variables = variables
 
         await self.session.commit()
