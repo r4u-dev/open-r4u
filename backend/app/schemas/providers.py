@@ -1,6 +1,6 @@
 """Pydantic schemas for providers and models."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ModelBase(BaseModel):
@@ -14,17 +14,12 @@ class ModelCreate(ModelBase):
     """Schema for creating a model."""
 
 
-
 class ModelResponse(ModelBase):
     """Schema for model response."""
 
     id: int
     provider_id: int
-
-    class Config:
-        """Pydantic configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProviderBase(BaseModel):
@@ -65,13 +60,8 @@ class ProviderResponse(ProviderBase):
         description="Whether the provider has an API key configured",
     )
     models: list[ModelResponse] = Field(default_factory=list)
-
-    class Config:
-        """Pydantic configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProviderWithModelsResponse(ProviderResponse):
     """Schema for provider response with models."""
-

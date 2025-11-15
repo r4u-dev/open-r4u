@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, conlist, validator
+from pydantic import BaseModel, ConfigDict, Field, conlist, field_validator
 
 from app.enums import OptimizationStatus
 
@@ -22,7 +22,8 @@ class OptimizationRunRequest(BaseModel):
     changeable_fields: conlist(OptimizationMutableField, min_length=1)
     patience: int = Field(default=3, ge=1, le=20)
 
-    @validator("changeable_fields")
+    @field_validator("changeable_fields")
+    @classmethod
     def ensure_unique_fields(cls, value: list[OptimizationMutableField]) -> list[OptimizationMutableField]:
         if len(value) != len(set(value)):
             raise ValueError("changeable_fields must not contain duplicates")
