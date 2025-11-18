@@ -159,4 +159,15 @@ async def get_trace_http_trace(
             detail="HTTP trace not found",
         )
 
-    return HTTPTraceRead.model_validate(http_trace)
+    return HTTPTraceRead(
+        id=http_trace.id,
+        request=http_trace.request,
+        response=http_trace.response,
+        started_at=http_trace.started_at,
+        completed_at=http_trace.completed_at,
+        status_code=http_trace.status_code,
+        error=http_trace.error,
+        request_headers=http_trace.request_headers,
+        response_headers=http_trace.response_headers,
+        metadata=http_trace.http_metadata,
+    )

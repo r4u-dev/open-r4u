@@ -2,7 +2,7 @@
 
 import time
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from r4u.client import (
     AbstractTracer,
@@ -352,7 +352,10 @@ class TestGetR4UClient:
         # Should only create one instance
         assert mock_r4u_client_class.call_count == 1
 
-    @patch.dict("os.environ", {"R4U_API_URL": "http://custom:9000"})
+    @patch.dict(
+        "os.environ",
+        {"R4U_API_URL": "http://custom:9000"},
+    )
     @patch("r4u.client.R4UClient")
     def test_get_r4u_client_uses_env_vars(self, mock_r4u_client_class):
         """Test get_r4u_client uses environment variables."""
@@ -365,6 +368,7 @@ class TestGetR4UClient:
 
         mock_r4u_client_class.assert_called_once_with(
             api_url="http://custom:9000",
+            api_key=ANY,
             timeout=30.0,
         )
 
@@ -384,5 +388,6 @@ class TestGetR4UClient:
 
         mock_r4u_client_class.assert_called_once_with(
             api_url="http://custom:9000",
+            api_key=ANY,
             timeout=60.0,
         )

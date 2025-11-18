@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+    app_url: str = "http://localhost:8080"
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@db:5432/postgres"
     log_level: str = "INFO"
