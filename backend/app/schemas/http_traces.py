@@ -68,3 +68,33 @@ class HTTPTraceRead(BaseModel):
     """Schema for reading HTTP trace data."""
 
     id: int
+    started_at: datetime = Field(..., description="When the request started")
+    completed_at: datetime = Field(..., description="When the request completed")
+
+    # Status
+    status_code: int = Field(..., description="HTTP status code")
+    error: str | None = Field(None, description="Error message if any")
+
+    # Raw data (accepts bytes or strings, stored as strings)
+    request: bytes | str = Field(
+        ...,
+        description="Complete raw request as bytes or string",
+    )
+    request_headers: dict[str, str] = Field(
+        ...,
+        description="Complete raw request headers",
+    )
+    response: bytes | str = Field(
+        ...,
+        description="Complete raw response as bytes or string",
+    )
+    response_headers: dict[str, str] = Field(
+        ...,
+        description="Complete raw response headers",
+    )
+
+    # Optional extracted fields for convenience
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata",
+    )
