@@ -284,22 +284,11 @@ class LLMExecutor:
             output_items: list[OutputItem] = []
             response_id = getattr(response, "id", "unknown")
 
-            # Handle tool calls using proper schema
-            tool_calls = None
+            # Add tool calls as FunctionToolCallItem to output_items,
+            # and create a human-readable result_text if only tools are present and no main message.
+            tool_calls = []
             if hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
-                tool_calls = []
                 for tc in choice.message.tool_calls:
-                    # Convert to ToolCallItem schema (for input tracking)
-                    tool_call_item = ToolCallItem(
-                        id=tc.id,
-                        tool_name=tc.function.name,
-                        arguments=tc.function.arguments
-                        if isinstance(tc.function.arguments, dict)
-                        else json.loads(tc.function.arguments),
-                    )
-                    tool_calls.append(tool_call_item.model_dump())
-
-                    # Also add to output items as FunctionToolCallItem
                     arguments_str = (
                         json.dumps(tc.function.arguments)
                         if isinstance(tc.function.arguments, dict)
@@ -318,12 +307,11 @@ class LLMExecutor:
                             status="completed",
                         ),
                     )
+                    tool_calls.append(
+                        f"{tc.function.name}({arguments_str})"
+                    )
 
-                # If there are tool calls, result_text is usually None
-                if not result_text:
-                    result_text = f"Made {len(tool_calls)} tool call(s)"
-
-            # Convert assistant message content to OutputMessageItem
+            # Add assistant message to output as OutputMessageItem if present.
             if result_text:
                 output_items.append(
                     OutputMessageItem(
@@ -332,6 +320,9 @@ class LLMExecutor:
                         status="completed",
                     ),
                 )
+            elif tool_calls:
+                # If there is no assistant message, make result_text a human readable string listing tool calls.
+                result_text = "Tool calls: " + ", ".join(tool_calls)
 
             # Set result_json to the list of OutputItems (proper schema format)
             result_json = [item.model_dump() for item in output_items] if output_items else None
