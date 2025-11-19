@@ -364,6 +364,7 @@ export interface Trace {
     cost: number;
     taskVersion?: string;
     prompt: string | null;
+    promptVariables: Record<string, any> | null;
     inputMessages: InputItem[]; // Updated to support all input item types
     modelSettings: Record<string, string | number | boolean>;
     metrics: Record<string, number>;

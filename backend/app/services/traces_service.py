@@ -74,6 +74,7 @@ class TracesService:
             reasoning=self._serialize_reasoning(trace_data.reasoning),
             response_schema=trace_data.response_schema,
             trace_metadata=trace_data.trace_metadata,
+            prompt_variables=trace_data.prompt_variables,
         )
 
         # Add input items
@@ -171,7 +172,8 @@ class TracesService:
 
             if matching:
                 trace.implementation_id = matching["implementation_id"]
-                trace.prompt_variables = matching["variables"]
+                if not trace.prompt_variables:
+                    trace.prompt_variables = matching["variables"]
                 await session.commit()
                 logger.info(
                     f"Auto-matched trace {trace.id} to implementation "
