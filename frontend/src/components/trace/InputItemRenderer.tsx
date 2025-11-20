@@ -85,11 +85,11 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-yellow-500 pl-3 py-2 bg-yellow-50 dark:bg-yellow-950/20"
+                className="border-l-2 border-warning pl-3 py-2 bg-warning/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Wrench className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    <span className="font-medium text-xs text-yellow-700 dark:text-yellow-300">
+                    <Wrench className="h-4 w-4 text-warning" />
+                    <span className="font-medium text-xs text-warning">
                         FUNCTION CALL
                     </span>
                 </div>
@@ -134,11 +134,11 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-green-500 pl-3 py-2 bg-green-50 dark:bg-green-950/20"
+                className="border-l-2 border-success pl-3 py-2 bg-success/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <span className="font-medium text-xs text-green-700 dark:text-green-300">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <span className="font-medium text-xs text-success">
                         FUNCTION RESULT
                     </span>
                 </div>
@@ -180,11 +180,11 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-blue-500 pl-3 py-2 bg-blue-50 dark:bg-blue-950/20"
+                className="border-l-2 border-primary pl-3 py-2 bg-primary/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Wrench className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="font-medium text-xs text-blue-700 dark:text-blue-300">
+                    <Wrench className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-xs text-primary">
                         TOOL CALL
                     </span>
                 </div>
@@ -230,16 +230,16 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className={`border-l-2 ${isError ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "border-green-500 bg-green-50 dark:bg-green-950/20"} pl-3 py-2`}
+                className={`border-l-2 ${isError ? "border-destructive bg-destructive/10" : "border-success bg-success/10"} pl-3 py-2`}
             >
                 <div className="flex items-center gap-2 mb-1">
                     {isError ? (
-                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        <AlertCircle className="h-4 w-4 text-destructive" />
                     ) : (
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <CheckCircle className="h-4 w-4 text-success" />
                     )}
                     <span
-                        className={`font-medium text-xs ${isError ? "text-red-700 dark:text-red-300" : "text-green-700 dark:text-green-300"}`}
+                        className={`font-medium text-xs ${isError ? "text-destructive" : "text-success"}`}
                     >
                         TOOL RESULT {isError && "(ERROR)"}
                     </span>
@@ -383,11 +383,11 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className="border-l-2 border-cyan-500 pl-3 py-2 bg-cyan-50 dark:bg-cyan-950/20"
+                className="border-l-2 border-accent pl-3 py-2 bg-accent/10"
             >
                 <div className="flex items-center gap-2 mb-1">
-                    <Code className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                    <span className="font-medium text-xs text-cyan-700 dark:text-cyan-300">
+                    <Code className="h-4 w-4 text-accent" />
+                    <span className="font-medium text-xs text-accent">
                         MCP TOOL CALL
                     </span>
                 </div>
@@ -441,16 +441,16 @@ export function InputItemRenderer({ item, index }: InputItemRendererProps) {
         return (
             <div
                 key={index}
-                className={`border-l-2 ${isError ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20"} pl-3 py-2`}
+                className={`border-l-2 ${isError ? "border-destructive bg-destructive/10" : "border-accent bg-accent/10"} pl-3 py-2`}
             >
                 <div className="flex items-center gap-2 mb-1">
                     {isError ? (
-                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        <AlertCircle className="h-4 w-4 text-destructive" />
                     ) : (
-                        <Code className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                        <Code className="h-4 w-4 text-accent" />
                     )}
                     <span
-                        className={`font-medium text-xs ${isError ? "text-red-700 dark:text-red-300" : "text-cyan-700 dark:text-cyan-300"}`}
+                        className={`font-medium text-xs ${isError ? "text-destructive" : "text-accent"}`}
                     >
                         MCP TOOL RESULT {isError && "(ERROR)"}
                     </span>

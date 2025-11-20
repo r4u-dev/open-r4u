@@ -82,7 +82,7 @@ class ExecutionResult(Base):
 
     # Execution metadata
     finish_reason: Mapped[FinishReason | None] = mapped_column(
-        SQLEnum(FinishReason),
+        SQLEnum(FinishReason, name="finish_reason"),
         nullable=True,
     )
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
