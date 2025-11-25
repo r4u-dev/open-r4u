@@ -24,13 +24,19 @@ from app.services.evaluation_service import (
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
-def get_evaluation_service(settings: Settings = Depends(get_settings)) -> EvaluationService:
+def get_evaluation_service(
+    settings: Settings = Depends(get_settings),
+) -> EvaluationService:
     """Dependency to get an EvaluationService instance."""
     return EvaluationService(settings)
 
 
 # Evaluation Configuration Endpoints
-@router.post("/tasks/{task_id}/config", response_model=EvaluationConfigRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tasks/{task_id}/config",
+    response_model=EvaluationConfigRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_or_update_evaluation_config(
     task_id: int,
     payload: EvaluationConfigCreate,
@@ -68,7 +74,10 @@ async def get_evaluation_config(
 ) -> EvaluationConfigRead | None:
     """Get evaluation configuration for a task."""
     try:
-        config = await evaluation_service.get_evaluation_config(session=session, task_id=task_id)
+        config = await evaluation_service.get_evaluation_config(
+            session=session,
+            task_id=task_id,
+        )
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except Exception as e:
@@ -90,20 +99,30 @@ async def update_evaluation_config(
     """Update evaluation configuration for a task."""
     try:
         # Get existing config first
-        existing_config = await evaluation_service.get_evaluation_config(session=session, task_id=task_id)
+        existing_config = await evaluation_service.get_evaluation_config(
+            session=session,
+            task_id=task_id,
+        )
         if not existing_config:
             raise NotFoundError(f"Evaluation config not found for task {task_id}")
 
         # Convert payload to dict, excluding None values
-        updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+        updates = payload.model_dump(exclude_unset=True)
 
         # Create new config with updated values
         config = await evaluation_service.create_or_update_evaluation_config(
             session=session,
             task_id=task_id,
-            quality_weight=updates.get("quality_weight", existing_config.quality_weight),
+            quality_weight=updates.get(
+                "quality_weight",
+                existing_config.quality_weight,
+            ),
             cost_weight=updates.get("cost_weight", existing_config.cost_weight),
             time_weight=updates.get("time_weight", existing_config.time_weight),
+            trace_evaluation_percentage=updates.get(
+                "trace_evaluation_percentage",
+                existing_config.trace_evaluation_percentage,
+            ),
             grader_ids=updates.get("grader_ids", existing_config.grader_ids),
         )
     except NotFoundError as e:
@@ -174,7 +193,10 @@ async def run_evaluation(
 
 @router.get("", response_model=list[EvaluationListItem])
 async def list_evaluations(
-    implementation_id: int | None = Query(None, description="Filter by implementation ID"),
+    implementation_id: int | None = Query(
+        None,
+        description="Filter by implementation ID",
+    ),
     task_id: int | None = Query(None, description="Filter by task ID"),
     session: AsyncSession = Depends(get_session),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
@@ -264,7 +286,10 @@ async def delete_evaluation(
         )
 
 
-@router.post("/tasks/{task_id}/recalculate-target-metrics", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/tasks/{task_id}/recalculate-target-metrics",
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def recalculate_target_metrics(
     task_id: int,
     session: AsyncSession = Depends(get_session),
@@ -287,7 +312,10 @@ async def recalculate_target_metrics(
     return {"message": "Target metrics recalculated successfully"}
 
 
-@router.get("/implementation/{implementation_id}/stats", response_model=ImplementationEvaluationStats)
+@router.get(
+    "/implementation/{implementation_id}/stats",
+    response_model=ImplementationEvaluationStats,
+)
 async def get_implementation_evaluation_stats(
     implementation_id: int,
     session: AsyncSession = Depends(get_session),
@@ -295,8 +323,14 @@ async def get_implementation_evaluation_stats(
 ) -> ImplementationEvaluationStats:
     """Get average quality, time, cost, and final evaluation score from all evaluations of an implementation."""
     try:
-        return await evaluation_service.get_implementation_evaluation_stats(session, implementation_id=implementation_id)
+        return await evaluation_service.get_implementation_evaluation_stats(
+            session,
+            implementation_id=implementation_id,
+        )
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to get evaluation stats: {e!s}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get evaluation stats: {e!s}",
+        )

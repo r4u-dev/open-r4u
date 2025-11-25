@@ -245,11 +245,11 @@ export interface CodeInterpreterToolCallItem {
     type: "code_interpreter_call";
     id: string;
     status:
-        | "in_progress"
-        | "completed"
-        | "incomplete"
-        | "interpreting"
-        | "failed";
+    | "in_progress"
+    | "completed"
+    | "incomplete"
+    | "interpreting"
+    | "failed";
     container_id: string;
     code?: string | null;
     outputs?: CodeInterpreterOutput[] | null;
@@ -386,3 +386,20 @@ export interface HTTPTrace {
 }
 
 export type TimePeriod = "5m" | "15m" | "1h" | "4h";
+
+export interface Grade {
+    id: number;
+    grader_id: number;
+    trace_id?: number | null;
+    execution_result_id?: number | null;
+    score_float?: number | null;
+    score_boolean?: boolean | null;
+    reasoning?: string | null;
+    confidence?: number | null;
+    grader_response?: any | null;
+    grading_started_at: string;
+    grading_completed_at: string;
+    error?: string | null;
+    created_at: string;
+    updated_at: string;
+}

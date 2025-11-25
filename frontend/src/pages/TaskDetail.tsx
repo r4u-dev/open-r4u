@@ -49,6 +49,7 @@ import {
 import { modelsApi } from "@/services/modelsApi";
 import { ImplementationEvaluationStats } from "@/lib/types/evaluation";
 import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
+import { Slider } from "@/components/ui/slider";
 import { tracesApi } from "@/services/tracesApi";
 import type { Trace } from "@/lib/types/trace";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,6 +151,7 @@ const TaskDetail = () => {
     cost_weight: number;
     time_weight: number;
     grader_ids: number[];
+    trace_evaluation_percentage?: number;
     created_at?: string;
     updated_at?: string;
   } | null>(null);
@@ -487,8 +489,8 @@ const TaskDetail = () => {
         version: computeNextVersion(),
         tool_choice:
           !createImplForm.tools ||
-          (Array.isArray(createImplForm.tools) &&
-            createImplForm.tools.length === 0)
+            (Array.isArray(createImplForm.tools) &&
+              createImplForm.tools.length === 0)
             ? (null as any)
             : (createImplForm.tool_choice as any) || "auto",
       };
@@ -628,11 +630,11 @@ const TaskDetail = () => {
       setEvalConfig((prev) =>
         prev
           ? {
-              ...(prev as any),
-              quality_weight: q,
-              cost_weight: c,
-              time_weight: tt,
-            }
+            ...(prev as any),
+            quality_weight: q,
+            cost_weight: c,
+            time_weight: tt,
+          }
           : prev,
       );
       if (tNorm < 1) {
@@ -1079,6 +1081,9 @@ const TaskDetail = () => {
         cost_weight: Number(evalConfig.cost_weight),
         time_weight: Number(evalConfig.time_weight),
         grader_ids: parsedGraderIds,
+        trace_evaluation_percentage: Number(
+          evalConfig.trace_evaluation_percentage ?? 100,
+        ),
       } as any;
       const res = await evaluationsApi.createOrUpdateEvaluationConfig(
         Number(taskId),
@@ -1375,11 +1380,10 @@ const TaskDetail = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-2 px-1 border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            className={`py-2 px-1 border-b-2 transition-colors ${activeTab === tab.id
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
           >
             {tab.label}
           </button>
@@ -1526,10 +1530,10 @@ const TaskDetail = () => {
                                 <span>v{version.version}</span>
                                 {version.version ===
                                   task.production_version && (
-                                  <span className="text-muted-foreground ml-1">
-                                    production
-                                  </span>
-                                )}
+                                    <span className="text-muted-foreground ml-1">
+                                      production
+                                    </span>
+                                  )}
                               </span>
                             </SelectItem>
                           ))}
@@ -1687,10 +1691,10 @@ const TaskDetail = () => {
                                     </div>
                                     <div className="text-sm font-semibold">
                                       {evalStats.avg_final_evaluation_score !==
-                                      null
+                                        null
                                         ? evalStats.avg_final_evaluation_score.toFixed(
-                                            2,
-                                          )
+                                          2,
+                                        )
                                         : "-"}
                                     </div>
                                   </div>
@@ -1700,10 +1704,10 @@ const TaskDetail = () => {
                                     </div>
                                     <div className="text-sm font-semibold">
                                       {evalStats.avg_cost_efficiency_score !==
-                                      null
+                                        null
                                         ? evalStats.avg_cost_efficiency_score.toFixed(
-                                            2,
-                                          )
+                                          2,
+                                        )
                                         : "-"}
                                     </div>
                                   </div>
@@ -1713,10 +1717,10 @@ const TaskDetail = () => {
                                     </div>
                                     <div className="text-sm font-semibold">
                                       {evalStats.avg_time_efficiency_score !==
-                                      null
+                                        null
                                         ? evalStats.avg_time_efficiency_score.toFixed(
-                                            2,
-                                          )
+                                          2,
+                                        )
                                         : "-"}
                                     </div>
                                   </div>
@@ -1889,11 +1893,10 @@ const TaskDetail = () => {
                     {traces.map((trace) => (
                       <div
                         key={trace.id}
-                        className={`border rounded p-3 text-sm transition-colors ${
-                          selectedTraces.has(trace.id)
-                            ? "border-primary bg-primary/5"
-                            : "border-border"
-                        }`}
+                        className={`border rounded p-3 text-sm transition-colors ${selectedTraces.has(trace.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-border"
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           {/* Checkbox */}
@@ -1928,12 +1931,12 @@ const TaskDetail = () => {
                                 </div>
                                 <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
                                   {trace.inputMessages &&
-                                  trace.inputMessages.length > 0
+                                    trace.inputMessages.length > 0
                                     ? JSON.stringify(
-                                        trace.inputMessages,
-                                        null,
-                                        2,
-                                      )
+                                      trace.inputMessages,
+                                      null,
+                                      2,
+                                    )
                                     : "No input"}
                                 </div>
                               </div>
@@ -1943,7 +1946,7 @@ const TaskDetail = () => {
                                 </div>
                                 <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
                                   {trace.outputItems &&
-                                  trace.outputItems.length > 0
+                                    trace.outputItems.length > 0
                                     ? JSON.stringify(trace.outputItems, null, 2)
                                     : "No output"}
                                 </div>
@@ -2090,6 +2093,10 @@ const TaskDetail = () => {
                                 (originalConfig as any).time_weight || 0,
                               ),
                               grader_ids: originalGraderIdsArray,
+                              trace_evaluation_percentage: Number(
+                                (originalConfig as any)
+                                  .trace_evaluation_percentage ?? 100,
+                              ),
                             });
                             // Restore original display order for graders (selected first)
                             if (graders.length > 0) {
@@ -2163,6 +2170,33 @@ const TaskDetail = () => {
                           });
                         }}
                       />
+                      <div className="pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Auto-grading Sampling</Label>
+                          <span className="text-sm text-muted-foreground">
+                            {evalConfig.trace_evaluation_percentage ?? 100}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[
+                            evalConfig.trace_evaluation_percentage ?? 100,
+                          ]}
+                          min={0}
+                          max={100}
+                          step={1}
+                          onValueChange={(vals) => {
+                            if (!isEditingConfig) setIsEditingConfig(true);
+                            setEvalConfig({
+                              ...evalConfig,
+                              trace_evaluation_percentage: vals[0],
+                            });
+                          }}
+                          disabled={configSaving}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Percentage of traces to automatically grade (0-100).
+                        </p>
+                      </div>
                     </div>
                     <div>
                       <Label>Graders</Label>
@@ -2758,7 +2792,7 @@ const TaskDetail = () => {
                                     </div>
                                     <div className="text-muted-foreground">
                                       {isPromptExpanded ||
-                                      promptValue.length <=
+                                        promptValue.length <=
                                         PROMPT_PREVIEW_LENGTH ? (
                                         <div className="break-words whitespace-pre-wrap">
                                           {promptValue}
@@ -2821,7 +2855,7 @@ const TaskDetail = () => {
                                     </div>
                                     <div className="text-muted-foreground break-words whitespace-pre-wrap">
                                       {isExplanationExpanded ||
-                                      explanation.length <=
+                                        explanation.length <=
                                         EXPLANATION_PREVIEW_LENGTH ? (
                                         <div>{explanation}</div>
                                       ) : (
@@ -3077,8 +3111,8 @@ const TaskDetail = () => {
                                                       <TableCell className="text-xs">
                                                         {it.evaluation
                                                           ?.avg_cost !== null &&
-                                                        it.evaluation
-                                                          ?.avg_cost !==
+                                                          it.evaluation
+                                                            ?.avg_cost !==
                                                           undefined
                                                           ? `$${it.evaluation.avg_cost.toFixed(6)}`
                                                           : "-"}
@@ -3087,8 +3121,8 @@ const TaskDetail = () => {
                                                         {it.evaluation
                                                           ?.avg_execution_time_ms !==
                                                           null &&
-                                                        it.evaluation
-                                                          ?.avg_execution_time_ms !==
+                                                          it.evaluation
+                                                            ?.avg_execution_time_ms !==
                                                           undefined
                                                           ? `${it.evaluation.avg_execution_time_ms.toFixed(2)}ms`
                                                           : "-"}

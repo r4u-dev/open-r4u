@@ -1,10 +1,12 @@
+
 """API endpoints for HTTP-level trace ingestion."""
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings, get_settings
 from app.database import get_session
 from app.models.http_traces import HTTPTrace
 from app.schemas.http_traces import HTTPTraceCreate
@@ -20,7 +22,9 @@ router = APIRouter(prefix="/http-traces", tags=["http-traces"])
 @router.post("", response_model=TraceRead, status_code=status.HTTP_201_CREATED)
 async def create_http_trace(
     payload: HTTPTraceCreate,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> TraceRead:
     """Create a trace from HTTP-level request/response capture.
 
@@ -31,6 +35,7 @@ async def create_http_trace(
     Args:
         payload: HTTP trace data including raw request/response
         session: Database session
+        settings: Application settings
 
     Returns:
         Created trace with structured data
@@ -100,11 +105,12 @@ async def create_http_trace(
         )
 
     # Create trace using service (handles project creation, matching, etc.)
-    traces_service = TracesService()
+    traces_service = TracesService(settings)
     trace = await traces_service.create_trace(
         trace_create,
         session,
         http_trace_id=http_trace.id,
+        background_tasks=background_tasks,
     )
 
     return TraceRead.model_validate(trace)

@@ -1,12 +1,15 @@
 """Service for managing trace operations."""
 
 import logging
+import random
 from typing import Any
 
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.database import AsyncSessionMaker
 from app.models.projects import Project
 from app.models.tasks import Implementation
 from app.models.traces import Trace, TraceInputItem, TraceOutputItem
@@ -21,14 +24,16 @@ logger = logging.getLogger(__name__)
 class TracesService:
     """Service for trace operations."""
 
-    def __init__(self):
+    def __init__(self, settings: Any = None):
         """Initialize traces service."""
+        self.settings = settings
 
     async def create_trace(
         self,
         trace_data: TraceCreate,
         session: AsyncSession,
         http_trace_id: int | None = None,
+        background_tasks: BackgroundTasks | None = None,
     ) -> Trace:
         """Create a trace with automatic implementation matching.
 
@@ -113,6 +118,14 @@ class TracesService:
                 project_id=project.id,
                 session=session,
             )
+
+        # Trigger auto-grading if implementation is matched
+        if trace.implementation_id and self.settings:
+            if background_tasks:
+                background_tasks.add_task(self._run_auto_grading_background, trace.id)
+            else:
+                # Fallback to inline execution if no background tasks provided (mostly for tests)
+                await self._trigger_auto_grading(trace, session)
 
         # Reload trace with relationships
         return await self._load_trace_with_relationships(trace.id, session)
@@ -224,6 +237,92 @@ class TracesService:
                 exc_info=True,
             )
 
+    async def _run_auto_grading_background(self, trace_id: int) -> None:
+        """Run auto-grading in a background task with its own session.
+
+        Args:
+            trace_id: ID of the trace to grade
+
+        """
+        async with AsyncSessionMaker() as session:
+            try:
+                # Load trace
+                trace = await session.get(Trace, trace_id)
+                if not trace:
+                    logger.warning(f"Trace {trace_id} not found for background grading")
+                    return
+
+                await self._trigger_auto_grading(trace, session)
+            except Exception as e:
+                logger.error(
+                    f"Error in background auto-grading for trace {trace_id}: {e}",
+                    exc_info=True,
+                )
+                logger.error(
+                    f"Error in background auto-grading for trace {trace_id}: {e}",
+                    exc_info=True,
+                )
+
+    async def _trigger_auto_grading(
+        self,
+        trace: Trace,
+        session: AsyncSession,
+    ) -> None:
+        """Trigger auto-grading for a trace if it matches an implementation.
+
+        Args:
+            trace: The trace to grade
+            session: Database session
+
+        """
+        try:
+            # Avoid circular imports
+            from app.services.evaluation_service import EvaluationService
+            from app.services.grading_service import GradingService
+
+            # Get implementation and task
+            if not trace.implementation_id:
+                return
+
+            # Load implementation to get task_id
+            implementation = await session.get(Implementation, trace.implementation_id)
+            if not implementation:
+                return
+
+            task_id = implementation.task_id
+
+            # Get evaluation config for the task
+            eval_service = EvaluationService(self.settings)
+            config = await eval_service.get_evaluation_config(session, task_id)
+
+            if not config or not config.grader_ids:
+                return
+
+            # Check sampling
+            if config.trace_evaluation_percentage < 100:
+                if random.randint(1, 100) > config.trace_evaluation_percentage:
+                    logger.debug(
+                        f"Skipping auto-grading for trace {trace.id} due to sampling ({config.trace_evaluation_percentage}%)",
+                    )
+                    return
+
+            # Grade the trace
+            grading_service = GradingService(self.settings)
+            for grader_id in config.grader_ids:
+                try:
+                    await grading_service.execute_grading(
+                        session=session,
+                        grader_id=grader_id,
+                        trace_id=trace.id,
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to grade trace {trace.id} with grader {grader_id}: {e}",
+                    )
+
+        except Exception as e:
+            logger.error(f"Failed to trigger auto-grading for trace {trace.id}: {e}")
+
     async def _load_trace_with_relationships(
         self,
         trace_id: int,
@@ -329,7 +428,7 @@ class TracesService:
         if not system_prompt:
             return None
 
-        query = select(Implementation).where(Implementation.model == model)
+        query = select(Implementation)
         result = await session.execute(query)
         implementations = result.scalars().all()
 

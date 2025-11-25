@@ -209,6 +209,7 @@ class EvaluationConfig(Base):
         nullable=False,
         default=list,
     )
+    trace_evaluation_percentage: Mapped[int] = mapped_column(default=100)
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="evaluation_config")  # type: ignore
