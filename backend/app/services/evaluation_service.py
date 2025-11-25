@@ -156,7 +156,9 @@ class EvaluationService:
                         value = [msg.model_dump(mode="json")]
                     elif isinstance(value, list):
                         value = [
-                            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+                            item.model_dump(mode="json")
+                            if hasattr(item, "model_dump")
+                            else item
                             for item in value
                         ]
                 setattr(test_case, key, value)
@@ -258,6 +260,7 @@ class EvaluationService:
         quality_weight: float = 0.5,
         cost_weight: float = 0.3,
         time_weight: float = 0.2,
+        trace_evaluation_percentage: int = 100,
         grader_ids: list[int] | None = None,
     ) -> EvaluationConfig:
         """Create or update evaluation configuration for a task."""
@@ -283,6 +286,7 @@ class EvaluationService:
             config.cost_weight = cost_weight
             config.time_weight = time_weight
             config.grader_ids = grader_ids
+            config.trace_evaluation_percentage = trace_evaluation_percentage
         else:
             # Create new config
             config = EvaluationConfig(
@@ -291,6 +295,7 @@ class EvaluationService:
                 cost_weight=cost_weight,
                 time_weight=time_weight,
                 grader_ids=grader_ids,
+                trace_evaluation_percentage=trace_evaluation_percentage,
             )
             session.add(config)
 
@@ -617,7 +622,10 @@ class EvaluationService:
         task_id: int | None = None,
     ) -> list[EvaluationListItem]:
         """List all evaluations, optionally filtered by implementation_id or task_id with calculated scores."""
-        query = select(Evaluation).options(selectinload(Evaluation.implementation), selectinload(Evaluation.task))
+        query = select(Evaluation).options(
+            selectinload(Evaluation.implementation),
+            selectinload(Evaluation.task),
+        )
 
         if implementation_id is not None:
             query = query.where(Evaluation.implementation_id == implementation_id)
@@ -1058,13 +1066,17 @@ class EvaluationService:
 
         if not graders:
             # No graders exist, create default grader
-            default_accuracy_grader = await self.grading_service.create_default_accuracy_grader(
-                session,
-                project_id,
+            default_accuracy_grader = (
+                await self.grading_service.create_default_accuracy_grader(
+                    session,
+                    project_id,
+                )
             )
-            default_pairwise_grader = await self.grading_service.create_default_pairwise_grader(
-                session,
-                project_id,
+            default_pairwise_grader = (
+                await self.grading_service.create_default_pairwise_grader(
+                    session,
+                    project_id,
+                )
             )
             return [default_accuracy_grader.id, default_pairwise_grader.id]
 

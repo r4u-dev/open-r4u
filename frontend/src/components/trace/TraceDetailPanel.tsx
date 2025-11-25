@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { Trace, HTTPTrace } from "@/lib/types/trace";
+import { Trace, HTTPTrace, Grade } from "@/lib/types/trace";
 import { tracesApi } from "@/services/tracesApi";
+import { gradesApi, GradeListItem } from "@/services/gradesApi";
+import { gradersApi, GraderListItem } from "@/services/gradersApi";
 import { formatHTTPRequest, formatHTTPResponse } from "@/lib/utils";
 import { InputItemRenderer } from "./InputItemRenderer";
 import { OutputItemRenderer } from "./OutputItemRenderer";
@@ -17,6 +19,7 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
         modelSettings: true,
         metrics: true,
         output: true,
+        grades: true,
         rawRequest: false,
         rawResponse: false,
     });
@@ -24,6 +27,10 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
     const [httpTrace, setHttpTrace] = useState<HTTPTrace | null>(null);
     const [isLoadingHTTP, setIsLoadingHTTP] = useState(false);
     const [httpError, setHttpError] = useState<string | null>(null);
+
+    const [grades, setGrades] = useState<GradeListItem[]>([]);
+    const [graders, setGraders] = useState<Record<number, GraderListItem>>({});
+    const [isLoadingGrades, setIsLoadingGrades] = useState(false);
 
     // Fetch HTTP trace when trace changes or when raw sections are expanded
     useEffect(() => {
@@ -66,6 +73,40 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
     useEffect(() => {
         setHttpTrace(null);
         setHttpError(null);
+    }, [trace.id]);
+
+    // Fetch grades when trace changes
+    useEffect(() => {
+        const fetchGrades = async () => {
+            setIsLoadingGrades(true);
+            try {
+                // We need to convert string ID to number if possible, or handle string IDs if backend supports it
+                // Assuming trace.id is a string that can be parsed to int for now based on backend schema
+                // If trace.id is UUID, backend needs to support it.
+                // Based on backend code, trace.id is intpk.
+                const traceId = parseInt(trace.id);
+                if (isNaN(traceId)) return;
+
+                const fetchedGrades = await gradesApi.listGrades({ trace_id: traceId });
+                setGrades(fetchedGrades);
+
+                // Fetch graders info to display names
+                // In a real app we might want to cache this or fetch all graders once
+                // For now, let's just fetch graders for the project if we have project ID,
+                // or we can rely on `grader_name` if the API returns it (I added it to GradeListItem)
+                // If API doesn't return grader_name, we might need to fetch it.
+                // Let's assume for now we might need to fetch if missing.
+                // But wait, I defined GradeListItem with grader_name optional.
+                // Let's see if we can get grader details.
+                // Actually, let's just display what we have.
+            } catch (error) {
+                console.error("Failed to fetch grades:", error);
+            } finally {
+                setIsLoadingGrades(false);
+            }
+        };
+
+        fetchGrades();
     }, [trace.id]);
 
     const toggleSection = (section: keyof typeof expandedSections) => {
@@ -211,6 +252,40 @@ export function TraceDetailPanel({ trace }: TraceDetailPanelProps) {
                         ) : (
                             <span className="text-muted-foreground italic">
                                 No output
+                            </span>
+                        )}
+                    </div>
+                </Section>
+
+                <Section title="Grades" section="grades">
+                    <div className="space-y-3">
+                        {isLoadingGrades ? (
+                            <span className="text-muted-foreground">Loading grades...</span>
+                        ) : grades.length > 0 ? (
+                            grades.map((grade) => (
+                                <div key={grade.id} className="bg-background border border-border rounded p-2">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-medium text-foreground">
+                                            {grade.grader_name || `Grader ${grade.grader_id}`}
+                                        </span>
+                                        <span className={`font-mono font-bold ${(grade.score_float ?? 0) >= 0.7 ? "text-success" :
+                                                (grade.score_float ?? 0) >= 0.4 ? "text-warning" : "text-destructive"
+                                            }`}>
+                                            {grade.score_boolean !== null
+                                                ? (grade.score_boolean ? "PASS" : "FAIL")
+                                                : grade.score_float?.toFixed(2)}
+                                        </span>
+                                    </div>
+                                    {grade.reasoning && (
+                                        <div className="text-muted-foreground text-xs mt-1 whitespace-pre-wrap">
+                                            {grade.reasoning}
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <span className="text-muted-foreground italic">
+                                No grades available
                             </span>
                         )}
                     </div>

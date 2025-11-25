@@ -58,6 +58,7 @@ class EvaluationsApiService {
             cost_weight: number;
             time_weight: number;
             grader_ids: number[];
+            trace_evaluation_percentage: number;
             created_at: string;
             updated_at: string;
         } | null>
@@ -74,6 +75,7 @@ class EvaluationsApiService {
             cost_weight?: number;
             time_weight?: number;
             grader_ids?: number[];
+            trace_evaluation_percentage?: number;
         },
     ): Promise<
         ApiResponse<{
@@ -83,13 +85,14 @@ class EvaluationsApiService {
             cost_weight: number;
             time_weight: number;
             grader_ids: number[];
+            trace_evaluation_percentage: number;
             created_at: string;
             updated_at: string;
         }>
     > {
         // backend exposes POST /v1/evaluations/tasks/{task_id}/config for create/update
-        // and PATCH for partial update; here we use POST to create or replace
-        return apiClient.post(
+        // and PATCH for partial update; using PATCH as requested
+        return apiClient.patch(
             `${this.baseEndpoint}/tasks/${taskId}/config`,
             config,
         );

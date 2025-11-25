@@ -312,6 +312,12 @@ class EvaluationConfigBase(BaseModel):
         default_factory=list,
         description="List of grader IDs to use for evaluation",
     )
+    trace_evaluation_percentage: int = Field(
+        default=100,
+        ge=1,
+        le=100,
+        description="Percentage of traces to evaluate (1-100)",
+    )
 
     @field_validator("quality_weight", "cost_weight", "time_weight")
     @classmethod
@@ -336,6 +342,7 @@ class EvaluationConfigUpdate(BaseModel):
     cost_weight: float | None = Field(None, ge=0.0, le=1.0)
     time_weight: float | None = Field(None, ge=0.0, le=1.0)
     grader_ids: list[int] | None = None
+    trace_evaluation_percentage: int | None = Field(None, ge=1, le=100)
 
 
 class EvaluationConfigRead(EvaluationConfigBase):

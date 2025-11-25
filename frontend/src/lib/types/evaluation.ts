@@ -45,6 +45,7 @@ export interface EvaluationConfigRead {
     cost_weight: number;
     time_weight: number;
     grader_ids: number[];
+    trace_evaluation_percentage: number;
     created_at: string;
     updated_at: string;
 }
