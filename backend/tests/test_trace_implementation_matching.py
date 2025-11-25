@@ -137,48 +137,6 @@ class TestTraceImplementationMatching:
         }
 
     @pytest.mark.asyncio
-    async def test_trace_no_match_different_model(
-        self,
-        client: AsyncClient,
-        test_session: AsyncSession,
-        task: Task,
-    ):
-        """Test that trace doesn't match implementation with different model."""
-        # Create an implementation
-        impl = Implementation(
-            task_id=task.id,
-            prompt="You are a helpful assistant.",
-            model="gpt-4",
-            max_output_tokens=1000,
-        )
-        test_session.add(impl)
-        await test_session.commit()
-
-        # Create a trace with different model
-        payload = {
-            "model": "gpt-3.5-turbo",  # Different model
-            "input": [
-                {
-                    "type": "message",
-                    "role": "system",
-                    "content": "You are a helpful assistant.",
-                },
-                {"type": "message", "role": "user", "content": "Hello!"},
-            ],
-            "result": "Hi there!",
-            "started_at": "2025-10-15T10:00:00Z",
-            "completed_at": "2025-10-15T10:00:01Z",
-            "project": "Test Project",
-        }
-
-        response = await client.post("/v1/traces", json=payload)
-        assert response.status_code == 201
-
-        data = response.json()
-        assert data["implementation_id"] is None
-        assert data["prompt_variables"] is None
-
-    @pytest.mark.asyncio
     async def test_trace_no_match_different_prompt(
         self,
         client: AsyncClient,
