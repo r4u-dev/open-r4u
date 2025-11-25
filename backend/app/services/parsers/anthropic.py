@@ -67,7 +67,7 @@ class AnthropicParser(ProviderParser):
                             input_items.append(
                                 ToolResultItem(
                                     call_id=tool_use_id,
-                                    tool_name="unknown",  # Anthropic doesn't include name in result
+                                    tool_name=None,  # Anthropic doesn't include name in result
                                     result=tool_result_content,
                                     is_error=block.get("is_error", False),
                                 ),

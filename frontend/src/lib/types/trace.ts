@@ -63,7 +63,7 @@ export interface ToolCallItem extends BaseInputItem {
 export interface ToolResultItem extends BaseInputItem {
     type: "tool_result";
     call_id: string;
-    tool_name: string;
+    tool_name?: string;
     result: any;
     is_error?: boolean;
     [key: string]: any;

@@ -309,7 +309,7 @@ class OpenAIParser(ProviderParser):
                 tool_call_id = msg.get("tool_call_id")
                 name = msg.get("name")
                 content = msg.get("content")
-                if tool_call_id and name:
+                if tool_call_id:
                     input_items.append(
                         ToolResultItem(
                             call_id=tool_call_id,

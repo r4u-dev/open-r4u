@@ -106,7 +106,7 @@ class ToolResultItem(BaseModel):
 
     type: Literal[ItemType.TOOL_RESULT] = ItemType.TOOL_RESULT
     call_id: str
-    tool_name: str
+    tool_name: str | None = None
     result: Any
     is_error: bool = False
     model_config = ConfigDict(extra="allow")
