@@ -926,7 +926,7 @@ const TaskDetail = () => {
   // Load evaluation config when switching to Evaluations tab
   useEffect(() => {
     const loadConfig = async () => {
-      if (activeTab !== "evaluations" || !taskId) return;
+      if (activeTab !== "settings" || !taskId) return;
       try {
         setConfigLoading(true);
         setConfigError(null);
@@ -981,7 +981,7 @@ const TaskDetail = () => {
   // Load graders list for selection
   useEffect(() => {
     const loadGraders = async () => {
-      if (activeTab !== "evaluations") return;
+      if (activeTab !== "settings") return;
       try {
         setGradersLoading(true);
         setGradersError(null);
@@ -1019,7 +1019,7 @@ const TaskDetail = () => {
 
   // Ensure initial order places selected graders on top after both config and graders are loaded
   useEffect(() => {
-    if (activeTab !== "evaluations") return;
+    if (activeTab !== "settings") return;
     if (!evalConfig || graders.length === 0) return;
     if (isEditingConfig) return; // don't reorder during editing
     if (didInitialOrderRef.current) return;
@@ -2046,239 +2046,7 @@ const TaskDetail = () => {
                 </DialogContent>
               </Dialog>
 
-              {/* Configuration Panel */}
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold">
-                    Evaluation Configuration
-                  </h2>
-                  <div className="flex items-center gap-2">
-                    {!isEditingConfig ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsEditingConfig(true)}
-                        disabled={configLoading || configSaving}
-                      >
-                        Edit
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            if (!evalConfig || !originalConfig) {
-                              setIsEditingConfig(false);
-                              return;
-                            }
-                            setIsEditingConfig(false);
-                            setGraderIdsInput(originalGraderIds);
-                            // Save current weights for animation before resetting
-                            const currentWeights = {
-                              q: Number(evalConfig.quality_weight || 0),
-                              c: Number(evalConfig.cost_weight || 0),
-                              t: Number(evalConfig.time_weight || 0),
-                            };
-                            // Reset evalConfig to original values
-                            const originalGraderIdsArray =
-                              (originalConfig as any).grader_ids || [];
-                            setEvalConfig({
-                              ...(evalConfig as any),
-                              quality_weight: Number(
-                                (originalConfig as any).quality_weight || 0,
-                              ),
-                              cost_weight: Number(
-                                (originalConfig as any).cost_weight || 0,
-                              ),
-                              time_weight: Number(
-                                (originalConfig as any).time_weight || 0,
-                              ),
-                              grader_ids: originalGraderIdsArray,
-                              trace_evaluation_percentage: Number(
-                                (originalConfig as any)
-                                  .trace_evaluation_percentage ?? 100,
-                              ),
-                            });
-                            // Restore original display order for graders (selected first)
-                            if (graders.length > 0) {
-                              const selectedIds = new Set(
-                                originalGraderIdsArray as number[],
-                              );
-                              const ordered = [...graders].sort((a, b) => {
-                                const aSel = selectedIds.has(a.id);
-                                const bSel = selectedIds.has(b.id);
-                                if (aSel !== bSel) return aSel ? -1 : 1;
-                                return a.name.localeCompare(b.name);
-                              });
-                              setDisplayGraders(ordered);
-                            }
-                            animateWeights(
-                              currentWeights,
-                              {
-                                q: Number(
-                                  (originalConfig as any).quality_weight || 0,
-                                ),
-                                c: Number(
-                                  (originalConfig as any).cost_weight || 0,
-                                ),
-                                t: Number(
-                                  (originalConfig as any).time_weight || 0,
-                                ),
-                              },
-                              450,
-                            );
-                          }}
-                          disabled={configSaving}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={saveEvalConfig}
-                          disabled={configSaving}
-                        >
-                          {configSaving ? "Saving..." : "Save"}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {configLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading configuration...
-                  </div>
-                ) : configError ? (
-                  <div className="text-sm text-destructive">{configError}</div>
-                ) : evalConfig ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Weights</Label>
-                      <ScoreWeightsSelector
-                        initialWeights={{
-                          quality: evalConfig.quality_weight,
-                          costEfficiency: evalConfig.cost_weight,
-                          timeEfficiency: evalConfig.time_weight,
-                        }}
-                        onWeightsChange={(w) => {
-                          if (!isEditingConfig) {
-                            setIsEditingConfig(true);
-                          }
-                          setEvalConfig({
-                            ...(evalConfig as any),
-                            quality_weight: w.quality,
-                            cost_weight: w.costEfficiency,
-                            time_weight: w.timeEfficiency,
-                          });
-                        }}
-                      />
-                      <div className="pt-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label>Auto-grading Sampling</Label>
-                          <span className="text-sm text-muted-foreground">
-                            {evalConfig.trace_evaluation_percentage ?? 100}%
-                          </span>
-                        </div>
-                        <Slider
-                          value={[
-                            evalConfig.trace_evaluation_percentage ?? 100,
-                          ]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          onValueChange={(vals) => {
-                            if (!isEditingConfig) setIsEditingConfig(true);
-                            setEvalConfig({
-                              ...evalConfig,
-                              trace_evaluation_percentage: vals[0],
-                            });
-                          }}
-                          disabled={configSaving}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Percentage of traces to automatically grade (0-100).
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Graders</Label>
-                      {gradersLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Loading
-                          graders...
-                        </div>
-                      ) : gradersError ? (
-                        <div className="text-sm text-destructive mt-2">
-                          {gradersError}
-                        </div>
-                      ) : (
-                        <div className="mt-2 relative">
-                          <div
-                            ref={gradersListRef}
-                            className="grid gap-1.5 max-h-48 overflow-y-auto pr-1"
-                          >
-                            {displayGraders.length === 0 ? (
-                              <div className="text-sm text-muted-foreground">
-                                No graders available
-                              </div>
-                            ) : (
-                              displayGraders.map((g) => {
-                                const selected =
-                                  !!evalConfig?.grader_ids?.includes(g.id);
-                                return (
-                                  <div
-                                    key={g.id}
-                                    ref={(el) => {
-                                      if (el)
-                                        graderItemRefs.current.set(g.id, el);
-                                    }}
-                                    className={`flex items-center gap-2 p-1.5 border rounded border-border will-change-transform`}
-                                  >
-                                    <label className="flex items-center gap-2 flex-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={selected}
-                                        onChange={(e) => {
-                                          if (!evalConfig) return;
-                                          if (!isEditingConfig) {
-                                            setIsEditingConfig(true);
-                                          }
-                                          const set = new Set(
-                                            evalConfig.grader_ids || [],
-                                          );
-                                          if (e.target.checked) set.add(g.id);
-                                          else set.delete(g.id);
-                                          const next = Array.from(set);
-                                          setEvalConfig({
-                                            ...(evalConfig as any),
-                                            grader_ids: next,
-                                          });
-                                          setGraderIdsInput(next.join(", "));
-                                        }}
-                                      />
-                                      <div className="flex-1">
-                                        <div className="text-sm font-medium">
-                                          {g.name}
-                                        </div>
-                                        {g.description && (
-                                          <div className="text-xs text-muted-foreground">
-                                            {g.description}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </label>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                          {gradersListOverflowing && (
-                            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+
 
               {/* Evaluations list */}
               {/* Test Cases Panel styled like Evaluations list */}
@@ -3246,8 +3014,238 @@ const TaskDetail = () => {
           {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Settings coming soon
+              {/* Configuration Panel */}
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold">
+                    Evaluation Configuration
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {!isEditingConfig ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditingConfig(true)}
+                        disabled={configLoading || configSaving}
+                      >
+                        Edit
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            if (!evalConfig || !originalConfig) {
+                              setIsEditingConfig(false);
+                              return;
+                            }
+                            setIsEditingConfig(false);
+                            setGraderIdsInput(originalGraderIds);
+                            // Save current weights for animation before resetting
+                            const currentWeights = {
+                              q: Number(evalConfig.quality_weight || 0),
+                              c: Number(evalConfig.cost_weight || 0),
+                              t: Number(evalConfig.time_weight || 0),
+                            };
+                            // Reset evalConfig to original values
+                            const originalGraderIdsArray =
+                              (originalConfig as any).grader_ids || [];
+                            setEvalConfig({
+                              ...(evalConfig as any),
+                              quality_weight: Number(
+                                (originalConfig as any).quality_weight || 0,
+                              ),
+                              cost_weight: Number(
+                                (originalConfig as any).cost_weight || 0,
+                              ),
+                              time_weight: Number(
+                                (originalConfig as any).time_weight || 0,
+                              ),
+                              grader_ids: originalGraderIdsArray,
+                              trace_evaluation_percentage: Number(
+                                (originalConfig as any)
+                                  .trace_evaluation_percentage ?? 100,
+                              ),
+                            });
+                            // Restore original display order for graders (selected first)
+                            if (graders.length > 0) {
+                              const selectedIds = new Set(
+                                originalGraderIdsArray as number[],
+                              );
+                              const ordered = [...graders].sort((a, b) => {
+                                const aSel = selectedIds.has(a.id);
+                                const bSel = selectedIds.has(b.id);
+                                if (aSel !== bSel) return aSel ? -1 : 1;
+                                return a.name.localeCompare(b.name);
+                              });
+                              setDisplayGraders(ordered);
+                            }
+                            animateWeights(
+                              currentWeights,
+                              {
+                                q: Number(
+                                  (originalConfig as any).quality_weight || 0,
+                                ),
+                                c: Number(
+                                  (originalConfig as any).cost_weight || 0,
+                                ),
+                                t: Number(
+                                  (originalConfig as any).time_weight || 0,
+                                ),
+                              },
+                              450,
+                            );
+                          }}
+                          disabled={configSaving}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={saveEvalConfig}
+                          disabled={configSaving}
+                        >
+                          {configSaving ? "Saving..." : "Save"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {configLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading configuration...
+                  </div>
+                ) : configError ? (
+                  <div className="text-sm text-destructive">{configError}</div>
+                ) : evalConfig ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Weights</Label>
+                      <ScoreWeightsSelector
+                        initialWeights={{
+                          quality: evalConfig.quality_weight,
+                          costEfficiency: evalConfig.cost_weight,
+                          timeEfficiency: evalConfig.time_weight,
+                        }}
+                        onWeightsChange={(w) => {
+                          if (!isEditingConfig) {
+                            setIsEditingConfig(true);
+                          }
+                          setEvalConfig({
+                            ...(evalConfig as any),
+                            quality_weight: w.quality,
+                            cost_weight: w.costEfficiency,
+                            time_weight: w.timeEfficiency,
+                          });
+                        }}
+                      />
+                      <div className="pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Auto-grading Sampling</Label>
+                          <span className="text-sm text-muted-foreground">
+                            {evalConfig.trace_evaluation_percentage ?? 100}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[
+                            evalConfig.trace_evaluation_percentage ?? 100,
+                          ]}
+                          min={0}
+                          max={100}
+                          step={1}
+                          onValueChange={(vals) => {
+                            if (!isEditingConfig) setIsEditingConfig(true);
+                            setEvalConfig({
+                              ...evalConfig,
+                              trace_evaluation_percentage: vals[0],
+                            });
+                          }}
+                          disabled={configSaving}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Percentage of traces to automatically grade (0-100).
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Graders</Label>
+                      {gradersLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                          graders...
+                        </div>
+                      ) : gradersError ? (
+                        <div className="text-sm text-destructive mt-2">
+                          {gradersError}
+                        </div>
+                      ) : (
+                        <div className="mt-2 relative">
+                          <div
+                            ref={gradersListRef}
+                            className="grid gap-1.5 max-h-48 overflow-y-auto pr-1"
+                          >
+                            {displayGraders.length === 0 ? (
+                              <div className="text-sm text-muted-foreground">
+                                No graders available
+                              </div>
+                            ) : (
+                              displayGraders.map((g) => {
+                                const selected =
+                                  !!evalConfig?.grader_ids?.includes(g.id);
+                                return (
+                                  <div
+                                    key={g.id}
+                                    ref={(el) => {
+                                      if (el)
+                                        graderItemRefs.current.set(g.id, el);
+                                    }}
+                                    className={`flex items-center gap-2 p-1.5 border rounded border-border will-change-transform`}
+                                  >
+                                    <label className="flex items-center gap-2 flex-1">
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={(e) => {
+                                          if (!evalConfig) return;
+                                          if (!isEditingConfig) {
+                                            setIsEditingConfig(true);
+                                          }
+                                          const set = new Set(
+                                            evalConfig.grader_ids || [],
+                                          );
+                                          if (e.target.checked) set.add(g.id);
+                                          else set.delete(g.id);
+                                          const next = Array.from(set);
+                                          setEvalConfig({
+                                            ...(evalConfig as any),
+                                            grader_ids: next,
+                                          });
+                                          setGraderIdsInput(next.join(", "));
+                                        }}
+                                      />
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium">
+                                          {g.name}
+                                        </div>
+                                        {g.description && (
+                                          <div className="text-xs text-muted-foreground">
+                                            {g.description}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </label>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                          {gradersListOverflowing && (
+                            <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}

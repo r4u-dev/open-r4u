@@ -10,7 +10,7 @@ import httpx
 
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
-from r4u.utils import extract_call_path
+from r4u.utils import extract_call_path, redact_headers
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ class StreamingResponseWrapper:
         self._trace_ctx["status_code"] = self._response.status_code
         self._trace_ctx["error"] = self._error
         self._trace_ctx["response_bytes"] = self._content_collected
-        self._trace_ctx["response_headers"] = dict(self._response.headers)
+        self._trace_ctx["response_headers"] = redact_headers(dict(self._response.headers))
 
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
@@ -198,7 +198,7 @@ def _build_trace_context(request: httpx.Request, is_async=False) -> dict:
         "url": str(request.url),
         "started_at": started_at,
         "request_bytes": request.content or b"",
-        "request_headers": headers_dict,
+        "request_headers": redact_headers(headers_dict),
         "path": call_path_with_no[0] if call_path_with_no else None,
     }
 
@@ -211,7 +211,7 @@ def _finalize_trace(
     completed_at = datetime.now(timezone.utc)
     status_code = response.status_code if response else 0
     response_bytes = response.content or b"" if response else b""
-    response_headers = dict(response.headers) if response else {}
+    response_headers = redact_headers(dict(response.headers)) if response else {}
 
     return HTTPTrace(
         url=trace_ctx.get("url", ""),

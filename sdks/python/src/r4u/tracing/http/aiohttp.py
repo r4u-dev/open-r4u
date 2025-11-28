@@ -10,7 +10,7 @@ import aiohttp
 
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
-from r4u.utils import extract_call_path
+from r4u.utils import extract_call_path, redact_headers
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ class StreamingResponseWrapper:
         self._trace_ctx["status_code"] = self._response.status
         self._trace_ctx["error"] = self._error
         self._trace_ctx["response_bytes"] = self._content_collected
-        self._trace_ctx["response_headers"] = dict(self._response.headers)
+        self._trace_ctx["response_headers"] = redact_headers(dict(self._response.headers))
 
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
@@ -196,7 +196,7 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
             "url": str(url),
             "started_at": started_at,
             "request_bytes": request_payload,
-            "request_headers": dict(kwargs.get("headers", {})),
+            "request_headers": redact_headers(dict(kwargs.get("headers", {}))),
             "path": call_path_and_no[0] if call_path_and_no else None,
         }
 
