@@ -15,6 +15,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -52,7 +53,10 @@ def main():
         print("📤 Sending request to OpenAI...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hey, what is your name?"}],
+            messages=[
+                {"role": "user", "content": "Hey"},
+                {"role": "user", "content": "Hey, what is your name?"},
+            ],
             # stream=True,
             # stream_options={
             #     "include_usage": True,
@@ -62,9 +66,16 @@ def main():
             pass
         print("📤 Using responses api...")
 
-        response = client.responses.create(
-            model="gpt-3.5-turbo",
-            input=[{"role": "user", "content": "Hey, what is your name?"}],
+        class ResponseFormat(BaseModel):
+            message: str
+
+        response = client.responses.parse(
+            model="gpt-4.1",
+            input=[
+                {"role": "user", "content": "Hey"},
+                {"role": "user", "content": "Hey, what is your name?"},
+            ],
+            text_format=ResponseFormat,
             # stream=True,
         )
         for chunk in response:

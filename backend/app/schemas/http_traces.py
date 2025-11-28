@@ -38,6 +38,14 @@ class HTTPTraceCreate(BaseModel):
         ...,
         description="Complete raw response headers",
     )
+    request_method: str | None = Field(
+        None,
+        description="The HTTP method of the request",
+    )
+    request_path: str | None = Field(
+        None,
+        description="The path component of the request URL",
+    )
 
     # Optional extracted fields for convenience
     metadata: dict[str, Any] = Field(
@@ -91,6 +99,14 @@ class HTTPTraceRead(BaseModel):
     response_headers: dict[str, str] = Field(
         ...,
         description="Complete raw response headers",
+    )
+    request_method: str | None = Field(
+        None,
+        description="The HTTP method of the request",
+    )
+    request_path: str | None = Field(
+        None,
+        description="The path component of the request URL",
     )
 
     # Optional extracted fields for convenience

@@ -113,6 +113,41 @@ def extract_call_path(
     return None
 
 
+
 def get_project_name() -> str | None:
     """Get the project name from environment variables."""
     return os.getenv("PROJECT_NAME")
+
+
+SENSITIVE_HEADERS = {
+    "authorization",
+    "api-key",
+    "x-api-key",
+    "token",
+    "access-token",
+    "secret",
+    "password",
+    "credential",
+}
+
+
+def redact_headers(headers: dict) -> dict:
+    """Redact sensitive headers from a dictionary of headers.
+
+    Args:
+        headers: Dictionary of headers to redact
+
+    Returns:
+        A new dictionary with sensitive headers redacted.
+        The keys are preserved in their original case, but matching is case-insensitive.
+    """
+    if not headers:
+        return {}
+
+    redacted = {}
+    for key, value in headers.items():
+        if key.lower() in SENSITIVE_HEADERS:
+            redacted[key] = "[REDACTED]"
+        else:
+            redacted[key] = value
+    return redacted

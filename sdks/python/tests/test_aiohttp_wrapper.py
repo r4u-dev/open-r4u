@@ -493,8 +493,10 @@ class TestTraceAsyncClient:
 
         assert len(capturing_tracer.traces) == 1
         trace = capturing_tracer.traces[0]
-        assert trace.request_headers.get("Authorization") == "Bearer token"
+        assert trace.request_headers.get("Authorization") == "[REDACTED]"
         assert trace.request_headers.get("X-Custom") == "value"
+        assert trace.request_method == "GET"
+        assert trace.request_path == "/test"
 
         # Cleanup
         await session.close()

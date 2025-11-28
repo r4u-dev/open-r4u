@@ -1,9 +1,8 @@
-
 """API endpoints for HTTP-level trace ingestion."""
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
@@ -66,10 +65,12 @@ async def create_http_trace(
         request_headers=payload.request_headers,
         response=response_str,
         response_headers=payload.response_headers,
+        request_method=payload.request_method,
+        request_path=payload.request_path,
         http_metadata=payload.metadata,
     )
     session.add(http_trace)
-    await session.flush()
+    await session.commit()
 
     # Initialize parser service
     parser_service = HTTPTraceParserService()
