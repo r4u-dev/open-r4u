@@ -2,15 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  CheckSquare, 
+import {
+  LayoutDashboard,
+  CheckSquare,
   Activity,
   Settings,
   ChevronLeft,
   ChevronRight,
   BarChart3,
   Rocket,
+  Gavel,
   X
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
@@ -45,6 +46,11 @@ const navigationItems = [
     icon: BarChart3,
   },
   {
+    title: "Graders",
+    href: "/graders",
+    icon: Gavel,
+  },
+  {
     title: "Optimizations",
     href: "/optimizations",
     icon: Rocket,
@@ -72,12 +78,12 @@ const Sidebar = ({ isCollapsed, onToggle, className, isMobile = false, onMobileM
 
   return (
     <aside
-        className={cn(
-          "bg-card border-r border-border flex flex-col transition-all duration-300 ease-in-out",
-          isCollapsed ? "w-16" : "w-64",
-          className
-        )}
-      >
+      className={cn(
+        "bg-card border-r border-border flex flex-col transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-16" : "w-64",
+        className
+      )}
+    >
       {/* Sidebar Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
@@ -132,7 +138,7 @@ const Sidebar = ({ isCollapsed, onToggle, className, isMobile = false, onMobileM
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
-            
+
             return (
               <li key={item.href}>
                 {isCollapsed ? (
