@@ -27,6 +27,14 @@ class HTTPTrace(BaseModel):
         None,
         description="The call path where the request was made",
     )
+    request_method: str | None = Field(
+        None,
+        description="The HTTP method of the request",
+    )
+    request_path: str | None = Field(
+        None,
+        description="The path component of the request URL",
+    )
 
     # Timing
     started_at: datetime = Field(..., description="When the request started")

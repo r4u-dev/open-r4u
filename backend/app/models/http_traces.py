@@ -46,6 +46,8 @@ class HTTPTrace(Base):
     request_headers: Mapped[dict[str, str]] = mapped_column(JSONType, nullable=False)
     response: Mapped[str] = mapped_column(Text, nullable=False)
     response_headers: Mapped[dict[str, str]] = mapped_column(JSONType, nullable=False)
+    request_method: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Metadata
     http_metadata: Mapped[dict[str, Any]] = mapped_column(

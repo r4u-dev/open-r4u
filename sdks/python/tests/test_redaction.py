@@ -59,7 +59,7 @@ class TestRequestsRedaction:
         """Test that requests headers are redacted in trace context."""
         request = Mock(spec=requests.PreparedRequest)
         request.method = "GET"
-        request.url = "https://api.example.com"
+        request.url = "https://api.example.com/"
         request.headers = {
             "Authorization": "Bearer secret",
             "Content-Type": "application/json"
@@ -70,6 +70,8 @@ class TestRequestsRedaction:
         
         assert ctx["request_headers"]["Authorization"] == "[REDACTED]"
         assert ctx["request_headers"]["Content-Type"] == "application/json"
+        assert ctx["request_method"] == "GET"
+        assert ctx["request_path"] == "/"
 
 
 class TestHttpxRedaction:
@@ -79,14 +81,15 @@ class TestHttpxRedaction:
         """Test that httpx headers are redacted in trace context."""
         request = Mock(spec=httpx.Request)
         request.method = "GET"
-        request.url = httpx.URL("https://api.example.com")
+        request.url = httpx.URL("https://api.example.com/")
         request.headers = httpx.Headers({
             "Authorization": "Bearer secret",
             "Content-Type": "application/json"
         })
         request.content = b""
 
-        # httpx normalizes headers to lowercase when converting to dict
         ctx = httpx_build_context(request)
         assert ctx["request_headers"]["authorization"] == "[REDACTED]"
         assert ctx["request_headers"]["content-type"] == "application/json"
+        assert ctx["request_method"] == "GET"
+        assert ctx["request_path"] == "/"

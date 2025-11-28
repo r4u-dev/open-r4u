@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from urllib.parse import urlparse
+
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
 from r4u.utils import extract_call_path, redact_headers
@@ -163,6 +165,8 @@ class StreamingResponseWrapper:
             error=self._trace_ctx.get("error"),
             request=self._trace_ctx["request_bytes"],
             request_headers=self._trace_ctx["request_headers"],
+            request_method=self._trace_ctx.get("request_method"),
+            request_path=self._trace_ctx.get("request_path"),
             response=self._trace_ctx.get("response_bytes", b""),
             response_headers=self._trace_ctx.get("response_headers", {}),
         )
@@ -188,6 +192,9 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
     # Extract call path
     call_path_and_no = extract_call_path(is_async=False)
 
+    parsed_url = urlparse(request.url)
+    request_path = parsed_url.path
+
     return {
         "method": request.method.upper(),
         "url": request.url,
@@ -195,6 +202,8 @@ def _build_trace_context(request: requests.PreparedRequest) -> dict:
         "request_bytes": request_payload,
         "request_headers": redact_headers(dict(request.headers)),
         "path": call_path_and_no[0] if call_path_and_no else None,
+        "request_method": request.method.upper(),
+        "request_path": request_path,
     }
 
 
@@ -219,6 +228,8 @@ def _finalize_trace(
         error=error,
         request=trace_ctx["request_bytes"],
         request_headers=trace_ctx["request_headers"],
+        request_method=trace_ctx.get("request_method"),
+        request_path=trace_ctx.get("request_path"),
         response=response_bytes,
         response_headers=response_headers,
     )

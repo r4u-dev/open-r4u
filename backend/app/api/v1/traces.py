@@ -169,5 +169,7 @@ async def get_trace_http_trace(
         error=http_trace.error,
         request_headers=http_trace.request_headers,
         response_headers=http_trace.response_headers,
+        request_method=http_trace.request_method,
+        request_path=http_trace.request_path,
         metadata=http_trace.http_metadata,
     )
