@@ -7,6 +7,7 @@ prompt rendering, and database interactions.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -21,6 +22,8 @@ from app.models.executions import ExecutionResult
 from app.models.traces import Trace
 from app.schemas.traces import OutputItem, OutputMessageItem
 from app.services.executor import LLMExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class NotFoundError(Exception):
@@ -105,6 +108,25 @@ class GradingService:
             return None
         return None
 
+    def _get_baseline_implementation_id(self, trace: Trace | None, execution_result: ExecutionResult | None) -> int | None:
+        """Resolve the production baseline implementation ID for normalization."""
+        try:
+            task = None
+            if execution_result:
+                if execution_result.task:
+                    task = execution_result.task
+                elif execution_result.implementation and execution_result.implementation.task:
+                    task = execution_result.implementation.task
+            elif trace and trace.implementation and trace.implementation.task:
+                task = trace.implementation.task
+
+            if task and task.production_version_id:
+                return task.production_version_id
+        except Exception as e:
+            logger.warning(f"Failed to get baseline implementation ID: {e}")
+
+        return self._get_target_implementation_id(trace, execution_result)
+
     async def _get_baseline_quality(self, session: AsyncSession, implementation_id: int | None, default: float = 0.7) -> float:
         """Get average historical quality_score for an implementation using EvaluationService, or default."""
         if implementation_id is None:
@@ -122,8 +144,8 @@ class GradingService:
             )
             if stats and stats.avg_quality_score is not None:
                 return float(stats.avg_quality_score)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to get baseline quality: {e}")
         return default
 
     async def create_grader(
@@ -491,8 +513,8 @@ class GradingService:
         # Normalize Pairwise score before storing, so it's persisted as quality-like
         if grader.score_type == ScoreType.FLOAT and score_float is not None:
             if "pairwise" in (grader.name or "").lower():
-                impl_id = self._get_target_implementation_id(trace, execution_result)
-                baseline_quality = await self._get_baseline_quality(session, impl_id, default=0.7)
+                baseline_impl_id = self._get_baseline_implementation_id(trace, execution_result)
+                baseline_quality = await self._get_baseline_quality(session, baseline_impl_id, default=0.7)
                 score_float = self._normalize_pairwise_score(score_float, baseline_quality)
 
         # Create grade record
