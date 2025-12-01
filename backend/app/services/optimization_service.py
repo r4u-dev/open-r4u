@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 from datetime import UTC, datetime
+import random
 from typing import Any
 
 from sqlalchemy import select
@@ -38,8 +40,50 @@ class OptimizationService:
     DEFAULT_OPTIMIZER_TEMPERATURE = 0.7
     DEFAULT_OPTIMIZER_MAX_TOKENS = 8000
     MAX_VARIANT_ATTEMPTS_MULTIPLIER = 2
-    DEFAULT_OPTIMIZER_MODEL = "openai/gpt-4.1"
+    DEFAULT_OPTIMIZER_MODEL = "openai/gpt-5"
     OPTIMIZER_META_VERSION = "optimizer-meta"
+
+    PROMPT_OPTIMIZATION_PROMPT = """You are an expert prompt engineer.
+Your mission is to iteratively improve prompts by
+(1) applying the specified technique and
+(2) incorporating any evaluation feedback, while preserving the original intent, constraints, and placeholders.
+
+Inputs:
+- Prompt to optimize: provided below as current best implementation.
+- Technique to apply: <technique>{{technique}}</technique>
+- Evaluation feedback: scores and comments about a previous version of the optimized prompt, present in the conversation.
+
+Guidelines:
+- Integrate the technique into the rewritten prompt.
+- Use evaluation feedback to fix issues
+- Preserve all variables, tags, required outputs, and domain-specific constraints from the original prompt.
+- If you think that the technique is already applied and all evaluation feedback is satisfied, keep the prompt as is (or with minimal polishing) and explain this in the explanation field.
+
+Task: Rewrite the prompt using the approach in <technique>...</technique> and addressing the evaluation feedback, producing a single improved prompt that embeds the model's role/persona and its goals/responsibilities at the start.
+
+Output: prompt and explanation about the changes."""
+
+    PROMPT_OPTIMIZATION_TECHNIQUES: list[str] = [
+        "Modify the prompt to clearly specify the desired output format (e.g., bullets, table, JSON), replacing any vague wording with explicit instructions.",
+        "Rewrite the prompt to include a clear role/persona for the model (e.g., \"You are an expert X\") and briefly describe its goals and responsibilities before the task.",
+        "Restructure the prompt into well-labeled sections (e.g., \"Context\", \"Task\", \"Constraints\", \"Output format\") using headings, bullet points, and delimiters for clarity.",
+        "Update the prompt to add explicit constraints on tone, style, and length (e.g., \"formal and concise, 3-5 sentences\") so the outputs are more consistent.",
+        "Turn the prompt into a few-shot prompt by adding 1-3 high-quality input-output examples that demonstrate exactly what a good answer looks like.",
+        "Enhance the prompt with explicit safety and reliability rules (e.g., \"If you are unsure, say you are unsure\", \"Do not invent citations or facts\") to reduce hallucinations.",
+        "Add explicit success criteria and a short checklist to the prompt (e.g., \"Make sure the answer: 1) covers X, 2) compares Y and Z, 3) includes at least one example\").",
+        "Rewrite the prompt so that it decomposes the task into smaller steps or sub-tasks, and instruct the model to solve them in order.",
+        "Simplify and tighten the language of the prompt by removing redundant phrases and unnecessary details, while preserving all important instructions.",
+        "Enrich the prompt with domain-specific context and concrete examples (e.g., typical entities, formats, or edge cases) instead of generic or abstract wording.",
+        "Convert the prompt so that it requires the output in a strict machine-readable format (e.g., JSON with a specific schema or a markdown table) and clearly define that schema.",
+        "Strengthen the prompt with explicit \"do not\" rules (e.g., \"Do not change the original text except where requested\", \"Do not include explanations in the final JSON\").",
+        "Adjust the prompt to specify the desired creativity level and variability (e.g., “be highly creative with many novel ideas” or “be conservative and stick closely to the given data”).",
+        "Modify the prompt to explicitly call out important edge cases and corner scenarios the model should handle, and instruct it not to ignore them.",
+        "Rework the prompt so that it includes a clear description of the user's context and goals (why they need the output) and ask the model to tailor the answer to that context.",
+        "Optimize the prompt for brevity and efficiency by reducing token usage: keep key constraints and examples, but remove filler text and low-impact details.",
+        "Adapt the prompt to specify a target reading level or audience expertise (e.g., \"explain for a beginner\", \"assume the reader is a senior engineer\") and instruct the model accordingly.",
+        "Modify the prompt so that it explicitly instructs the model to compare multiple alternatives or options when appropriate, and make a justified recommendation at the end.",
+        "Enhance the prompt by adding a brief rubric the model should follow when generating its answer (e.g., “clarity”, “accuracy”, “coverage”), and ask it to optimize for those dimensions.",
+    ]
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -620,7 +664,8 @@ class OptimizationService:
             return
 
         try:
-            content_str = json.dumps({"proposed_change": variant})
+            display_variant = self._format_variant_for_display(variant)
+            content_str = self._format_variant_message(display_variant or variant)
             self._conversation.setdefault(task_id, []).append(
                 MessageItem(role=MessageRole.ASSISTANT, content=content_str),
             )
@@ -628,6 +673,10 @@ class OptimizationService:
             logger.warning(f"Failed to record variant in conversation: {e}")
 
     def _build_variant_meta_prompt_json(self, changeable_fields: list[OptimizationMutableField]) -> str:
+        if self._is_prompt_only_optimization(changeable_fields):
+            technique = self._select_prompt_optimization_technique()
+            return self.PROMPT_OPTIMIZATION_PROMPT.replace("{{technique}}", technique)
+
         fields_csv = ", ".join(changeable_fields)
         return (
             "You are an expert prompt and configuration optimizer. Given a baseline implementation and evaluation feedback, "
@@ -639,6 +688,15 @@ class OptimizationService:
             "Available models (choose 'model' as the integer index) in the format: index:<n>/quality:<q>/cost:<c>\n"
             "{{available_models_compact}}\n\n"
         )
+
+    def _select_prompt_optimization_technique(self) -> str:
+        """Select a random prompt optimization technique for prompt-only runs."""
+        return random.choice(self.PROMPT_OPTIMIZATION_TECHNIQUES)
+
+    @staticmethod
+    def _is_prompt_only_optimization(changeable_fields: list[OptimizationMutableField]) -> bool:
+        """Return True when the optimizer is allowed to modify only the prompt."""
+        return set(changeable_fields) == {"prompt"}
 
     async def _append_baseline_to_conversation(
         self,
@@ -672,19 +730,95 @@ class OptimizationService:
                 pass
 
             baseline_payload = {
-                "implementation_id": implementation_id,
-                "version": getattr(impl, "version", None),
                 "prompt": getattr(impl, "prompt", None),
-                "model": model_value,
+                "model": self._map_model_index(model_value),
                 "temperature": getattr(impl, "temperature", None),
                 "max_output_tokens": getattr(impl, "max_output_tokens", None),
             }
-            content_str = "Current best implementation: " + json.dumps(baseline_payload)
+            content_str = self._format_baseline_message(baseline_payload)
             self._conversation.setdefault(task_id, []).append(
                 MessageItem(role=MessageRole.USER, content=content_str),
             )
         except (TypeError, ValueError) as e:
             logger.warning(f"Failed to record baseline in conversation: {e}")
+
+    def _map_model_index(self, value: Any) -> Any:
+        """Translate integer model indexes to canonical names when possible."""
+        if isinstance(value, int):
+            name_lookup = getattr(self, "_model_index_lookup", None)
+            if isinstance(name_lookup, dict) and value in name_lookup:
+                return name_lookup[value]
+        return value
+
+    def _format_prompt_block(self, prompt: str | None) -> str:
+        """Wrap prompt text inside <prompt>...</prompt> tags for readability."""
+        text = (prompt or "").strip()
+        if not text:
+            return "<prompt />"
+        return f"<prompt>\n{text}\n</prompt>"
+
+    def _format_baseline_message(self, payload: dict[str, Any]) -> str:
+        """Create the user message describing the current best implementation."""
+        lines = ["current best implementation:"]
+        lines.append(self._format_prompt_block(payload.get("prompt")))
+        for field in ("model", "temperature", "max_output_tokens"):
+            value = payload.get(field)
+            if value is not None:
+                lines.append(f"{field.replace('_', ' ')}: {value}")
+        return "\n".join(lines)
+
+    def _format_variant_message(self, variant: dict[str, Any]) -> str:
+        """Create the assistant message describing proposed changes."""
+        lines = ["proposed changes:"]
+        lines.append(self._format_prompt_block(variant.get("prompt")))
+        for field in ("model", "temperature", "max_output_tokens", "explanation"):
+            if field not in variant:
+                continue
+            value = variant[field]
+            lines.append(f"{field.replace('_', ' ')}: {value}")
+        return "\n".join(lines)
+
+    def _format_evaluation_message(
+        self,
+        summary: list[dict[str, Any]],
+    ) -> str:
+        """Create the user message containing evaluation feedback."""
+        lines = ["evaluation feedback:"]
+        reasonings: list[str] = []
+        quality_scores: list[float] = []
+        avg_cost = None
+        avg_execution_time = None
+
+        if summary:
+            first = summary[0]
+            avg_cost = first.get("avg_cost")
+            avg_execution_time = first.get("avg_execution_time_ms")
+            graders = first.get("graders") or []
+            for grader in graders:
+                score = grader.get("score")
+                if isinstance(score, (int, float)):
+                    quality_scores.append(float(score))
+                for reasoning in grader.get("reasonings") or []:
+                    if reasoning and isinstance(reasoning, str):
+                        reasonings.append(reasoning)
+
+        lines.append("<grader_reasonings>")
+        if reasonings:
+            lines.append("\n".join(f"{idx}. {text}" for idx, text in enumerate(reasonings, start=1)))
+        else:
+            lines.append("None provided.")
+        lines.append("</grader_reasonings>")
+
+        quality_value = (
+            sum(quality_scores) / len(quality_scores) if quality_scores else None
+        )
+
+        lines.append(f"quality score: {quality_value if quality_value is not None else 'n/a'}")
+        lines.append(f"avg cost: {avg_cost if avg_cost is not None else 'n/a'}")
+        lines.append(
+            f"avg execution time ms: {avg_execution_time if avg_execution_time is not None else 'n/a'}",
+        )
+        return "\n".join(lines)
 
     def _build_response_schema_for_fields(
         self, changeable_fields: list[OptimizationMutableField], available_models: list[dict[str, Any]] | None = None,
@@ -907,11 +1041,7 @@ class OptimizationService:
     ) -> list[dict[str, Any]]:
         """Summarize evaluation outcomes, append to conversation as a user message, and return the summary."""
         summary = await self._build_evaluation_summary(session, implementation_ids)
-        content_obj = {
-            "evaluation_feedback": summary,
-            "chosen_implementation_id": chosen_id,
-        }
-        content_str = json.dumps(content_obj)
+        content_str = self._format_evaluation_message(summary)
         logger.debug(f"Evaluation feedback for task {task_id}: {content_str}")
         self._conversation.setdefault(task_id, []).append(
             MessageItem(role=MessageRole.USER, content=content_str),

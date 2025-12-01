@@ -412,6 +412,92 @@ async def test_execute_grading_execution_result_success(grading_service, test_se
 
 
 @pytest.mark.asyncio
+async def test_pairwise_normalization_uses_production_baseline(grading_service, test_session):
+    """Ensure pairwise normalization anchors on production evaluations."""
+    project = Project(name="Test Project")
+    test_session.add(project)
+    await test_session.flush()
+
+    task = Task(
+        name="Pairwise Task",
+        description="Compare baseline and candidate",
+        project_id=project.id,
+    )
+    test_session.add(task)
+    await test_session.flush()
+
+    prod_impl = Implementation(
+        task_id=task.id,
+        version="prod",
+        prompt="Prod prompt",
+        model="gpt-4",
+        max_output_tokens=400,
+    )
+    candidate_impl = Implementation(
+        task_id=task.id,
+        version="candidate",
+        prompt="Candidate prompt",
+        model="gpt-4",
+        max_output_tokens=400,
+    )
+    test_session.add_all([prod_impl, candidate_impl])
+    await test_session.flush()
+
+    task.production_version_id = prod_impl.id
+    await test_session.flush()
+
+    grader = await grading_service.create_grader(
+        session=test_session,
+        project_id=project.id,
+        name="Pairwise",
+        prompt="Pairwise prompt",
+        score_type=ScoreType.FLOAT,
+        model="gpt-4",
+        max_output_tokens=500,
+    )
+
+    execution_result = ExecutionResult(
+        task_id=task.id,
+        implementation_id=candidate_impl.id,
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        prompt_rendered="Candidate output",
+        result_text="Current output",
+    )
+    test_session.add(execution_result)
+    await test_session.flush()
+
+    mock_llm_result = ExecutionResultBase(
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        prompt_rendered="Pairwise prompt",
+        result_text='{"score": 0.5, "reasoning": "Tie"}',
+    )
+
+    with (
+        patch("app.services.grading_service.LLMExecutor") as mock_executor_class,
+        patch.object(
+            grading_service,
+            "_get_baseline_quality",
+            AsyncMock(return_value=0.82),
+        ) as mock_get_baseline,
+    ):
+        mock_executor = AsyncMock()
+        mock_executor.execute.return_value = mock_llm_result
+        mock_executor_class.return_value = mock_executor
+
+        grade = await grading_service.execute_grading(
+            session=test_session,
+            grader_id=grader.id,
+            execution_result_id=execution_result.id,
+        )
+
+    mock_get_baseline.assert_awaited_once_with(test_session, prod_impl.id, default=0.7)
+    assert grade.score_float == pytest.approx(0.82)
+    assert grade.reasoning == "Tie"
+
+
+@pytest.mark.asyncio
 async def test_execute_grading_inactive_grader(grading_service, test_session):
     """Test executing grading with an inactive grader."""
     project = Project(name="Test Project")
