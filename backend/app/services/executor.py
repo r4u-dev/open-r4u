@@ -119,7 +119,7 @@ class LLMExecutor:
                         variables,
                     ),
                 }
-                tool_call_id = getattr(item, "tool_call_id", None)
+                tool_call_id = getattr(item, "call_id", None)
                 if tool_call_id:
                     msg["tool_call_id"] = tool_call_id
                 tool_calls = getattr(item, "tool_calls", None)
@@ -130,12 +130,53 @@ class LLMExecutor:
                         for tc in tool_calls
                     ]
                 messages.append(msg)
+            
+            elif item_type == ItemType.FUNCTION_CALL:
+                # Function call as function message
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "name": getattr(item, "name", None),
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": getattr(item, "call_id", None),
+                                "type": "function",
+                                "function": {
+                                    "name": getattr(item, "name", None),
+                                    "arguments": getattr(item, "arguments", None),
+                                },
+                            }
+                        ],
+                    },
+                )
+
+            elif item_type == ItemType.TOOL_CALL:
+                # Tool call as tool message
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "tool_call_id": getattr(item, "id", None),
+                                "type": "tool",
+                                "function": {
+                                    "name": getattr(item, "name", None),
+                                    "arguments": getattr(item, "arguments", None),
+                                },
+                            }
+                        ],
+                    },
+                )
 
             elif item_type == ItemType.TOOL_RESULT:
                 # Tool result as tool message
                 messages.append(
                     {
                         "role": "tool",
+                        "type": "tool_result",
+                        "name": getattr(item, "name", None),
                         "content": json.dumps(getattr(item, "result", None)),
                         "tool_call_id": getattr(item, "call_id", None),
                     },
@@ -146,8 +187,18 @@ class LLMExecutor:
                 messages.append(
                     {
                         "role": "function",
+                        "type": "function_result",
                         "name": getattr(item, "name", None),
                         "content": json.dumps(getattr(item, "result", None)),
+                        "tool_call_id": getattr(item, "call_id", None),
+                    },
+                )
+            
+            else:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": item.model_dump_json(),
                     },
                 )
 
