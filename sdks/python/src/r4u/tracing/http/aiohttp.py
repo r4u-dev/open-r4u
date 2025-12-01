@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 
 import aiohttp
 
+from urllib.parse import urlparse
+
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
-from r4u.utils import extract_call_path
+from r4u.utils import extract_call_path, redact_headers
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +136,7 @@ class StreamingResponseWrapper:
         self._trace_ctx["status_code"] = self._response.status
         self._trace_ctx["error"] = self._error
         self._trace_ctx["response_bytes"] = self._content_collected
-        self._trace_ctx["response_headers"] = dict(self._response.headers)
+        self._trace_ctx["response_headers"] = redact_headers(dict(self._response.headers))
 
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
@@ -146,6 +148,8 @@ class StreamingResponseWrapper:
             error=self._trace_ctx.get("error"),
             request=self._trace_ctx["request_bytes"],
             request_headers=self._trace_ctx["request_headers"],
+            request_method=self._trace_ctx.get("request_method"),
+            request_path=self._trace_ctx.get("request_path"),
             response=self._trace_ctx.get("response_bytes", b""),
             response_headers=self._trace_ctx.get("response_headers", {}),
         )
@@ -191,13 +195,18 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
 
         call_path_and_no = extract_call_path(is_async=True)
 
+        parsed_url = urlparse(str(url))
+        request_path = parsed_url.path
+
         trace_ctx = {
             "method": str(method).upper(),
             "url": str(url),
             "started_at": started_at,
             "request_bytes": request_payload,
-            "request_headers": dict(kwargs.get("headers", {})),
+            "request_headers": redact_headers(dict(kwargs.get("headers", {}))),
             "path": call_path_and_no[0] if call_path_and_no else None,
+            "request_method": str(method).upper(),
+            "request_path": request_path,
         }
 
         response = None
@@ -222,6 +231,8 @@ def _create_async_wrapper(original: Callable, tracer: AbstractTracer):
                 error=error,
                 request=trace_ctx["request_bytes"],
                 request_headers=trace_ctx["request_headers"],
+                request_method=trace_ctx.get("request_method"),
+                request_path=trace_ctx.get("request_path"),
                 response=b"",
                 response_headers={},
             )

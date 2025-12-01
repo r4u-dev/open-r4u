@@ -49,7 +49,11 @@ class GradingService:
         """Initialize the grading service with settings."""
         self.settings = settings
 
-    def _normalize_pairwise_score(self, raw_score: float | None, baseline_good: float) -> float | None:
+    def _normalize_pairwise_score(
+        self,
+        raw_score: float | None,
+        baseline_good: float,
+    ) -> float | None:
         """Map a pairwise score in [0,1] to a quality-like score with 0.5 anchored at baseline_good.
 
         Mapping is piecewise-linear:
@@ -97,7 +101,11 @@ class GradingService:
         except Exception:
             return ""
 
-    def _get_target_implementation_id(self, trace: Trace | None, execution_result: ExecutionResult | None) -> int | None:
+    def _get_target_implementation_id(
+        self,
+        trace: Trace | None,
+        execution_result: ExecutionResult | None,
+    ) -> int | None:
         """Resolve implementation ID from either a trace or an execution result target."""
         try:
             if execution_result and execution_result.implementation:
@@ -275,7 +283,9 @@ class GradingService:
                             parsed_item = OutputMessageItem.model_validate(item)
                         except Exception:
                             # If validation fails, treat as raw dict
-                            if any(k in item for k in ("score", "reasoning", "confidence")):
+                            if any(
+                                k in item for k in ("score", "reasoning", "confidence")
+                            ):
                                 payload = item
                                 break
                             continue
@@ -624,6 +634,7 @@ Task Prompt: {{task_prompt}}
 Task Arguments: {{task_arguments}}
 Actual Output: {{actual_output}}
 Expected Output: {{expected_output}}
+If the expected output is not given, use task_prompt and task_arguments to determine the expected output.
 """,
             score_type=ScoreType.FLOAT,
             model="openai/gpt-5",
@@ -677,6 +688,8 @@ Task Arguments: {{task_arguments}}
 Output from the baseline implementation: {{expected_output}}
 Output from the current implementation: {{actual_output}}
 
+If the expected output is not given, use task_prompt and task_arguments to determine the expected output.
+
 Assign a numeric score in the continuous range [0.0, 1.0] representing how much the current implementation is better than the baseline implementation:
 - 1.0 if the current implementation is clearly better than the baseline implementation
 - 0.5 if the current implementation and the baseline implementation are equally good (tie / indifference)
@@ -692,7 +705,10 @@ Return only the structured response.
             response_schema={
                 "type": "object",
                 "properties": {
-                    "score": {"type": "number", "description": "Continuous preference score in [0.0, 1.0]"},
+                    "score": {
+                        "type": "number",
+                        "description": "Continuous preference score in [0.0, 1.0]",
+                    },
                     "reasoning": {"type": "string"},
                 },
                 "additionalProperties": False,

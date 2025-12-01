@@ -47,28 +47,16 @@ export function formatHTTPRequest(
 ): string {
     const lines: string[] = [];
 
-    // Parse URL to extract method and path
-    let method = "POST";
-    let path = "/";
-    let host = "";
+    let host = headers["Host"] || headers["host"] || "";
 
     if (url) {
         try {
             const urlObj = new URL(url);
             host = urlObj.host;
-            path = urlObj.pathname + urlObj.search;
         } catch {
             // If URL parsing fails, use defaults
         }
     }
-
-    // Try to extract method from headers or metadata
-    if (headers["X-HTTP-Method"]) {
-        method = headers["X-HTTP-Method"];
-    }
-
-    // Request line
-    lines.push(`${method} ${path} HTTP/1.1`);
 
     // Add host header first if available
     if (host) {

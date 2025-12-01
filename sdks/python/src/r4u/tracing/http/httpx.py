@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from urllib.parse import urlparse
+
 from r4u.client import AbstractTracer, HTTPTrace
 from r4u.tracing.http.filters import should_trace_url
-from r4u.utils import extract_call_path
+from r4u.utils import extract_call_path, redact_headers
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +160,7 @@ class StreamingResponseWrapper:
         self._trace_ctx["status_code"] = self._response.status_code
         self._trace_ctx["error"] = self._error
         self._trace_ctx["response_bytes"] = self._content_collected
-        self._trace_ctx["response_headers"] = dict(self._response.headers)
+        self._trace_ctx["response_headers"] = redact_headers(dict(self._response.headers))
 
         trace = HTTPTrace(
             url=self._trace_ctx.get("url", ""),
@@ -170,6 +172,8 @@ class StreamingResponseWrapper:
             error=self._trace_ctx.get("error"),
             request=self._trace_ctx["request_bytes"],
             request_headers=self._trace_ctx["request_headers"],
+            request_method=self._trace_ctx.get("request_method"),
+            request_path=self._trace_ctx.get("request_path"),
             response=self._trace_ctx.get("response_bytes", b""),
             response_headers=self._trace_ctx.get("response_headers", {}),
         )
@@ -193,13 +197,18 @@ def _build_trace_context(request: httpx.Request, is_async=False) -> dict:
     # Extract call path
     call_path_with_no = extract_call_path(is_async=is_async)
 
+    parsed_url = urlparse(str(request.url))
+    request_path = parsed_url.path
+
     return {
         "method": request.method.upper(),
         "url": str(request.url),
         "started_at": started_at,
         "request_bytes": request.content or b"",
-        "request_headers": headers_dict,
+        "request_headers": redact_headers(headers_dict),
         "path": call_path_with_no[0] if call_path_with_no else None,
+        "request_method": request.method.upper(),
+        "request_path": request_path,
     }
 
 
@@ -211,7 +220,7 @@ def _finalize_trace(
     completed_at = datetime.now(timezone.utc)
     status_code = response.status_code if response else 0
     response_bytes = response.content or b"" if response else b""
-    response_headers = dict(response.headers) if response else {}
+    response_headers = redact_headers(dict(response.headers)) if response else {}
 
     return HTTPTrace(
         url=trace_ctx.get("url", ""),
@@ -223,6 +232,8 @@ def _finalize_trace(
         error=error,
         request=trace_ctx["request_bytes"],
         request_headers=trace_ctx["request_headers"],
+        request_method=trace_ctx.get("request_method"),
+        request_path=trace_ctx.get("request_path"),
         response=response_bytes,
         response_headers=response_headers,
     )

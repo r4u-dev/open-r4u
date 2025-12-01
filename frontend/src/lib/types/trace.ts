@@ -382,6 +382,8 @@ export interface HTTPTrace {
     request_headers: Record<string, string>;
     response: string;
     response_headers: Record<string, string>;
+    request_method?: string | null;
+    request_path?: string | null;
     http_metadata: Record<string, any>;
 }
 
