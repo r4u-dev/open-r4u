@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from typing import Any
 
 from litellm import acompletion
@@ -209,7 +209,7 @@ class LLMExecutor:
             input: Optional message history (InputItem list). If provided, messages will follow the system prompt.
 
         """
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)
 
         # Always render prompt as system prompt (warn on missing, do not fail)
         prompt_rendered = self._render_template(implementation.prompt, variables)
@@ -223,7 +223,7 @@ class LLMExecutor:
                 converted = self._convert_input_to_messages(input, variables)
                 messages.extend(converted)
             except Exception as e:
-                completed_at = datetime.now(UTC)
+                completed_at = datetime.now(timezone.utc)
                 return ExecutionResultBase(
                     started_at=started_at,
                     completed_at=completed_at,
@@ -274,7 +274,7 @@ class LLMExecutor:
         # Execute the request using LiteLLM
         try:
             response = await acompletion(**request_params, drop_params=True)
-            completed_at = datetime.now(UTC)
+            completed_at = datetime.now(timezone.utc)
 
             # Parse the response
             choice = response.choices[0]

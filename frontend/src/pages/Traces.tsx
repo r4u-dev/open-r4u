@@ -24,7 +24,7 @@ const Traces = () => {
 
     const [traces, setTraces] = useState<Trace[]>([]);
     const [selectedTrace, setSelectedTrace] = useState<string | null>(null);
-    const [timePeriod, setTimePeriod] = useState<TimePeriod>("4h");
+    const [timePeriod, setTimePeriod] = useState<TimePeriod>("all");
     const [isLoading, setIsLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [sortField, setSortField] = useState<SortField>("timestamp");
@@ -60,30 +60,8 @@ const Traces = () => {
 
     // Filter and sort traces
     const filteredAndSortedTraces = useMemo(() => {
-        const now = new Date();
-        const timePeriodMs = {
-            "5m": 5 * 60 * 1000,
-            "15m": 15 * 60 * 1000,
-            "1h": 60 * 60 * 1000,
-            "4h": 4 * 60 * 60 * 1000,
-        }[timePeriod];
-
-        const cutoffTime = new Date(now.getTime() - timePeriodMs);
-
-        // TEMPORARY: Disable time filtering for debugging
-        const filtered = traces; // traces.filter((trace) => new Date(trace.timestamp) >= cutoffTime);
-
-        console.log("Filtering traces:", {
-            total: traces.length,
-            filtered: filtered.length,
-            timePeriod,
-            cutoffTime: cutoffTime.toISOString(),
-            now: now.toISOString(),
-            sampleTimestamp: traces[0]?.timestamp,
-        });
-
-        // Sort the filtered traces
-        return filtered.sort((a, b) => {
+        // Sort the traces
+        return [...traces].sort((a, b) => {
             let aValue: string | number, bValue: string | number;
 
             switch (sortField) {
@@ -123,23 +101,48 @@ const Traces = () => {
             if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
             return 0;
         });
-    }, [traces, timePeriod, sortField, sortDirection]);
+    }, [traces, sortField, sortDirection]);
 
     const selectedTraceData = selectedTrace
         ? traces.find((t) => t.id === selectedTrace)
         : null;
+
+    const getTimeRange = (period: TimePeriod) => {
+        if (period === "all") {
+            return {
+                start_time: undefined,
+                end_time: undefined,
+            };
+        }
+
+        const now = new Date();
+        const timePeriodMs = {
+            "5m": 5 * 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "4h": 4 * 60 * 60 * 1000,
+        }[period];
+
+        const startTime = new Date(now.getTime() - timePeriodMs);
+        return {
+            start_time: startTime.toISOString(),
+            end_time: now.toISOString(),
+        };
+    };
 
     // Fetch initial traces
     useEffect(() => {
         const fetchInitialTraces = async () => {
             setIsLoading(true);
             try {
+                const { start_time, end_time } = getTimeRange(timePeriod);
                 const fetchedTraces = await tracesApi.fetchTraces({
                     limit: ITEMS_PER_LOAD,
                     offset: 0,
+                    start_time,
+                    end_time,
                 });
                 console.log("Fetched traces from API:", fetchedTraces.length);
-                console.log("First trace:", fetchedTraces[0]);
                 setTraces(fetchedTraces);
                 setHasMore(fetchedTraces.length === ITEMS_PER_LOAD);
             } catch (error) {
@@ -150,7 +153,7 @@ const Traces = () => {
         };
 
         fetchInitialTraces();
-    }, []);
+    }, []); // Only run once on mount, timePeriod change handled separately
 
     // Auto-select first trace when traces are loaded or filtered
     useEffect(() => {
@@ -165,9 +168,12 @@ const Traces = () => {
 
         setIsLoading(true);
         try {
+            const { start_time, end_time } = getTimeRange(timePeriod);
             const fetchedTraces = await tracesApi.fetchTraces({
                 limit: ITEMS_PER_LOAD,
                 offset: traces.length,
+                start_time,
+                end_time,
             });
 
             if (fetchedTraces.length < ITEMS_PER_LOAD) {
@@ -180,7 +186,7 @@ const Traces = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [isLoading, hasMore, traces.length]);
+    }, [isLoading, hasMore, traces.length, timePeriod]);
 
     // Handle sorting
     const handleSort = (field: SortField) => {
@@ -218,9 +224,12 @@ const Traces = () => {
         // Refetch traces with new time period
         setIsLoading(true);
         try {
+            const { start_time, end_time } = getTimeRange(period);
             const fetchedTraces = await tracesApi.fetchTraces({
                 limit: ITEMS_PER_LOAD,
                 offset: 0,
+                start_time,
+                end_time,
             });
             setTraces(fetchedTraces);
             setHasMore(fetchedTraces.length === ITEMS_PER_LOAD);
