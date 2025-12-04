@@ -1,6 +1,6 @@
 """Tests for trace API endpoints."""
 
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -852,8 +852,8 @@ class TestTraceEndpoints:
         await test_session.commit()
 
         http_trace = HTTPTrace(
-            started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=UTC),
-            completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=UTC),
+            started_at=datetime(2025, 10, 15, 10, 0, 0, tzinfo=timezone.utc),
+            completed_at=datetime(2025, 10, 15, 10, 0, 1, tzinfo=timezone.utc),
             status_code=200,
             error=None,
             request='{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}',
@@ -1063,3 +1063,45 @@ class TestTraceEndpoints:
         assert data["prompt"] is None
         assert len(data["input"]) == 2
         assert all(item["data"]["role"] != "system" for item in data["input"])
+    async def test_list_traces_with_time_filtering(self, client: AsyncClient):
+        """Test listing traces with time filtering."""
+        # Create traces at different times
+        timestamps = [
+            "2025-10-15T10:00:00Z",
+            "2025-10-15T11:00:00Z",
+            "2025-10-15T12:00:00Z",
+        ]
+
+        for i, ts in enumerate(timestamps):
+            payload = {
+                "model": f"model-{i}",
+                "input": [{"type": "message", "role": "user", "content": "Test"}],
+                "started_at": ts,
+                "completed_at": ts.replace("00Z", "01Z"),
+            }
+            await client.post("/v1/traces", json=payload)
+
+        # Test filtering by start_time
+        response = await client.get("/v1/traces?start_time=2025-10-15T11:00:00Z")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["model"] == "model-2"
+        assert data[1]["model"] == "model-1"
+
+        # Test filtering by end_time
+        response = await client.get("/v1/traces?end_time=2025-10-15T11:00:00Z")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["model"] == "model-1"
+        assert data[1]["model"] == "model-0"
+
+        # Test filtering by both
+        response = await client.get(
+            "/v1/traces?start_time=2025-10-15T10:30:00Z&end_time=2025-10-15T11:30:00Z"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["model"] == "model-1"

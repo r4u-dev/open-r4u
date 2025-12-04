@@ -15,6 +15,8 @@ import TestCaseCreate from "./pages/TestCaseCreate";
 import Optimizations from "./pages/Optimizations";
 import CreateTask from "./pages/CreateTask";
 import Traces from "./pages/Traces";
+import Graders from "./pages/Graders";
+import GraderDetail from "./pages/GraderDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { ProjectProvider } from "./contexts/ProjectContext";
@@ -67,6 +69,9 @@ const App = () => (
                                         element={<EvaluationDetail />}
                                     />
                                     <Route path="optimizations" element={<Optimizations />} />
+                                    <Route path="graders" element={<Graders />} />
+                                    <Route path="graders/new" element={<GraderDetail />} />
+                                    <Route path="graders/:graderId" element={<GraderDetail />} />
                                     <Route path="settings" element={<Settings />} />
                                 </Route>
                                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

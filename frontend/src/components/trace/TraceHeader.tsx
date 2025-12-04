@@ -13,6 +13,7 @@ export function TraceHeader({ timePeriod, onTimePeriodChange }: TraceHeaderProps
     { value: "15m" as const, label: "Last 15 minutes" },
     { value: "1h" as const, label: "Last 1 hour" },
     { value: "4h" as const, label: "Last 4 hours" },
+    { value: "all" as const, label: "All" },
   ];
 
   return (

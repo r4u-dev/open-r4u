@@ -7,7 +7,7 @@ grading, metrics calculation, and target metrics management.
 from __future__ import annotations
 
 import statistics
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -350,7 +350,7 @@ class EvaluationService:
             implementation_id=implementation_id,
             task_id=task.id,
             status=EvaluationStatus.RUNNING,
-            started_at=datetime.now(UTC),
+            started_at=datetime.now(timezone.utc),
             test_case_count=len(test_cases),
         )
         session.add(evaluation)
@@ -472,7 +472,7 @@ class EvaluationService:
 
                     # Update evaluation with stored metrics (efficiency scores calculated on-demand)
                     evaluation.status = EvaluationStatus.COMPLETED
-                    evaluation.completed_at = datetime.now(UTC)
+                    evaluation.completed_at = datetime.now(timezone.utc)
                     evaluation.grader_scores = grader_scores
                     evaluation.quality_score = quality_score
                     evaluation.avg_cost = avg_cost
@@ -487,7 +487,7 @@ class EvaluationService:
                 except Exception as e:
                     # Mark evaluation as failed
                     evaluation.status = EvaluationStatus.FAILED
-                    evaluation.completed_at = datetime.now(UTC)
+                    evaluation.completed_at = datetime.now(timezone.utc)
                     evaluation.error = str(e)
                     await session.commit()
                     await session.refresh(evaluation)

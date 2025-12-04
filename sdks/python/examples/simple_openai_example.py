@@ -69,13 +69,12 @@ def main():
         class ResponseFormat(BaseModel):
             message: str
 
-        response = client.responses.parse(
+        response = client.responses.create(
             model="gpt-4.1",
             input=[
                 {"role": "user", "content": "Hey"},
                 {"role": "user", "content": "Hey, what is your name?"},
             ],
-            text_format=ResponseFormat,
             # stream=True,
         )
         for chunk in response:

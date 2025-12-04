@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 from litellm import acompletion
@@ -53,16 +53,16 @@ class LLMExecutor:
         variables: dict[str, Any] | None = None,
     ) -> Any:
         """Render template variables using double curly braces {{ }}.
-        
-        Recursively processes strings, lists, and dicts. Only {{ }} placeholders 
+
+        Recursively processes strings, lists, and dicts. Only {{ }} placeholders
         are substituted; single braces are left untouched.
-        
+
         Args:
             value: String, list, dict, or other value to render
             variables: Variable substitutions (key -> value)
-            raise_on_missing: If True, raise ValueError on missing vars; 
+            raise_on_missing: If True, raise ValueError on missing vars;
                             if False, log warning and return original
-        
+
         Returns:
             Rendered value with {{ var }} replaced by variables[var]
 
@@ -167,7 +167,9 @@ class LLMExecutor:
         }
         return finish_reason_map.get(finish_reason, FinishReason.STOP)
 
-    def _build_response_format(self, response_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _build_response_format(
+        self, response_schema: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Normalize response schema into OpenAI response_format json_schema structure.
 
         Accepts either the new wrapped format or a plain JSON Schema and returns
@@ -209,7 +211,7 @@ class LLMExecutor:
             input: Optional message history (InputItem list). If provided, messages will follow the system prompt.
 
         """
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)
 
         # Always render prompt as system prompt (warn on missing, do not fail)
         prompt_rendered = self._render_template(implementation.prompt, variables)
@@ -223,7 +225,7 @@ class LLMExecutor:
                 converted = self._convert_input_to_messages(input, variables)
                 messages.extend(converted)
             except Exception as e:
-                completed_at = datetime.now(UTC)
+                completed_at = datetime.now(timezone.utc)
                 return ExecutionResultBase(
                     started_at=started_at,
                     completed_at=completed_at,
@@ -234,7 +236,11 @@ class LLMExecutor:
         # Prepare the request
         model = implementation.model
         if not model or "/" not in model:
-            logger.warning("Executing implementation %s with non-canonical model '%s'", implementation.id, model)
+            logger.warning(
+                "Executing implementation %s with non-canonical model '%s'",
+                implementation.id,
+                model,
+            )
 
         temperature = implementation.temperature
         max_tokens = implementation.max_output_tokens
@@ -264,7 +270,9 @@ class LLMExecutor:
                 request_params["tool_choice"] = tool_choice
 
         if response_schema:
-            request_params["response_format"] = self._build_response_format(response_schema)
+            request_params["response_format"] = self._build_response_format(
+                response_schema
+            )
 
         # Handle reasoning for o1/o3 models
         if reasoning:
@@ -274,7 +282,7 @@ class LLMExecutor:
         # Execute the request using LiteLLM
         try:
             response = await acompletion(**request_params, drop_params=True)
-            completed_at = datetime.now(UTC)
+            completed_at = datetime.now(timezone.utc)
 
             # Parse the response
             choice = response.choices[0]
@@ -334,7 +342,9 @@ class LLMExecutor:
                 )
 
             # Set result_json to the list of OutputItems (proper schema format)
-            result_json = [item.model_dump() for item in output_items] if output_items else None
+            result_json = (
+                [item.model_dump() for item in output_items] if output_items else None
+            )
 
             # Map finish reason
             finish_reason = self._map_finish_reason(choice.finish_reason)
@@ -367,7 +377,9 @@ class LLMExecutor:
             reasoning_tokens = None
             if usage:
                 completion_tokens_details = getattr(
-                    usage, "completion_tokens_details", None,
+                    usage,
+                    "completion_tokens_details",
+                    None,
                 )
                 if completion_tokens_details is not None:
                     if isinstance(completion_tokens_details, dict):
@@ -376,7 +388,7 @@ class LLMExecutor:
                         )
                     else:
                         value = getattr(
-                            completion_tokens_details, "reasoning_tokens", None,
+                            completion_tokens_details, "reasoning_tokens", None
                         )
                         if value is not None:
                             reasoning_tokens = value

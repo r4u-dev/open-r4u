@@ -387,7 +387,7 @@ export interface HTTPTrace {
     http_metadata: Record<string, any>;
 }
 
-export type TimePeriod = "5m" | "15m" | "1h" | "4h";
+export type TimePeriod = "5m" | "15m" | "1h" | "4h" | "all";
 
 export interface Grade {
     id: number;

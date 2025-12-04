@@ -1,6 +1,7 @@
 """API endpoints for traces."""
 
 from collections.abc import Sequence
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -26,12 +27,20 @@ async def list_traces(
         None,
         description="Filter by implementation ID",
     ),
+    start_time: str | None = Query(
+        None,
+        description="Filter by start time (ISO 8601)",
+    ),
+    end_time: str | None = Query(
+        None,
+        description="Filter by end time (ISO 8601)",
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
     """Return paginated traces with their associated input items.
 
     Supports infinite scrolling with limit and offset parameters.
-    Can be filtered by task_id or implementation_id.
+    Can be filtered by task_id, implementation_id, and time range.
     """
     query = select(Trace).options(
         joinedload(Trace.input_items),
@@ -47,6 +56,12 @@ async def list_traces(
 
     if implementation_id is not None:
         query = query.filter(Trace.implementation_id == implementation_id)
+
+    if start_time is not None:
+        query = query.filter(Trace.started_at >= datetime.fromisoformat(start_time))
+
+    if end_time is not None:
+        query = query.filter(Trace.started_at <= datetime.fromisoformat(end_time))
 
     query = query.order_by(Trace.started_at.desc()).limit(limit).offset(offset)
 
