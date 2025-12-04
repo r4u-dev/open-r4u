@@ -490,6 +490,7 @@ class TraceRead(TraceBase):
         validation_alias="output_items",
         serialization_alias="output",
     )
+    ai_score: float | None = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

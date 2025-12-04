@@ -40,6 +40,7 @@ export interface BackendTrace {
         data: Record<string, any>;
         position: number;
     }>;
+    ai_score: number | null;
 }
 
 export interface FetchTracesParams {
@@ -49,6 +50,8 @@ export interface FetchTracesParams {
     implementation_id?: number;
     start_time?: string;
     end_time?: string;
+    sort_field?: string;
+    sort_order?: "asc" | "desc";
 }
 
 // Map backend trace to frontend trace format
@@ -173,6 +176,7 @@ const mapBackendTraceToFrontend = (backendTrace: BackendTrace): Trace => {
         outputItems,
         rawRequest: "", // Raw request not available from backend
         rawResponse: "", // Raw response not available from backend
+        aiScore: backendTrace.ai_score || undefined,
     };
 };
 
@@ -181,7 +185,7 @@ export const tracesApi = {
      * Fetch traces with pagination support
      */
     async fetchTraces(params: FetchTracesParams = {}): Promise<Trace[]> {
-        const { limit = 25, offset = 0, task_id, implementation_id, start_time, end_time } = params;
+        const { limit = 25, offset = 0, task_id, implementation_id, start_time, end_time, sort_field, sort_order } = params;
 
         const queryParams = new URLSearchParams({
             limit: limit.toString(),
@@ -205,6 +209,14 @@ export const tracesApi = {
 
         if (end_time) {
             queryParams.append("end_time", end_time);
+        }
+
+        if (sort_field) {
+            queryParams.append("sort_field", sort_field);
+        }
+
+        if (sort_order) {
+            queryParams.append("sort_order", sort_order);
         }
 
         const response = await apiClient.get<BackendTrace[]>(

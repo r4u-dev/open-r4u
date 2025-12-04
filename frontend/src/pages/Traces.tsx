@@ -14,7 +14,8 @@ type SortField =
     | "model"
     | "latency"
     | "cost"
-    | "timestamp";
+    | "timestamp"
+    | "ai_score";
 type SortDirection = "asc" | "desc";
 
 const Traces = () => {
@@ -60,48 +61,8 @@ const Traces = () => {
 
     // Filter and sort traces
     const filteredAndSortedTraces = useMemo(() => {
-        // Sort the traces
-        return [...traces].sort((a, b) => {
-            let aValue: string | number, bValue: string | number;
-
-            switch (sortField) {
-                case "status":
-                    aValue = a.status;
-                    bValue = b.status;
-                    break;
-                case "source":
-                    aValue = a.path || "";
-                    bValue = b.path || "";
-                    break;
-                case "type":
-                    aValue = a.type;
-                    bValue = b.type;
-                    break;
-                case "model":
-                    aValue = a.model;
-                    bValue = b.model;
-                    break;
-                case "latency":
-                    aValue = a.latency;
-                    bValue = b.latency;
-                    break;
-                case "cost":
-                    aValue = a.cost;
-                    bValue = b.cost;
-                    break;
-                case "timestamp":
-                    aValue = new Date(a.timestamp).getTime();
-                    bValue = new Date(b.timestamp).getTime();
-                    break;
-                default:
-                    return 0;
-            }
-
-            if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-            if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-            return 0;
-        });
-    }, [traces, sortField, sortDirection]);
+        return traces;
+    }, [traces]);
 
     const selectedTraceData = selectedTrace
         ? traces.find((t) => t.id === selectedTrace)
@@ -130,9 +91,9 @@ const Traces = () => {
         };
     };
 
-    // Fetch initial traces
+    // Fetch traces when filters/sort change
     useEffect(() => {
-        const fetchInitialTraces = async () => {
+        const fetchTraces = async () => {
             setIsLoading(true);
             try {
                 const { start_time, end_time } = getTimeRange(timePeriod);
@@ -141,6 +102,8 @@ const Traces = () => {
                     offset: 0,
                     start_time,
                     end_time,
+                    sort_field: sortField,
+                    sort_order: sortDirection,
                 });
                 console.log("Fetched traces from API:", fetchedTraces.length);
                 setTraces(fetchedTraces);
@@ -152,8 +115,8 @@ const Traces = () => {
             }
         };
 
-        fetchInitialTraces();
-    }, []); // Only run once on mount, timePeriod change handled separately
+        fetchTraces();
+    }, [timePeriod, sortField, sortDirection]);
 
     // Auto-select first trace when traces are loaded or filtered
     useEffect(() => {
@@ -174,6 +137,8 @@ const Traces = () => {
                 offset: traces.length,
                 start_time,
                 end_time,
+                sort_field: sortField,
+                sort_order: sortDirection,
             });
 
             if (fetchedTraces.length < ITEMS_PER_LOAD) {
@@ -186,7 +151,7 @@ const Traces = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [isLoading, hasMore, traces.length, timePeriod]);
+    }, [isLoading, hasMore, traces.length, timePeriod, sortField, sortDirection]);
 
     // Handle sorting
     const handleSort = (field: SortField) => {
@@ -194,8 +159,9 @@ const Traces = () => {
             setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
         } else {
             setSortField(field);
-            setSortDirection("asc");
+            setSortDirection("desc"); // Default to desc for new field
         }
+        setTraces([]); // Reset traces to trigger loading state
     };
 
     // Intersection Observer for infinite scroll
@@ -220,24 +186,7 @@ const Traces = () => {
     const handleTimePeriodChange = async (period: TimePeriod) => {
         setTimePeriod(period);
         setSelectedTrace(null);
-
-        // Refetch traces with new time period
-        setIsLoading(true);
-        try {
-            const { start_time, end_time } = getTimeRange(period);
-            const fetchedTraces = await tracesApi.fetchTraces({
-                limit: ITEMS_PER_LOAD,
-                offset: 0,
-                start_time,
-                end_time,
-            });
-            setTraces(fetchedTraces);
-            setHasMore(fetchedTraces.length === ITEMS_PER_LOAD);
-        } catch (error) {
-            console.error("Failed to fetch traces:", error);
-        } finally {
-            setIsLoading(false);
-        }
+        setTraces([]); // Reset traces
     };
 
     // Splitter drag handlers

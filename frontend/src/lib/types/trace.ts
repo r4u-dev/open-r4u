@@ -370,6 +370,7 @@ export interface Trace {
     outputItems: OutputItem[]; // Changed from output: string to outputItems: OutputItem[]
     rawRequest: string;
     rawResponse: string;
+    aiScore?: number;
 }
 
 export interface HTTPTrace {
