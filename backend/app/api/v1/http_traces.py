@@ -88,6 +88,7 @@ async def create_http_trace(
             error=payload.error,
             metadata=payload.metadata,
             call_path=payload.path,
+            request_path=payload.request_path,
         )
     except ValueError as e:
         # HTTPTrace is already saved, just rollback the transaction for the trace
