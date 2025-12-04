@@ -40,6 +40,7 @@ class AnthropicParser(ProviderParser):
         call_path: str | None = None,
         is_streaming: bool = False,
         streaming_response: str | None = None,
+        request_path: str | None = None,
     ) -> TraceCreate:
         """Parse Anthropic API request/response."""
         # Extract model

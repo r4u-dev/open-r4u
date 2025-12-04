@@ -51,15 +51,32 @@ class OpenAIParser(ProviderParser):
         finish_reason = None
         system_fingerprint = None
 
+        # Extract temperature robustly
+        temperature = request_body.get("temperature")
+        if temperature is None:
+            temperature = response_body.get("temperature")
+        if temperature is None and is_responses_api:
+            # Responses API might have it in 'response' object
+            temperature = response_body.get("response", {}).get("temperature")
+
+        # If streaming, temperature might have been extracted from stream
+        if is_streaming and streaming_response:
+            # We need to pass temperature back from streaming parsers or extract it here if possible.
+            # Since streaming parsers return a tuple, we can add temperature to it or just rely on what we have.
+            # Let's update streaming parsers to return temperature if found.
+            pass
+
         if is_streaming and streaming_response:
             if is_responses_api:
-                output_items, usage, finish_reason, system_fingerprint = (
+                output_items, usage, finish_reason, system_fingerprint, stream_temp = (
                     self._parse_responses_streaming(streaming_response)
                 )
             else:
-                output_items, usage, finish_reason, system_fingerprint = (
+                output_items, usage, finish_reason, system_fingerprint, stream_temp = (
                     self._parse_completions_streaming(streaming_response)
                 )
+            if temperature is None:
+                temperature = stream_temp
         elif is_responses_api:
             output_items, usage, finish_reason, system_fingerprint = (
                 self._parse_responses_non_streaming(response_body)
@@ -82,6 +99,7 @@ class OpenAIParser(ProviderParser):
             trace_metadata=metadata,
             instructions=request_body.get("instructions"),
             prompt=request_body.get("prompt"),
+            temperature=temperature,
         )
 
         if usage:
@@ -92,6 +110,18 @@ class OpenAIParser(ProviderParser):
                 "output_tokens",
             )
             trace.total_tokens = usage.get("total_tokens")
+
+            # Extract cached tokens
+            prompt_tokens_details = usage.get("prompt_tokens_details")
+            if prompt_tokens_details:
+                trace.cached_tokens = prompt_tokens_details.get("cached_tokens")
+
+            # Extract reasoning tokens
+            completion_tokens_details = usage.get("completion_tokens_details")
+            if completion_tokens_details:
+                trace.reasoning_tokens = completion_tokens_details.get(
+                    "reasoning_tokens",
+                )
 
         return trace
 
@@ -197,6 +227,8 @@ class OpenAIParser(ProviderParser):
         system_fingerprint = None
         response_id = ""
         tool_calls_buffer = {}  # index -> {id, type, function: {name, arguments}}
+        usage = None
+        temperature = None
 
         for line in lines:
             line = line.strip()
@@ -215,6 +247,10 @@ class OpenAIParser(ProviderParser):
                 system_fingerprint = (
                     chunk.get("system_fingerprint") or system_fingerprint
                 )
+
+                # Check for temperature in chunk (unlikely but possible in some custom proxies or future API)
+                if chunk.get("temperature"):
+                    temperature = chunk.get("temperature")
 
                 choices = chunk.get("choices", [])
                 if choices:
@@ -253,6 +289,8 @@ class OpenAIParser(ProviderParser):
 
                     if choices[0].get("finish_reason"):
                         finish_reason = choices[0].get("finish_reason")
+                if chunk.get("usage"):
+                    usage = chunk.get("usage")
             except Exception:
                 pass
 
@@ -281,8 +319,7 @@ class OpenAIParser(ProviderParser):
                 },
             )
 
-        usage = None
-        return output_items, usage, finish_reason, system_fingerprint
+        return output_items, usage, finish_reason, system_fingerprint, temperature
 
     def _parse_responses_non_streaming(self, response_body: dict[str, Any]):
         output_data = response_body.get("output", [])
@@ -333,6 +370,7 @@ class OpenAIParser(ProviderParser):
         tool_calls = {}  # id -> {name, arguments, status}
         usage = None
         finish_reason = None
+        temperature = None
 
         for line in lines:
             line = line.strip()
@@ -382,8 +420,15 @@ class OpenAIParser(ProviderParser):
                 elif event_type == "response.completed":
                     response = event_data.get("response", {})
                     usage = response.get("usage")
+                    if response.get("temperature"):
+                        temperature = response.get("temperature")
                     if response.get("status") == "completed":
                         finish_reason = "stop"
+
+                elif event_type == "response.created":
+                    response = event_data.get("response", {})
+                    if response.get("temperature"):
+                        temperature = response.get("temperature")
 
             except Exception:
                 pass
@@ -412,4 +457,4 @@ class OpenAIParser(ProviderParser):
                 },
             )
 
-        return output_items, usage, finish_reason, None
+        return output_items, usage, finish_reason, None, temperature
