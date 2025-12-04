@@ -4,13 +4,14 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, func, desc, asc, nulls_last
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.database import get_session
 from app.models.http_traces import HTTPTrace
 from app.models.traces import Trace
+from app.models.evaluation import Grade
 from app.schemas.http_traces import HTTPTraceRead
 from app.schemas.traces import TraceCreate, TraceRead
 from app.services.traces_service import TracesService
@@ -35,6 +36,8 @@ async def list_traces(
         None,
         description="Filter by end time (ISO 8601)",
     ),
+    sort_field: str = Query("timestamp", description="Field to sort by"),
+    sort_order: str = Query("desc", description="Sort order (asc or desc)"),
     session: AsyncSession = Depends(get_session),
 ) -> list[TraceRead]:
     """Return paginated traces with their associated input items.
@@ -42,9 +45,14 @@ async def list_traces(
     Supports infinite scrolling with limit and offset parameters.
     Can be filtered by task_id, implementation_id, and time range.
     """
-    query = select(Trace).options(
-        joinedload(Trace.input_items),
-        joinedload(Trace.output_items),
+    query = (
+        select(Trace, func.avg(Grade.score_float).label("ai_score"))
+        .outerjoin(Grade, Trace.id == Grade.trace_id)
+        .options(
+            joinedload(Trace.input_items),
+            joinedload(Trace.output_items),
+        )
+        .group_by(Trace.id)
     )
 
     # Apply filters if provided
@@ -63,12 +71,32 @@ async def list_traces(
     if end_time is not None:
         query = query.filter(Trace.started_at <= datetime.fromisoformat(end_time))
 
-    query = query.order_by(Trace.started_at.desc()).limit(limit).offset(offset)
+    # Apply sorting
+    if sort_field == "ai_score":
+        sort_col = func.avg(Grade.score_float)
+        if sort_order == "asc":
+            query = query.order_by(nulls_last(asc(sort_col)))
+        else:
+            query = query.order_by(nulls_last(desc(sort_col)))
+    else:
+        # Default to timestamp
+        sort_col = Trace.started_at
+        if sort_order == "asc":
+            query = query.order_by(asc(sort_col))
+        else:
+            query = query.order_by(desc(sort_col))
+
+    query = query.limit(limit).offset(offset)
 
     result = await session.execute(query)
-    traces: Sequence[Trace] = result.unique().scalars().all()
+    rows = result.unique().all()
 
-    return [TraceRead.model_validate(trace) for trace in traces]
+    trace_reads = []
+    for trace, score in rows:
+        trace.ai_score = score
+        trace_reads.append(TraceRead.model_validate(trace))
+
+    return trace_reads
 
 
 @router.post("", response_model=TraceRead, status_code=status.HTTP_201_CREATED)

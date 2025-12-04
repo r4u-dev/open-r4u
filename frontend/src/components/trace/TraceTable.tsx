@@ -9,7 +9,8 @@ type SortField =
     | "model"
     | "latency"
     | "cost"
-    | "timestamp";
+    | "timestamp"
+    | "ai_score";
 type SortDirection = "asc" | "desc";
 
 interface TraceTableProps {
@@ -85,6 +86,15 @@ export function TraceTable({
                         </th>
                         <th
                             className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-16 cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => handleSort("ai_score")}
+                        >
+                            <div className="flex items-center">
+                                AI SCORE
+                                {getSortIcon("ai_score")}
+                            </div>
+                        </th>
+                        <th
+                            className="px-3 py-2 text-left text-[10px] font-medium text-foreground w-16 cursor-pointer hover:text-primary transition-colors"
                             onClick={() => handleSort("type")}
                         >
                             <div className="flex items-center">
@@ -118,11 +128,10 @@ export function TraceTable({
                             key={trace.id}
                             data-trace-id={trace.id}
                             onClick={() => onSelectTrace(trace.id)}
-                            className={`border-b border-border cursor-pointer transition-colors ${
-                                selectedTraceId === trace.id
+                            className={`border-b border-border cursor-pointer transition-colors ${selectedTraceId === trace.id
                                     ? "bg-accent"
                                     : "hover:bg-muted/50"
-                            }`}
+                                }`}
                         >
                             <td className="px-3 py-2">
                                 {trace.status === "success" ? (
@@ -156,6 +165,13 @@ export function TraceTable({
                             >
                                 {trace.cost !== null
                                     ? "$" + trace.cost.toFixed(4)
+                                    : "-"}
+                            </td>
+                            <td
+                                className={`px-3 py-2 text-right ${selectedTraceId === trace.id ? "text-accent-foreground" : "text-foreground"}`}
+                            >
+                                {trace.aiScore !== undefined && trace.aiScore !== null
+                                    ? trace.aiScore.toFixed(2)
                                     : "-"}
                             </td>
                             <td
