@@ -34,10 +34,12 @@ class ProviderParser(ABC):
         call_path: str | None = None,
         is_streaming: bool = False,
         streaming_response: str | None = None,
+        request_path: str | None = None,
     ) -> TraceCreate:
         """Parse HTTP request/response into a TraceCreate object.
 
         Args:
+            project_id: Project ID
             request_body: Parsed JSON request body
             response_body: Parsed JSON response body
             started_at: When the request started

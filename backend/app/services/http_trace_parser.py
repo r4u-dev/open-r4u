@@ -84,6 +84,7 @@ class HTTPTraceParserService:
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
         call_path: str | None = None,
+        request_path: str | None = None,
     ) -> TraceCreate:
         """Parse HTTP trace into a TraceCreate object.
 
@@ -192,4 +193,5 @@ class HTTPTraceParserService:
             call_path=call_path,
             is_streaming=is_streaming,
             streaming_response=response_str if is_streaming else None,
+            request_path=request_path,
         )

@@ -19,7 +19,6 @@ import { usePage } from "@/contexts/PageContext";
 import { JsonSchemaViewer } from "@/components/task/JsonSchemaViewer";
 import {
   testCasesApi,
-  CreateTestCasesFromTracesRequest,
 } from "@/services/testCasesApi";
 import {
   Dialog,
@@ -50,8 +49,7 @@ import { modelsApi } from "@/services/modelsApi";
 import { ImplementationEvaluationStats } from "@/lib/types/evaluation";
 import { ScoreWeightsSelector } from "@/components/ui/score-weights-selector";
 import { Slider } from "@/components/ui/slider";
-import { tracesApi } from "@/services/tracesApi";
-import type { Trace } from "@/lib/types/trace";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -74,6 +72,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { TracesList } from "@/components/trace/TracesList";
 
 type TabType =
   | "overview"
@@ -89,9 +88,7 @@ const TaskDetail = () => {
   const [task, setTask] = useState<TaskDetailType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [traces, setTraces] = useState<Trace[]>([]);
-  const [tracesLoading, setTracesLoading] = useState(false);
-  const [tracesError, setTracesError] = useState<string | null>(null);
+
   const [traceFilterImplementation, setTraceFilterImplementation] =
     useState<string>("all");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -112,14 +109,7 @@ const TaskDetail = () => {
   >([]);
   const [testsLoading, setTestsLoading] = useState(false);
   const [testsError, setTestsError] = useState<string | null>(null);
-  const [selectedTraces, setSelectedTraces] = useState<Set<string>>(new Set());
-  const [creatingTestCases, setCreatingTestCases] = useState(false);
-  const [createTestCasesError, setCreateTestCasesError] = useState<
-    string | null
-  >(null);
-  const [createTestCasesSuccess, setCreateTestCasesSuccess] = useState<
-    number | null
-  >(null);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -1246,80 +1236,9 @@ const TaskDetail = () => {
     }
   };
 
-  const toggleTraceSelection = (traceId: string) => {
-    setSelectedTraces((prev) => {
-      const next = new Set(prev);
-      if (next.has(traceId)) {
-        next.delete(traceId);
-      } else {
-        next.add(traceId);
-      }
-      return next;
-    });
-  };
 
-  const handleCreateTestCasesFromTraces = async () => {
-    if (!taskId || selectedTraces.size === 0) return;
-    try {
-      setCreatingTestCases(true);
-      setCreateTestCasesError(null);
-      setCreateTestCasesSuccess(null);
 
-      const traceIds = Array.from(selectedTraces).map((id) => parseInt(id, 10));
-      const request: CreateTestCasesFromTracesRequest = {
-        task_id: parseInt(taskId, 10),
-        trace_ids: traceIds,
-      };
 
-      const response = await testCasesApi.createTestCasesFromTraces(request);
-
-      setCreateTestCasesSuccess(response.data.created_count);
-      setSelectedTraces(new Set());
-
-      // Reload test cases if on evaluations tab
-      if (activeTab === "evaluations") {
-        await reloadTests();
-      }
-    } catch (e) {
-      setCreateTestCasesError(
-        e instanceof Error
-          ? e.message
-          : "Failed to create test cases from traces",
-      );
-    } finally {
-      setCreatingTestCases(false);
-    }
-  };
-
-  // Load traces when switching to traces tab or when filter changes
-  useEffect(() => {
-    const loadTraces = async () => {
-      if (activeTab !== "traces" || !taskId) return;
-      try {
-        setTracesLoading(true);
-        setTracesError(null);
-        const params: { task_id: number; implementation_id?: number } = {
-          task_id: parseInt(taskId, 10),
-        };
-
-        // Apply implementation filter if selected
-        if (traceFilterImplementation !== "all") {
-          params.implementation_id = parseInt(traceFilterImplementation, 10);
-        }
-
-        const fetchedTraces = await tracesApi.fetchTraces(params);
-        setTraces(fetchedTraces);
-      } catch (e) {
-        setTracesError(
-          e instanceof Error ? e.message : "Failed to load traces",
-        );
-      } finally {
-        setTracesLoading(false);
-      }
-    };
-
-    loadTraces();
-  }, [activeTab, taskId, traceFilterImplementation]);
 
   // Cleanup page title when component unmounts
   useEffect(() => {
@@ -1807,158 +1726,16 @@ const TaskDetail = () => {
                 </Select>
               </div>
 
-              {tracesLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : tracesError ? (
-                <div className="text-sm text-destructive">{tracesError}</div>
-              ) : traces.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  <p>No traces yet</p>
-                </div>
-              ) : (
-                <>
-                  {/* Actions Bar */}
-                  <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-card">
-                    <div className="text-sm text-muted-foreground">
-                      {selectedTraces.size > 0 ? (
-                        <span>
-                          {selectedTraces.size} trace
-                          {selectedTraces.size > 1 ? "s" : ""} selected
-                        </span>
-                      ) : (
-                        <span>Select traces to create test cases</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedTraces.size > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedTraces(new Set())}
-                        >
-                          Clear Selection
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={handleCreateTestCasesFromTraces}
-                        disabled={
-                          selectedTraces.size === 0 || creatingTestCases
-                        }
-                      >
-                        {creatingTestCases ? (
-                          <span className="flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Creating...
-                          </span>
-                        ) : (
-                          `Create Test Cases (${selectedTraces.size})`
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Success Message */}
-                  {createTestCasesSuccess !== null && (
-                    <div className="bg-success/10 border border-success/20 text-success rounded-lg p-3 text-sm">
-                      Successfully created {createTestCasesSuccess} test case
-                      {createTestCasesSuccess > 1 ? "s" : ""}!
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="ml-2 text-success"
-                        onClick={() => {
-                          setActiveTab("evaluations");
-                          setSearchParams({
-                            tab: "evaluations",
-                          });
-                        }}
-                      >
-                        View in Evaluations tab
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Error Message */}
-                  {createTestCasesError && (
-                    <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 text-sm">
-                      {createTestCasesError}
-                    </div>
-                  )}
-
-                  {/* Traces List */}
-                  <div className="space-y-2">
-                    {traces.map((trace) => (
-                      <div
-                        key={trace.id}
-                        className={`border rounded p-3 text-sm transition-colors ${selectedTraces.has(trace.id)
-                          ? "border-primary bg-primary/5"
-                          : "border-border"
-                          }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Checkbox */}
-                          <input
-                            type="checkbox"
-                            checked={selectedTraces.has(trace.id)}
-                            onChange={() => toggleTraceSelection(trace.id)}
-                            className="mt-1 h-4 w-4 rounded border-gray-300"
-                          />
-
-                          {/* Trace Content */}
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(trace.timestamp).toLocaleString()}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`text-xs px-2 py-1 rounded ${trace.status === "success" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}
-                                >
-                                  {trace.status}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {trace.latency.toFixed(2)}s
-                                </span>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <div className="text-xs text-muted-foreground mb-1">
-                                  Input
-                                </div>
-                                <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                                  {trace.inputMessages &&
-                                    trace.inputMessages.length > 0
-                                    ? JSON.stringify(
-                                      trace.inputMessages,
-                                      null,
-                                      2,
-                                    )
-                                    : "No input"}
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-xs text-muted-foreground mb-1">
-                                  Output
-                                </div>
-                                <div className="bg-muted p-2 rounded text-xs font-mono max-h-20 overflow-auto">
-                                  {trace.outputItems &&
-                                    trace.outputItems.length > 0
-                                    ? JSON.stringify(trace.outputItems, null, 2)
-                                    : "No output"}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+              <div className="h-[600px] border rounded-lg overflow-hidden">
+                <TracesList
+                  taskId={taskId ? parseInt(taskId, 10) : undefined}
+                  implementationId={
+                    traceFilterImplementation !== "all"
+                      ? parseInt(traceFilterImplementation, 10)
+                      : undefined
+                  }
+                />
+              </div>
             </div>
           )}
 

@@ -41,6 +41,7 @@ class GoogleGenAIParser(ProviderParser):
         call_path: str | None = None,
         is_streaming: bool = False,
         streaming_response: str | None = None,
+        request_path: str | None = None,
     ) -> TraceCreate:
         """Parse Google GenAI API request/response."""
         # Extract model from URL or metadata (Google uses model in URL path)
